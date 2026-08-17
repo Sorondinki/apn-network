@@ -3,12 +3,12 @@ package main
 import (
 	"fmt"
 	"math/big"
-	"time"
 
 	"github.com/alpha-proficiency/apn-network/consensus"
 	"github.com/alpha-proficiency/apn-network/core"
 	"github.com/alpha-proficiency/apn-network/crypto"
 	"github.com/alpha-proficiency/apn-network/p2p"
+	"github.com/alpha-proficiency/apn-network/rpc"
 )
 
 func main() {
@@ -38,18 +38,15 @@ func main() {
 		[]byte("TX: System Mint Reward to Genesis Validator"),
 	})
 
-	chain.DisplayChainLogs()
-
-	// 4. Start P2P TCP Network Server on Port 8089
+	// 4. Start P2P TCP Server on Port 8089 in Background
 	fmt.Println("\n[*] Launching P2P Peer Discovery Service...")
 	p2pServer := p2p.NewP2PNode("8089")
-	err := p2pServer.StartServer()
-	if err != nil {
-		fmt.Printf("[!] Failed to start P2P Server: %v\n", err)
-	} else {
-		fmt.Println("[+] APN Node Engine running successfully in Background Mode!")
-	}
+	go p2pServer.StartServer()
 
-	// Keep node running for testing connection
-	time.Sleep(2 * time.Second)
+	// 5. Start RPC HTTP API Server on Port 8545
+	rpcServer := rpc.NewRPCServer("8545", chain)
+	err := rpcServer.Start()
+	if err != nil {
+		fmt.Printf("[!] Failed to start RPC Server: %v\n", err)
+	}
 }
