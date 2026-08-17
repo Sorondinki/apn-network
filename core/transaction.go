@@ -5,7 +5,6 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"math/big"
 )
@@ -15,31 +14,33 @@ type Transaction struct {
 	Recipient string
 	Amount    int64
 	Signature []byte
-	TxHash    []byte
 }
 
 func NewTransaction(sender, recipient string, amount int64) *Transaction {
-	tx := &Transaction{
+	return &Transaction{
 		Sender:    sender,
 		Recipient: recipient,
 		Amount:    amount,
 	}
-	tx.TxHash = tx.CalculateHash()
-	return tx
 }
 
+// CalculateHash includes Amount so any modification invalidates signature
 func (tx *Transaction) CalculateHash() []byte {
-	record := fmt.Sprintf("%s%s%d", tx.Sender, tx.Recipient, tx.Amount)
+	record := fmt.Sprintf("%s:%s:%d", tx.Sender, tx.Recipient, tx.Amount)
 	hash := sha256.Sum256([]byte(record))
 	return hash[:]
 }
 
 func (tx *Transaction) Sign(privKey *ecdsa.PrivateKey) error {
-	r, s, err := ecdsa.Sign(rand.Reader, privKey, tx.TxHash)
+	hash := tx.CalculateHash()
+	r, s, err := ecdsa.Sign(rand.Reader, privKey, hash)
 	if err != nil {
 		return err
 	}
-	tx.Signature = append(r.Bytes(), s.Bytes()...)
+
+	// Store 64-byte signature (R + S)
+	signature := append(r.Bytes(), s.Bytes()...)
+	tx.Signature = signature
 	return nil
 }
 
@@ -48,27 +49,24 @@ func (tx *Transaction) VerifySignature(pubKeyBytes []byte) bool {
 		return false
 	}
 
-	curve := elliptic.P256()
-
-	// Ensure correct uncompressed point format prefix (0x04) if needed
-	formattedPubKey := pubKeyBytes
-	if len(pubKeyBytes) == 64 {
-		formattedPubKey = append([]byte{0x04}, pubKeyBytes...)
-	}
-
-	x, y := elliptic.Unmarshal(curve, formattedPubKey)
+	x, y := elliptic.Unmarshal(elliptic.P256(), pubKeyBytes)
 	if x == nil || y == nil {
 		return false
 	}
 
-	pubKey := ecdsa.PublicKey{Curve: curve, X: x, Y: y}
+	pubKey := &ecdsa.PublicKey{
+		Curve: elliptic.P256(),
+		X:     x,
+		Y:     y,
+	}
+
 	r := new(big.Int).SetBytes(tx.Signature[:32])
 	s := new(big.Int).SetBytes(tx.Signature[32:])
 
-	return ecdsa.Verify(&pubKey, tx.TxHash, r, s)
+	hash := tx.CalculateHash()
+	return ecdsa.Verify(pubKey, hash, r, s)
 }
 
 func (tx *Transaction) String() string {
-	return fmt.Sprintf("TX [%s...] From: %s -> To: %s | Amount: %d APN",
-		hex.EncodeToString(tx.TxHash)[:8], tx.Sender[:10], tx.Recipient[:10], tx.Amount)
+	return fmt.Sprintf("TX [%s -> %s | %d APN]", tx.Sender[:10], tx.Recipient[:10], tx.Amount)
 }
