@@ -65,4 +65,26 @@ func main() {
 	// Launch RPC Server with live state pointer
 	rpcServer := rpc.NewRPCServer("8545", chain, state)
 	_ = rpcServer.Start()
+
+	// Test APN Smart Contract Virtual Machine Engine
+	fmt.Println("\n[*] Executing APN Smart Contract Bytecode...")
+	vm := core.NewAPNVirtualMachine()
+
+	// Contract Code: Store initial supply, add tokens, save result
+	contractCode := `
+		PUSH 500
+		STORE TotalTokens
+		LOAD TotalTokens
+		PUSH 250
+		ADD
+		STORE NewBalance
+	`
+
+	errVM := vm.Execute(contractCode)
+	if errVM != nil {
+		fmt.Printf("[!] VM Execution Error: %v\n", errVM)
+	} else {
+		fmt.Printf("[+] VM Storage 'TotalTokens': %d APN\n", vm.Storage["TotalTokens"])
+		fmt.Printf("[+] VM Storage 'NewBalance':  %d APN\n", vm.Storage["NewBalance"])
+	}
 }
