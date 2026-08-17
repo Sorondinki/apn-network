@@ -2,34 +2,64 @@ package core
 
 import (
 	"fmt"
+	"sync"
+	"time"
 )
 
-// Blockchain represents the chain of blocks and ledger state
 type Blockchain struct {
 	Blocks []*Block
+	mu     sync.RWMutex
 }
 
-// InitBlockchain initializes a new blockchain starting with the Genesis Block
 func InitBlockchain() *Blockchain {
+	genesisBlock := GenesisBlock()
 	return &Blockchain{
-		Blocks: []*Block{NewGenesisBlock()},
+		Blocks: []*Block{genesisBlock},
 	}
 }
 
-// AddBlock appends a new block containing transactions to the chain
-func (bc *Blockchain) AddBlock(transactions [][]byte) {
+func (bc *Blockchain) AddBlock(transactions [][]byte) (*Block, error) {
+	bc.mu.Lock()
+	defer bc.mu.Unlock()
+
 	prevBlock := bc.Blocks[len(bc.Blocks)-1]
-	newBlock := NewBlock(transactions, prevBlock.Hash, int64(len(bc.Blocks)))
+
+	newBlock := &Block{
+		Header: BlockHeader{
+			Height:        prevBlock.Header.Height + 1,
+			PrevBlockHash: prevBlock.Header.BlockHash,
+			Timestamp:     time.Now().Unix(),
+		},
+		Transactions: transactions,
+	}
+
+	newBlock.Header.BlockHash = newBlock.CalculateHash()
+
+	// VALIDATION STEP: Bincika ingancin Block kafin adanawa
+	if err := newBlock.ValidateBlock(prevBlock); err != nil {
+		fmt.Printf("[x] Block Validation Failed: %v\n", err)
+		return nil, err
+	}
+
 	bc.Blocks = append(bc.Blocks, newBlock)
+	fmt.Printf("[✓] Block #%d Successfully Validated & Added to Chain!\n", newBlock.Header.Height)
+	return newBlock, nil
 }
 
-// DisplayChainLogs outputs the full blockchain ledger to the terminal
 func (bc *Blockchain) DisplayChainLogs() {
+	bc.mu.RLock()
+	defer bc.mu.RUnlock()
+
 	fmt.Println("\n==================================================")
 	fmt.Println("       ALPHA PROFICIENCY NETWORK - LEDGER         ")
 	fmt.Println("==================================================")
 	for _, block := range bc.Blocks {
-		block.DisplayBlockInfo()
-		fmt.Println()
+		fmt.Println("==================================================")
+		fmt.Printf("BLOCK HEIGHT   : #%d\n", block.Header.Height)
+		fmt.Printf("TIMESTAMP      : %s\n", time.Unix(block.Header.Timestamp, 0).Format(time.RFC1123))
+		fmt.Printf("PREVIOUS HASH  : %s\n", block.Header.PrevBlockHash)
+		fmt.Printf("CURRENT HASH   : %s\n", block.Header.BlockHash)
+		fmt.Printf("TRANSACTIONS   : %d TX(s)\n", len(block.Transactions))
+		fmt.Println("==================================================")
 	}
 }

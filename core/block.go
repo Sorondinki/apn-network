@@ -1,58 +1,76 @@
 package core
 
 import (
-	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"time"
 )
 
-// Block yana wakiltar kunshiyar block guda daya a APN Network
+// BlockHeader holds metadata about a block
+type BlockHeader struct {
+	Height        int64
+	PrevBlockHash string
+	BlockHash     string
+	Timestamp     int64
+}
+
+// Block represents a single block in the APN blockchain
 type Block struct {
-	Timestamp     int64    // Lokacin da aka kera block din (Unix Timestamp)
-	Transactions  [][]byte // Jerin transactions da ke cikin block
-	PrevBlockHash []byte   // Hash din block din da ya gabata
-	Hash          []byte   // Hash din wannan block din
-	Nonce         int      // Lambar tabbatar da ma'amala
-	Height        int64    // Lambar tsayin block (Block Height/Number)
+	Header       BlockHeader
+	Transactions [][]byte
 }
 
-// CalculateHash yana lissafa Hash din wannan block din ta amfani da SHA-256
-func (b *Block) CalculateHash() []byte {
-	timestamp := []byte(fmt.Sprintf("%d", b.Timestamp))
-	headers := bytes.Join([][]byte{b.PrevBlockHash, bytes.Join(b.Transactions, []byte{}), timestamp, []byte(fmt.Sprintf("%d", b.Nonce))}, []byte{})
-	hash := sha256.Sum256(headers)
-	return hash[:]
-}
-
-// NewBlock yana kera sabon Block da ke dauke da Transactions
-func NewBlock(transactions [][]byte, prevBlockHash []byte, height int64) *Block {
-	block := &Block{
-		Timestamp:     time.Now().Unix(),
-		Transactions:  transactions,
-		PrevBlockHash: prevBlockHash,
-		Hash:          []byte{},
-		Nonce:         0,
-		Height:        height,
+// GenesisBlock creates the initial block of the network
+func GenesisBlock() *Block {
+	genesis := &Block{
+		Header: BlockHeader{
+			Height:        0,
+			PrevBlockHash: "",
+			Timestamp:     time.Now().Unix(),
+		},
+		Transactions: [][]byte{[]byte("APN Network Genesis Block - Alpha Proficiency")},
 	}
-	block.Hash = block.CalculateHash()
-	return block
+	genesis.Header.BlockHash = genesis.CalculateHash()
+	return genesis
 }
 
-// NewGenesisBlock yana kera Block na Farko (#0) na APN Network
-func NewGenesisBlock() *Block {
-	genesisData := [][]byte{[]byte("APN Network Genesis Block - Alpha Proficiency Tech 2026")}
-	return NewBlock(genesisData, []byte{}, 0)
+// ValidateBlock verifies block integrity against previous block
+func (b *Block) ValidateBlock(prevBlock *Block) error {
+	if prevBlock != nil {
+		if b.Header.PrevBlockHash != prevBlock.Header.BlockHash {
+			return errors.New("invalid previous block hash match")
+		}
+
+		if b.Header.Height != prevBlock.Header.Height+1 {
+			return errors.New("invalid block height sequence")
+		}
+	}
+
+	calculatedHash := b.CalculateHash()
+	if b.Header.BlockHash != calculatedHash {
+		return errors.New("block hash mismatch - data integrity compromised")
+	}
+
+	return nil
 }
 
-// DisplayBlockInfo yana nuna bayanan Block a Terminal
-func (b *Block) DisplayBlockInfo() {
-	fmt.Println("==================================================")
-	fmt.Printf("BLOCK HEIGHT   : #%d\n", b.Height)
-	fmt.Printf("TIMESTAMP      : %s\n", time.Unix(b.Timestamp, 0).Format(time.RFC1123))
-	fmt.Printf("PREVIOUS HASH  : %s\n", hex.EncodeToString(b.PrevBlockHash))
-	fmt.Printf("CURRENT HASH   : %s\n", hex.EncodeToString(b.Hash))
-	fmt.Printf("TRANSACTIONS   : %d TX(s)\n", len(b.Transactions))
-	fmt.Println("==================================================")
+// CalculateHash recalculates SHA-256 hash of block
+func (b *Block) CalculateHash() string {
+	var txHashes []byte
+	for _, tx := range b.Transactions {
+		txHashes = append(txHashes, tx...)
+	}
+
+	record := fmt.Sprintf("%d%s%x%d",
+		b.Header.Height,
+		b.Header.PrevBlockHash,
+		txHashes,
+		b.Header.Timestamp,
+	)
+
+	h := sha256.New()
+	h.Write([]byte(record))
+	return hex.EncodeToString(h.Sum(nil))
 }
