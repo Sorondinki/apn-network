@@ -2,23 +2,25 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>APN Network - Block Explorer & Smart Contract Execution</title>
+  <title>APN Network - Explorer & Mining Portal</title>
   <style>
     body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 20px; }
     .card { background: #1e293b; border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
     h1 { color: #38bdf8; display: flex; align-items: center; gap: 10px; }
     input, textarea, button { padding: 10px; border-radius: 4px; border: 1px solid #334155; font-size: 15px; }
-    input { width: 380px; background: #0f172a; color: #fff; }
-    textarea { width: 100%; height: 120px; background: #0f172a; color: #38bdf8; font-family: monospace; box-sizing: border-box; resize: vertical; margin-bottom: 10px; font-size: 14px; }
-    button { background: #0284c7; color: white; cursor: pointer; font-weight: bold; border: none; padding: 10px 20px; }
+    input { width: 320px; background: #0f172a; color: #fff; margin-right: 10px; }
+    textarea { width: 100%; height: 100px; background: #0f172a; color: #38bdf8; font-family: monospace; margin-bottom: 10px; font-size: 14px; }
+    button { background: #0284c7; color: white; cursor: pointer; font-weight: bold; border: none; padding: 10px 20px; border-radius: 4px; }
     button:hover { background: #0369a1; }
     .status { font-size: 16px; color: #4ade80; margin-top: 10px; }
     pre { background: #0f172a; padding: 15px; border-radius: 6px; color: #38bdf8; overflow-x: auto; font-size: 14px; border: 1px solid #334155; }
+    .miner-btn { background: #22c55e; }
+    .miner-btn:hover { background: #16a34a; }
   </style>
 </head>
 <body>
 
-  <h1>🚀 APN Network Block Explorer & Smart Contracts</h1>
+  <h1>🚀 APN Network Explorer & Web Mining Hub</h1>
 
   <!-- Network Status -->
   <div class="card">
@@ -28,28 +30,31 @@
     <button onclick="fetchNetworkInfo()">Refresh Data</button>
   </div>
 
-  <!-- Balance Query -->
+  <!-- Web Mining & Staking Hub -->
   <div class="card">
-    <h3>Wallet Balance Query</h3>
-    <input type="text" id="walletAddress" placeholder="Enter APN Address (0x...)">
-    <button onclick="checkBalance()">Query Balance</button>
-    <p class="status" id="balanceResult"></p>
+    <h3>⛏️ APN Web Mining & Validator Staking</h3>
+    <p style="color: #94a3b8;">Stake your APN coins to become a validator node and participate in block generation:</p>
+    <input type="text" id="minerAddress" placeholder="Validator Address (0x...)">
+    <input type="number" id="stakeAmount" placeholder="Stake Amount (APN)" value="1000">
+    <button class="miner-btn" onclick="startMining()">Start Mining / Stake APN</button>
+    <p class="status" id="miningStatus"></p>
+    
+    <h4>Active Network Miners / Validators:</h4>
+    <pre id="validatorsList">Loading active validators...</pre>
   </div>
 
   <!-- Smart Contract Execution Engine -->
   <div class="card">
     <h3>📜 APN Smart Contract Execution Playground</h3>
-    <p style="color: #94a3b8; font-size: 14px;">Write APN VM Opcodes (e.g., PUSH, STORE, LOAD, ADD, SUB) to execute via JSON-RPC (<code>apn_callContract</code>):</p>
     <textarea id="contractCode">PUSH 500
 STORE TotalTokens
 LOAD TotalTokens
 PUSH 250
 ADD
 STORE NewBalance</textarea>
-    <br>
     <button onclick="executeSmartContract()">Run Contract Bytecode</button>
     <h4>VM Storage Result:</h4>
-    <pre id="contractOutput">// State storage result will appear here after execution...</pre>
+    <pre id="contractOutput">// Execution result will appear here...</pre>
   </div>
 
   <script>
@@ -71,33 +76,49 @@ STORE NewBalance</textarea>
         
         document.getElementById("blockHeight").innerText = parseInt(heightRes.result, 16) + " (Hex: " + heightRes.result + ")";
         document.getElementById("blockHash").innerText = hashRes.result || "N/A";
+        loadValidators();
       } catch (err) {
-        document.getElementById("blockHeight").innerText = "RPC Server Offline";
-        document.getElementById("blockHash").innerText = "RPC Server Offline";
+        document.getElementById("blockHeight").innerText = "RPC Offline";
+        document.getElementById("blockHash").innerText = "RPC Offline";
       }
     }
 
-    async function checkBalance() {
-      const addr = document.getElementById("walletAddress").value.trim();
-      if (!addr) return alert("Please enter an address");
+    async function startMining() {
+      const addr = document.getElementById("minerAddress").value.trim();
+      const amount = parseFloat(document.getElementById("stakeAmount").value);
+
+      if (!addr || !amount) return alert("Please enter valid address and stake amount");
+
+      document.getElementById("miningStatus").innerText = "Broadcasting stake to APN consensus engine...";
 
       try {
-        const res = await rpcCall("apn_getBalance", [addr]);
+        const res = await rpcCall("apn_stake", [addr, amount]);
         if (res.result) {
-          const decBalance = parseInt(res.result, 16);
-          document.getElementById("balanceResult").innerText = `Balance: ${decBalance.toLocaleString()} APN (${res.result})`;
+          document.getElementById("miningStatus").innerText = "✅ " + res.result.message;
+          loadValidators();
         } else {
-          document.getElementById("balanceResult").innerText = "Error fetching balance";
+          document.getElementById("miningStatus").innerText = "❌ Mining Error: " + res.error.message;
         }
       } catch (err) {
-        document.getElementById("balanceResult").innerText = "Connection failed";
+        document.getElementById("miningStatus").innerText = "❌ Connection Error";
+      }
+    }
+
+    async function loadValidators() {
+      try {
+        const res = await rpcCall("apn_getValidators");
+        if (res.result) {
+          document.getElementById("validatorsList").innerText = JSON.stringify(res.result, null, 2);
+        }
+      } catch (err) {
+        document.getElementById("validatorsList").innerText = "Failed to load miners";
       }
     }
 
     async function executeSmartContract() {
       const code = document.getElementById("contractCode").value;
       const outputElem = document.getElementById("contractOutput");
-      outputElem.innerText = "Executing bytecode on APN VM...";
+      outputElem.innerText = "Executing bytecode...";
 
       try {
         const res = await rpcCall("apn_callContract", [code]);

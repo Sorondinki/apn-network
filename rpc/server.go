@@ -3,8 +3,10 @@ package rpc
 import (
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"net/http"
 
+	"github.com/Sorondinki/apn-network/consensus"
 	"github.com/Sorondinki/apn-network/core"
 )
 
@@ -26,13 +28,15 @@ type RPCServer struct {
 	Port  string
 	Chain *core.Blockchain
 	State *core.AccountState
+	DPoS  *consensus.DPoSEngine
 }
 
-func NewRPCServer(port string, chain *core.Blockchain, state *core.AccountState) *RPCServer {
+func NewRPCServer(port string, chain *core.Blockchain, state *core.AccountState, dpos *consensus.DPoSEngine) *RPCServer {
 	return &RPCServer{
 		Port:  port,
 		Chain: chain,
 		State: state,
+		DPoS:  dpos,
 	}
 }
 
@@ -89,7 +93,7 @@ func (server *RPCServer) handleRequest(w http.ResponseWriter, r *http.Request) {
 				balance := server.State.GetBalance(address)
 				res.Result = fmt.Sprintf("0x%x", balance)
 			} else {
-				res.Error = map[string]string{"message": "Invalid address parameter or state uninitialized"}
+				res.Error = map[string]string{"message": "Invalid address parameter"}
 			}
 		} else {
 			res.Error = map[string]string{"message": "Missing address parameter"}
@@ -111,6 +115,34 @@ func (server *RPCServer) handleRequest(w http.ResponseWriter, r *http.Request) {
 			}
 		} else {
 			res.Error = map[string]string{"message": "Missing contract code parameter"}
+		}
+
+	// 🚀 Mining & Staking Integration
+	case "apn_stake":
+		if len(req.Params) >= 2 {
+			address, addrOk := req.Params[0].(string)
+			amountFloat, amtOk := req.Params[1].(float64)
+
+			if addrOk && amtOk && server.DPoS != nil {
+				stakeAmt := big.NewInt(int64(amountFloat))
+				server.DPoS.RegisterValidator(address, stakeAmt)
+				res.Result = map[string]interface{}{
+					"status":  "success",
+					"message": fmt.Sprintf("Mining node registered! Staked %d APN successfully", stakeAmt.Int64()),
+					"address": address,
+				}
+			} else {
+				res.Error = map[string]string{"message": "Invalid stake parameters"}
+			}
+		} else {
+			res.Error = map[string]string{"message": "Missing address or amount parameters"}
+		}
+
+	case "apn_getValidators":
+		if server.DPoS != nil {
+			res.Result = server.DPoS.Validators
+		} else {
+			res.Error = map[string]string{"message": "DPoS engine uninitialized"}
 		}
 
 	default:
