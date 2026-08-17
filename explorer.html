@@ -2,63 +2,149 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>APN Network - Explorer & Mining Portal</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>APN Network - Next-Gen Layer-1 Ecosystem</title>
   <style>
-    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 20px; }
-    .card { background: #1e293b; border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
-    h1 { color: #38bdf8; display: flex; align-items: center; gap: 10px; }
-    input, textarea, button { padding: 10px; border-radius: 4px; border: 1px solid #334155; font-size: 15px; }
-    input { width: 320px; background: #0f172a; color: #fff; margin-right: 10px; }
-    textarea { width: 100%; height: 100px; background: #0f172a; color: #38bdf8; font-family: monospace; margin-bottom: 10px; font-size: 14px; }
-    button { background: #0284c7; color: white; cursor: pointer; font-weight: bold; border: none; padding: 10px 20px; border-radius: 4px; }
-    button:hover { background: #0369a1; }
-    .status { font-size: 16px; color: #4ade80; margin-top: 10px; }
-    pre { background: #0f172a; padding: 15px; border-radius: 6px; color: #38bdf8; overflow-x: auto; font-size: 14px; border: 1px solid #334155; }
-    .miner-btn { background: #22c55e; }
-    .miner-btn:hover { background: #16a34a; }
+    :root {
+      --bg-color: #0b0f19;
+      --card-bg: #161f30;
+      --accent-blue: #38bdf8;
+      --accent-green: #22c55e;
+      --accent-purple: #a855f7;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --border-color: #1e293b;
+    }
+    body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: var(--bg-color); color: var(--text-main); margin: 0; padding: 0; }
+    header { background: #111827; border-bottom: 1px solid var(--border-color); padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; }
+    .logo { font-size: 22px; font-weight: 800; color: var(--accent-blue); display: flex; align-items: center; gap: 10px; }
+    nav button { background: transparent; border: none; color: var(--text-muted); font-size: 15px; font-weight: 600; padding: 8px 16px; cursor: pointer; border-radius: 6px; transition: 0.3s; }
+    nav button.active, nav button:hover { background: #1e293b; color: var(--accent-blue); }
+    .container { max-width: 1100px; margin: 30px auto; padding: 0 20px; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    .card { background: var(--card-bg); border-radius: 12px; padding: 25px; margin-bottom: 25px; border: 1px solid var(--border-color); box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4); }
+    h2 { margin-top: 0; color: var(--accent-blue); font-size: 20px; display: flex; align-items: center; gap: 10px; }
+    p { color: var(--text-muted); line-height: 1.6; }
+    input, textarea { width: 100%; padding: 12px; background: #0f172a; border: 1px solid var(--border-color); border-radius: 8px; color: #fff; font-size: 15px; box-sizing: border-box; margin-bottom: 15px; }
+    .btn { background: #0284c7; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: 700; cursor: pointer; transition: 0.2s; display: inline-flex; align-items: center; gap: 8px; }
+    .btn:hover { background: #0369a1; }
+    .btn-green { background: var(--accent-green); }
+    .btn-green:hover { background: #16a34a; }
+    .btn-purple { background: var(--accent-purple); }
+    .btn-purple:hover { background: #9333ea; }
+    .badge { background: rgba(56, 189, 248, 0.1); color: var(--accent-blue); padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 700; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+    .stat-card { background: #0f172a; padding: 20px; border-radius: 8px; border: 1px solid var(--border-color); }
+    .stat-val { font-size: 24px; font-weight: 800; color: #fff; margin-top: 5px; }
+    pre { background: #0f172a; padding: 15px; border-radius: 8px; color: var(--accent-blue); overflow-x: auto; font-family: monospace; font-size: 13px; border: 1px solid var(--border-color); }
   </style>
 </head>
 <body>
 
-  <h1>🚀 APN Network Explorer & Web Mining Hub</h1>
+  <header>
+    <div class="logo">⚡ APN Network <span class="badge">Mainnet v1.0</span></div>
+    <nav>
+      <button class="active" onclick="switchTab('mining')">⛏️ Web Mining</button>
+      <button onclick="switchTab('staking')">🔒 Staking Vault</button>
+      <button onclick="switchTab('kyc')">🆔 KYC Portal</button>
+      <button onclick="switchTab('explorer')">🌐 Explorer & VM</button>
+    </nav>
+  </header>
 
-  <!-- Network Status -->
-  <div class="card">
-    <h3>Network Status</h3>
-    <p>Chain Height: <strong id="blockHeight">Loading...</strong></p>
-    <p>Latest Block Hash: <strong id="blockHash">Loading...</strong></p>
-    <button onclick="fetchNetworkInfo()">Refresh Data</button>
-  </div>
+  <div class="container">
 
-  <!-- Web Mining & Staking Hub -->
-  <div class="card">
-    <h3>⛏️ APN Web Mining & Validator Staking</h3>
-    <p style="color: #94a3b8;">Stake your APN coins to become a validator node and participate in block generation:</p>
-    <input type="text" id="minerAddress" placeholder="Validator Address (0x...)">
-    <input type="number" id="stakeAmount" placeholder="Stake Amount (APN)" value="1000">
-    <button class="miner-btn" onclick="startMining()">Start Mining / Stake APN</button>
-    <p class="status" id="miningStatus"></p>
-    
-    <h4>Active Network Miners / Validators:</h4>
-    <pre id="validatorsList">Loading active validators...</pre>
-  </div>
+    <!-- 1. WEB MINING TAB -->
+    <div id="mining" class="tab-content active">
+      <div class="card">
+        <h2>⛏️ APN Cloud & Web Mining Rig</h2>
+        <p>Start mining APN tokens directly from your web browser. Earn rewards and build your initial token balance!</p>
+        <div class="grid" style="margin-bottom: 20px;">
+          <div class="stat-card">
+            <div>Mined APN Balance</div>
+            <div class="stat-val" id="minedBalance">0.00 APN</div>
+          </div>
+          <div class="stat-card">
+            <div>Mining Rate</div>
+            <div class="stat-val" style="color: var(--accent-green);">+0.50 APN/sec</div>
+          </div>
+        </div>
+        <input type="text" id="miningAddress" placeholder="Enter Your APN Wallet Address (0x...)">
+        <button class="btn btn-green" id="mineBtn" onclick="toggleMining()">Start Web Mining</button>
+        <p class="status" id="miningStatus" style="color: var(--accent-green); font-weight: 600;"></p>
+      </div>
+    </div>
 
-  <!-- Smart Contract Execution Engine -->
-  <div class="card">
-    <h3>📜 APN Smart Contract Execution Playground</h3>
-    <textarea id="contractCode">PUSH 500
+    <!-- 2. STAKING TAB -->
+    <div id="staking" class="tab-content">
+      <div class="card">
+        <h2>🔒 Delegated Proof-of-Stake (DPoS) Vault</h2>
+        <p>Stake your earned APN tokens to secure the network, become a validator, and earn daily transaction fees.</p>
+        <input type="text" id="stakeAddress" placeholder="Validator Wallet Address (0x...)">
+        <input type="number" id="stakeAmount" placeholder="Amount to Stake (APN)">
+        <button class="btn btn-purple" onclick="executeStake()">Stake APN Tokens</button>
+        <p id="stakeStatus" style="font-weight: 600; margin-top: 10px;"></p>
+
+        <h3 style="margin-top: 30px; color: #fff;">Active Network Validators</h3>
+        <pre id="validatorList">Loading active validators...</pre>
+      </div>
+    </div>
+
+    <!-- 3. KYC PORTAL TAB -->
+    <div id="kyc" class="tab-content">
+      <div class="card" style="text-align: center; padding: 50px 20px;">
+        <div style="font-size: 50px; margin-bottom: 10px;">🆔</div>
+        <h2>Identity Verification (KYC) Portal</h2>
+        <p style="max-width: 600px; margin: 0 auto 20px auto;">To ensure regulatory compliance and anti-sybil protection for high-volume stakers, our paid KYC Verification Pass is launching soon!</p>
+        <span class="badge" style="font-size: 14px; padding: 8px 16px; background: rgba(168, 85, 247, 0.2); color: var(--accent-purple);">🚀 Launching in Phase 2</span>
+      </div>
+    </div>
+
+    <!-- 4. EXPLORER & VM TAB -->
+    <div id="explorer" class="tab-content">
+      <div class="card">
+        <h2>🌐 Network Health & Block Explorer</h2>
+        <div class="grid">
+          <div class="stat-card">
+            <div>Current Block Height</div>
+            <div class="stat-val" id="blockHeight">Loading...</div>
+          </div>
+          <div class="stat-card">
+            <div>Latest Block Hash</div>
+            <div class="stat-val" id="blockHash" style="font-size: 14px; word-break: break-all;">Loading...</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>📜 Smart Contract Execution Playground</h2>
+        <textarea id="contractCode">PUSH 500
 STORE TotalTokens
 LOAD TotalTokens
 PUSH 250
 ADD
 STORE NewBalance</textarea>
-    <button onclick="executeSmartContract()">Run Contract Bytecode</button>
-    <h4>VM Storage Result:</h4>
-    <pre id="contractOutput">// Execution result will appear here...</pre>
+        <button class="btn" onclick="runContract()">Execute Bytecode</button>
+        <pre id="contractOutput">// VM execution results will display here...</pre>
+      </div>
+    </div>
+
   </div>
 
   <script>
     const RPC_URL = "http://localhost:8545";
+    let isMining = false;
+    let miningInterval = null;
+    let localTokens = 0;
+
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('nav button').forEach(el => el.classList.remove('active'));
+      document.getElementById(tabId).classList.add('active');
+      event.target.classList.add('active');
+      if(tabId === 'staking') loadValidators();
+      if(tabId === 'explorer') fetchNetworkInfo();
+    }
 
     async function rpcCall(method, params = []) {
       const res = await fetch(RPC_URL, {
@@ -69,38 +155,63 @@ STORE NewBalance</textarea>
       return await res.json();
     }
 
-    async function fetchNetworkInfo() {
-      try {
-        const heightRes = await rpcCall("eth_blockNumber");
-        const hashRes = await rpcCall("apn_getLatestBlockHash");
+    function toggleMining() {
+      const addr = document.getElementById("miningAddress").value.trim();
+      if (!addr) return alert("Please enter your wallet address to receive mined tokens.");
+
+      const btn = document.getElementById("mineBtn");
+      const status = document.getElementById("miningStatus");
+
+      if (!isMining) {
+        isMining = true;
+        btn.innerText = "Stop Mining";
+        btn.style.background = "#ef4444";
+        status.innerText = "⛏️ Mining Active... Generating blocks and accumulating APN!";
         
-        document.getElementById("blockHeight").innerText = parseInt(heightRes.result, 16) + " (Hex: " + heightRes.result + ")";
-        document.getElementById("blockHash").innerText = hashRes.result || "N/A";
-        loadValidators();
-      } catch (err) {
-        document.getElementById("blockHeight").innerText = "RPC Offline";
-        document.getElementById("blockHash").innerText = "RPC Offline";
+        miningInterval = setInterval(() => {
+          localTokens += 0.50;
+          document.getElementById("minedBalance").innerText = localTokens.toFixed(2) + " APN";
+        }, 1000);
+      } else {
+        isMining = false;
+        clearInterval(miningInterval);
+        btn.innerText = "Start Web Mining";
+        btn.className = "btn btn-green";
+        status.innerText = "⏸️ Mining paused. Mined tokens saved locally.";
       }
     }
 
-    async function startMining() {
-      const addr = document.getElementById("minerAddress").value.trim();
+    async function executeStake() {
+      const addr = document.getElementById("stakeAddress").value.trim();
       const amount = parseFloat(document.getElementById("stakeAmount").value);
+      const status = document.getElementById("stakeStatus");
 
-      if (!addr || !amount) return alert("Please enter valid address and stake amount");
+      if (!addr || !amount) return alert("Enter valid address and stake amount.");
 
-      document.getElementById("miningStatus").innerText = "Broadcasting stake to APN consensus engine...";
+      if (amount > localTokens) {
+        status.style.color = "#ef4444";
+        status.innerText = `❌ Insufficient Balance! You only have ${localTokens.toFixed(2)} APN mined. Mine more tokens first!`;
+        return;
+      }
+
+      status.style.color = "var(--accent-blue)";
+      status.innerText = "Broadcasting stake transaction to APN blockchain...";
 
       try {
         const res = await rpcCall("apn_stake", [addr, amount]);
         if (res.result) {
-          document.getElementById("miningStatus").innerText = "✅ " + res.result.message;
+          localTokens -= amount;
+          document.getElementById("minedBalance").innerText = localTokens.toFixed(2) + " APN";
+          status.style.color = "var(--accent-green)";
+          status.innerText = `✅ Staking Successful! ${amount} APN locked as validator stake.`;
           loadValidators();
         } else {
-          document.getElementById("miningStatus").innerText = "❌ Mining Error: " + res.error.message;
+          status.style.color = "#ef4444";
+          status.innerText = "❌ Staking Failed: " + res.error.message;
         }
       } catch (err) {
-        document.getElementById("miningStatus").innerText = "❌ Connection Error";
+        status.style.color = "#ef4444";
+        status.innerText = "❌ RPC Connection Error.";
       }
     }
 
@@ -108,31 +219,36 @@ STORE NewBalance</textarea>
       try {
         const res = await rpcCall("apn_getValidators");
         if (res.result) {
-          document.getElementById("validatorsList").innerText = JSON.stringify(res.result, null, 2);
+          document.getElementById("validatorList").innerText = JSON.stringify(res.result, null, 2);
         }
       } catch (err) {
-        document.getElementById("validatorsList").innerText = "Failed to load miners";
+        document.getElementById("validatorList").innerText = "Failed to fetch validator set.";
       }
     }
 
-    async function executeSmartContract() {
-      const code = document.getElementById("contractCode").value;
-      const outputElem = document.getElementById("contractOutput");
-      outputElem.innerText = "Executing bytecode...";
+    async function fetchNetworkInfo() {
+      try {
+        const heightRes = await rpcCall("eth_blockNumber");
+        const hashRes = await rpcCall("apn_getLatestBlockHash");
+        document.getElementById("blockHeight").innerText = parseInt(heightRes.result, 16);
+        document.getElementById("blockHash").innerText = hashRes.result || "N/A";
+      } catch (err) {
+        document.getElementById("blockHeight").innerText = "RPC Offline";
+        document.getElementById("blockHash").innerText = "RPC Offline";
+      }
+    }
 
+    async function runContract() {
+      const code = document.getElementById("contractCode").value;
+      const out = document.getElementById("contractOutput");
+      out.innerText = "Executing contract bytecode...";
       try {
         const res = await rpcCall("apn_callContract", [code]);
-        if (res.result) {
-          outputElem.innerText = JSON.stringify(res.result, null, 2);
-        } else if (res.error) {
-          outputElem.innerText = "Error: " + JSON.stringify(res.error, null, 2);
-        }
+        out.innerText = JSON.stringify(res.result || res.error, null, 2);
       } catch (err) {
-        outputElem.innerText = "RPC Error: " + err.message;
+        out.innerText = "Execution failed: " + err.message;
       }
     }
-
-    fetchNetworkInfo();
   </script>
 </body>
 </html>
