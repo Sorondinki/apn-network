@@ -20,30 +20,33 @@ func main() {
 	founderWallet := crypto.NewWallet()
 	founderWallet.DisplayWalletInfo()
 
-	// 2. Initialize DPoS Consensus & Register Genesis Validator
+	// 2. Initialize DPoS Consensus
 	fmt.Println("\n[*] Initializing DPoS Consensus Mechanism...")
 	dpos := consensus.NewDPoSEngine()
+	dpos.RegisterValidator(founderWallet.Address, big.NewInt(10000000))
 
-	initialStake := big.NewInt(10000000)
-	dpos.RegisterValidator(founderWallet.Address, initialStake)
-
-	// 3. Initialize Blockchain Ledger
+	// 3. Initialize Blockchain Ledger & Mempool
 	chain := core.InitBlockchain()
+	mempool := core.NewMemoryPool()
 
-	// Propose Block #1
+	// 4. Simulate Incoming Transactions to Mempool
+	fmt.Println("\n[*] Receiving Pending Transactions...")
+	mempool.AddTransaction([]byte("TX: Send 100 APN to 0x7e7328f98d051e2bd1c0d5bd8be99c003f8f02e1"))
+	mempool.AddTransaction([]byte("TX: Send 50 APN to 0x0f5bb17c5e5719a5324be999509e05bd5f084feb"))
+
+	// 5. Mine Pending Transactions into Block #1
+	pendingTxs := mempool.FlushTransactions()
 	proposer := dpos.SelectProposer(1)
 	fmt.Printf("\n[*] Block #1 Proposed By Validator: %s\n", proposer)
+	chain.AddBlock(pendingTxs)
 
-	chain.AddBlock([][]byte{
-		[]byte("TX: System Mint Reward to Genesis Validator"),
-	})
+	chain.DisplayChainLogs()
 
-	// 4. Start P2P TCP Server on Port 8089 in Background
-	fmt.Println("\n[*] Launching P2P Peer Discovery Service...")
+	// 6. Launch P2P and RPC Servers
+	fmt.Println("\n[*] Launching Network Services...")
 	p2pServer := p2p.NewP2PNode("8089")
 	go p2pServer.StartServer()
 
-	// 5. Start RPC HTTP API Server on Port 8545
 	rpcServer := rpc.NewRPCServer("8545", chain)
 	err := rpcServer.Start()
 	if err != nil {
