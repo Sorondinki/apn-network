@@ -95,6 +95,24 @@ func (server *RPCServer) handleRequest(w http.ResponseWriter, r *http.Request) {
 			res.Error = map[string]string{"message": "Missing address parameter"}
 		}
 
+	case "apn_callContract":
+		if len(req.Params) > 0 {
+			code, ok := req.Params[0].(string)
+			if ok {
+				vm := core.NewAPNVirtualMachine()
+				err := vm.Execute(code)
+				if err != nil {
+					res.Error = map[string]string{"message": fmt.Sprintf("VM Error: %v", err)}
+				} else {
+					res.Result = vm.Storage
+				}
+			} else {
+				res.Error = map[string]string{"message": "Invalid bytecode parameter"}
+			}
+		} else {
+			res.Error = map[string]string{"message": "Missing contract code parameter"}
+		}
+
 	default:
 		res.Error = map[string]string{"message": "Method not found"}
 	}

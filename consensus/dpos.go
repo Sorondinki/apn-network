@@ -3,45 +3,63 @@ package consensus
 import (
 	"fmt"
 	"math/big"
+	"sync"
 )
 
-// Validator represents an active node operator staking APN tokens
 type Validator struct {
-	Address     string
+	Address      string
 	StakedAmount *big.Int
-	IsActive    bool
+	IsActive     bool
+	Jailed       bool
 }
 
-// DPoSEngine manages the voting and validator selection
 type DPoSEngine struct {
+	mu         sync.RWMutx
 	Validators map[string]*Validator
-	ActivePool []string
 }
 
-// NewDPoSEngine initializes the DPoS Consensus System
 func NewDPoSEngine() *DPoSEngine {
 	return &DPoSEngine{
 		Validators: make(map[string]*Validator),
-		ActivePool: make([]string, 0),
 	}
 }
 
-// RegisterValidator adds a new validator candidate with staked APN tokens
-func (d *DPoSEngine) RegisterValidator(address string, amount *big.Int) {
+func (d *DPoSEngine) RegisterValidator(address string, stake *big.Int) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
 	d.Validators[address] = &Validator{
-		Address:     address,
-		StakedAmount: amount,
-		IsActive:    true,
+		Address:      address,
+		StakedAmount: stake,
+		IsActive:     true,
+		Jailed:       false,
 	}
-	d.ActivePool = append(d.ActivePool, address)
-	fmt.Printf("[+] Registered Active Validator: %s | Staked: %s APN\n", address, amount.String())
 }
 
-// SelectProposer chooses a validator block proposer for the current round
-func (d *DPoSEngine) SelectProposer(slot int64) string {
-	if len(d.ActivePool) == 0 {
-		return "0x0000000000000000000000000000000000000000"
+// SlashValidator slashes a validator's stake and jails them for malicious acts
+func (d *DPoSEngine) SlashValidator(address string, penaltyPercentage int64) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	v, exists := d.Validators[address]
+	if !exists {
+		return fmt.Errorf("validator %s not found", address)
 	}
-	selectedIndex := int(slot) % len(d.ActivePool)
-	return d.ActivePool[selectedIndex]
+
+	if v.Jailed {
+		return fmt.Errorf("validator %s is already jailed", address)
+	}
+
+	// Calculate slash amount
+	penalty := new(big.Int).Mul(v.StakedAmount, big.NewInt(penaltyPercentage))
+	penalty.Div(penalty, big.NewInt(100))
+
+	v.StakedAmount.Sub(v.StakedAmount, penalty)
+	v.IsActive = false
+	v.Jailed = true
+
+	fmt.Printf("[⚠️ SLASHING ALERT] Validator %s slashed by %d%% (%s APN). Jailed status: true\n",
+		address, penaltyPercentage, penalty.String())
+
+	return nil
 }

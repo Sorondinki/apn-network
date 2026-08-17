@@ -29,62 +29,33 @@ func main() {
 	dpos := consensus.NewDPoSEngine()
 	dpos.RegisterValidator(founderWallet.Address, big.NewInt(10000000))
 
-	// 1. Launch Node #1 (Primary Node on Port 8089)
+	// Test Slashing mechanism (50% penalty for double signing)
+	_ = dpos.SlashValidator(founderWallet.Address, 50)
+
+	// 1. Launch Nodes
 	node1 := p2p.NewP2PNode("8089")
 	go node1.StartServer()
 
-	// 2. Launch Node #2 (Peer Node on Port 8090)
 	node2 := p2p.NewP2PNode("8090")
 	go node2.StartServer()
 
 	time.Sleep(500 * time.Millisecond)
+	_ = node2.ConnectToPeer("127.0.0.1:8089")
 
-	// 3. Connect Node #2 to Node #1
-	err := node2.ConnectToPeer("127.0.0.1:8089")
-	if err != nil {
-		fmt.Printf("[!] Peer Connection Error: %v\n", err)
-	}
-
-	// 4. Create & Sign Real Transaction
+	// 2. Transaction Execution
 	tx1 := core.NewTransaction(founderWallet.Address, userWallet.Address, 10000)
 	_ = tx1.Sign(founderWallet.PrivateKey)
 
 	if tx1.VerifySignature(founderWallet.PublicKey) {
 		_ = state.ApplyTransaction(tx1)
 		mempool.AddTransaction([]byte(tx1.String()))
-
-		// Broadcast transaction across P2P network!
 		node1.BroadcastMessage(p2p.MessageTypeTx, tx1.String())
 	}
 
 	fmt.Printf("\n[*] Live Founder Wallet: %s\n", founderWallet.Address)
 	fmt.Printf("[*] Live User Wallet:    %s\n\n", userWallet.Address)
 
-	time.Sleep(500 * time.Millisecond)
-
-	// Launch RPC Server with live state pointer
+	// Launch RPC Server
 	rpcServer := rpc.NewRPCServer("8545", chain, state)
 	_ = rpcServer.Start()
-
-	// Test APN Smart Contract Virtual Machine Engine
-	fmt.Println("\n[*] Executing APN Smart Contract Bytecode...")
-	vm := core.NewAPNVirtualMachine()
-
-	// Contract Code: Store initial supply, add tokens, save result
-	contractCode := `
-		PUSH 500
-		STORE TotalTokens
-		LOAD TotalTokens
-		PUSH 250
-		ADD
-		STORE NewBalance
-	`
-
-	errVM := vm.Execute(contractCode)
-	if errVM != nil {
-		fmt.Printf("[!] VM Execution Error: %v\n", errVM)
-	} else {
-		fmt.Printf("[+] VM Storage 'TotalTokens': %d APN\n", vm.Storage["TotalTokens"])
-		fmt.Printf("[+] VM Storage 'NewBalance':  %d APN\n", vm.Storage["NewBalance"])
-	}
 }
