@@ -2,22 +2,25 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>APN Network - Block Explorer</title>
+  <title>APN Network - Block Explorer & Smart Contract Execution</title>
   <style>
-    body { font-family: Arial, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 20px; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 20px; }
     .card { background: #1e293b; border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
-    h1 { color: #38bdf8; }
-    input, button { padding: 10px; border-radius: 4px; border: none; font-size: 16px; }
-    input { width: 380px; background: #334155; color: #fff; }
-    button { background: #0284c7; color: white; cursor: pointer; font-weight: bold; }
+    h1 { color: #38bdf8; display: flex; align-items: center; gap: 10px; }
+    input, textarea, button { padding: 10px; border-radius: 4px; border: 1px solid #334155; font-size: 15px; }
+    input { width: 380px; background: #0f172a; color: #fff; }
+    textarea { width: 100%; height: 120px; background: #0f172a; color: #38bdf8; font-family: monospace; box-sizing: border-box; resize: vertical; margin-bottom: 10px; font-size: 14px; }
+    button { background: #0284c7; color: white; cursor: pointer; font-weight: bold; border: none; padding: 10px 20px; }
     button:hover { background: #0369a1; }
-    .status { font-size: 18px; color: #4ade80; margin-top: 10px; }
+    .status { font-size: 16px; color: #4ade80; margin-top: 10px; }
+    pre { background: #0f172a; padding: 15px; border-radius: 6px; color: #38bdf8; overflow-x: auto; font-size: 14px; border: 1px solid #334155; }
   </style>
 </head>
 <body>
 
-  <h1>🚀 APN Network Block Explorer</h1>
+  <h1>🚀 APN Network Block Explorer & Smart Contracts</h1>
 
+  <!-- Network Status -->
   <div class="card">
     <h3>Network Status</h3>
     <p>Chain Height: <strong id="blockHeight">Loading...</strong></p>
@@ -25,11 +28,28 @@
     <button onclick="fetchNetworkInfo()">Refresh Data</button>
   </div>
 
+  <!-- Balance Query -->
   <div class="card">
     <h3>Wallet Balance Query</h3>
     <input type="text" id="walletAddress" placeholder="Enter APN Address (0x...)">
     <button onclick="checkBalance()">Query Balance</button>
     <p class="status" id="balanceResult"></p>
+  </div>
+
+  <!-- Smart Contract Execution Engine -->
+  <div class="card">
+    <h3>📜 APN Smart Contract Execution Playground</h3>
+    <p style="color: #94a3b8; font-size: 14px;">Write APN VM Opcodes (e.g., PUSH, STORE, LOAD, ADD, SUB) to execute via JSON-RPC (<code>apn_callContract</code>):</p>
+    <textarea id="contractCode">PUSH 500
+STORE TotalTokens
+LOAD TotalTokens
+PUSH 250
+ADD
+STORE NewBalance</textarea>
+    <br>
+    <button onclick="executeSmartContract()">Run Contract Bytecode</button>
+    <h4>VM Storage Result:</h4>
+    <pre id="contractOutput">// State storage result will appear here after execution...</pre>
   </div>
 
   <script>
@@ -53,6 +73,7 @@
         document.getElementById("blockHash").innerText = hashRes.result || "N/A";
       } catch (err) {
         document.getElementById("blockHeight").innerText = "RPC Server Offline";
+        document.getElementById("blockHash").innerText = "RPC Server Offline";
       }
     }
 
@@ -70,6 +91,23 @@
         }
       } catch (err) {
         document.getElementById("balanceResult").innerText = "Connection failed";
+      }
+    }
+
+    async function executeSmartContract() {
+      const code = document.getElementById("contractCode").value;
+      const outputElem = document.getElementById("contractOutput");
+      outputElem.innerText = "Executing bytecode on APN VM...";
+
+      try {
+        const res = await rpcCall("apn_callContract", [code]);
+        if (res.result) {
+          outputElem.innerText = JSON.stringify(res.result, null, 2);
+        } else if (res.error) {
+          outputElem.innerText = "Error: " + JSON.stringify(res.error, null, 2);
+        }
+      } catch (err) {
+        outputElem.innerText = "RPC Error: " + err.message;
       }
     }
 
