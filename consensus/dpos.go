@@ -14,7 +14,7 @@ type Validator struct {
 }
 
 type DPoSEngine struct {
-	mu         sync.RWMutx
+	mu         sync.RWMutex
 	Validators map[string]*Validator
 }
 
