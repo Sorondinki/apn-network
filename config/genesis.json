@@ -1,0 +1,46 @@
+{
+  "config": {
+    "chainId": 8089,
+    "chainName": "Alpha Proficiency Network Mainnet",
+    "consensus": "DPoS",
+    "blockTimeSeconds": 3,
+    "epochLength": 200,
+    "activeValidatorsCount": 21,
+    "evmCompatible": true,
+    "nativeCurrency": {
+      "name": "Alpha Proficiency Token",
+      "symbol": "APN",
+      "decimals": 18
+    }
+  },
+  "genesisTime": "2026-07-24T00:00:00Z",
+  "extraData": "0x416c7068612050726f66696369656e6379204e6574776f726b2047656e6573697320426c6f636b",
+  "gasLimit": "0x1C9C380",
+  "alloc": {
+    "0xAPN_FOUNDER_AND_TREASURY_WALLETS": {
+      "comment": "20% Total Supply Allocation for Founder, Core Team & Alpha Proficiency Tech Treasury",
+      "balance": "200000000000000000000000000",
+      "vesting": {
+        "cliffMonths": 12,
+        "vestingMonths": 36,
+        "stakingAllowedFromGenesis": true
+      }
+    },
+    "0xAPN_PUBLIC_STAKING_REWARDS_POOL": {
+      "comment": "40% Reserved for Public Staking & Validator Network Rewards over 10 Years",
+      "balance": "400000000000000000000000000"
+    },
+    "0xAPN_ECOSYSTEM_AND_DEV_GRANTS": {
+      "comment": "15% Ecosystem Development, dApp Incubator, and Security Audits",
+      "balance": "150000000000000000000000000"
+    },
+    "0xAPN_PUBLIC_SALE_AND_LIQUIDITY": {
+      "comment": "15% Allocated for Public Sale, DEX Pools & Exchange Listings (CEX)",
+      "balance": "150000000000000000000000000"
+    },
+    "0xAPN_STRATEGIC_ADVISORS_POOL": {
+      "comment": "10% Strategic Partners, Technical Advisory, and Early Integration",
+      "balance": "100000000000000000000000000"
+    }
+  }
+}
