@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/alpha-proficiency/apn-network/core"
+	"github.com/Sorondinki/apn-network/core"
 )
 
 // RPCServer handles external HTTP API queries

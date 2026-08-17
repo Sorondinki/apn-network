@@ -1,3 +1,3 @@
-module github.com/alpha-proficiency/apn-network
+module github.com/Sorondinki/apn-network
 
-go 1.26.6
+go 1.22
