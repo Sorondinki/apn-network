@@ -37,7 +37,7 @@ func main() {
 	node2 := p2p.NewP2PNode("8090")
 	go node2.StartServer()
 
-	time.Sleep(500 * time.Millisecond) // Allow listeners to initialize
+	time.Sleep(500 * time.Millisecond)
 
 	// 3. Connect Node #2 to Node #1
 	err := node2.ConnectToPeer("127.0.0.1:8089")
@@ -57,9 +57,12 @@ func main() {
 		node1.BroadcastMessage(p2p.MessageTypeTx, tx1.String())
 	}
 
+	fmt.Printf("\n[*] Live Founder Wallet: %s\n", founderWallet.Address)
+	fmt.Printf("[*] Live User Wallet:    %s\n\n", userWallet.Address)
+
 	time.Sleep(500 * time.Millisecond)
 
-	// Launch RPC Server on main node
-	rpcServer := rpc.NewRPCServer("8545", chain)
+	// Launch RPC Server with live state pointer
+	rpcServer := rpc.NewRPCServer("8545", chain, state)
 	_ = rpcServer.Start()
 }
