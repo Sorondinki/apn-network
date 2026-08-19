@@ -1,0 +1,97 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id              String   @id @default(uuid())
+  email           String   @unique
+  walletAddress   String   @unique
+  passwordHash    String?
+  name            String?
+  phone           String?
+  country         String?
+  city            String?
+  avatarUrl       String?
+  balance         Float    @default(0)
+  referralCode    String   @unique
+
+  // Mining Engine States
+  isMining        Boolean  @default(false)
+  miningStartTime BigInt?
+
+  // Tsaro da Matsayin Founder / Admin
+  role            String   @default("USER") // "FOUNDER" | "ADMIN" | "USER"
+  isSuspended     Boolean  @default(false)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relationships
+  referredById    String?
+  referredBy      User?         @relation("UserReferrals", fields: [referredById], references: [id])
+  referrals       User[]        @relation("UserReferrals")
+  activities      ActivityLog[]
+  transactions    Transaction[]
+  userQuests      UserQuest[]
+}
+
+model Task {
+  id          String   @id @default(uuid())
+  title       String
+  description String
+  reward      Float
+  link        String
+  category    String   @default("GENERAL") // e.g., TWITTER, TELEGRAM, YOUTUBE
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+}
+
+model Quest {
+  id         String      @id @default(uuid())
+  title      String
+  reward     Float
+  link       String
+  userQuests UserQuest[]
+}
+
+model UserQuest {
+  id        String   @id @default(uuid())
+  userId    String
+  questId   String
+  status    String   @default("COMPLETED")
+  createdAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quest Quest @relation(fields: [questId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, questId])
+}
+
+model Transaction {
+  id          String   @id @default(uuid())
+  userId      String
+  amount      Float
+  type        String
+  description String?
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ActivityLog {
+  id        String   @id @default(uuid())
+  userId    String
+  action    String
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
