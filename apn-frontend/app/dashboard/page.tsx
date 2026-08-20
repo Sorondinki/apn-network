@@ -1,4 +1,3 @@
-// app/dashboard/page.tsx
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
@@ -13,6 +12,11 @@ export default function DashboardPage() {
   const baseBalanceRef = useRef(0);
   const balanceRef = useRef(balance);
   balanceRef.current = balance;
+
+  // Check if current user is the Founder / Admin
+  const isFounder = user?.email?.toLowerCase() === "contact.aprotech@gmail.com";
+  // Standard User Rate = 0.5 APN/hr, Founder Rate = 5.0 APN/hr (10x Speed Boost)
+  const hourlyRate = isFounder ? 5.0 : 0.5;
 
   // Load User & Mining Session
   useEffect(() => {
@@ -44,8 +48,9 @@ export default function DashboardPage() {
       if (elapsedSeconds < 86400) {
         setIsMining(true);
         setSessionTime(elapsedSeconds);
-        // Calculate accrued balance dynamically up to this moment
-        const minedSoFar = elapsedSeconds * (0.5 / 3600);
+        // Calculate accrued balance dynamically up to this moment with custom speed
+        const currentHourlyRate = userData?.email?.toLowerCase() === "contact.aprotech@gmail.com" ? 5.0 : 0.5;
+        const minedSoFar = elapsedSeconds * (currentHourlyRate / 3600);
         setBalance(initialBal + minedSoFar);
       } else {
         setIsMining(false);
@@ -76,8 +81,8 @@ export default function DashboardPage() {
 
         setSessionTime(elapsedSeconds);
 
-        // Precise live calculation: Base Balance + Elapsed Time Mining
-        const liveMined = elapsedSeconds * (0.5 / 3600);
+        // Precise live calculation using user specific hourly rate
+        const liveMined = elapsedSeconds * (hourlyRate / 3600);
         const liveTotal = baseBalanceRef.current + liveMined;
 
         setBalance(liveTotal);
@@ -107,7 +112,7 @@ export default function DashboardPage() {
       clearInterval(interval);
       clearInterval(syncInterval);
     };
-  }, [isMining, user]);
+  }, [isMining, user, hourlyRate]);
 
   const toggleMining = () => {
     if (!isMining) {
@@ -153,10 +158,20 @@ export default function DashboardPage() {
       {/* HERO SECTION MATCHING SCREENSHOT EXACTLY */}
       <div className="relative overflow-hidden p-8 rounded-3xl bg-gray-900/50 border border-gray-800/80 backdrop-blur-xl flex flex-col md:flex-row items-center justify-between gap-6">
         <div className="space-y-3 max-w-xl">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-medium">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            PoS Layer-1 Web Node Active
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-medium">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              PoS Layer-1 Web Node Active
+            </div>
+
+            {/* FOUNDER SPECIAL BADGE */}
+            {isFounder && (
+              <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-bold tracking-wide shadow-lg shadow-amber-950/50">
+                ⚡ Founder Master Node (10x Speed)
+              </div>
+            )}
           </div>
+
           <h1 className="text-4xl font-black text-white tracking-tight">
             APN Web Mining Console
           </h1>
@@ -203,9 +218,14 @@ export default function DashboardPage() {
           </span>
           <div className="flex items-baseline gap-2 mt-4">
             <span className="text-3xl font-extrabold text-blue-400 font-mono tracking-tight">
-              0.5
+              {hourlyRate.toFixed(1)}
             </span>
             <span className="text-xs font-semibold text-gray-400">APN / hr</span>
+            {isFounder && (
+              <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-md font-bold ml-1 border border-amber-500/30">
+                10x Boost
+              </span>
+            )}
           </div>
         </div>
 
