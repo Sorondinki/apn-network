@@ -1,4 +1,3 @@
-// app/layout.tsx
 "use client";
 import './globals.css';
 import Link from 'next/link';
@@ -13,7 +12,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
   const isAuthPage = pathname === '/register' || pathname === '/login' || pathname === '/';
 
-  // Load user data to verify identity and check for Founder status
+  // Load user data to verify session identity securely
   useEffect(() => {
     if (typeof window !== "undefined") {
       const savedUser = localStorage.getItem("apn_user");
@@ -27,7 +26,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     }
   }, [pathname]);
 
-  // Dynamic Navigation Items
+  // Base Navigation Items
   const baseNavItems = [
     { name: '⛏️ Web Mining', path: '/dashboard' },
     { name: '💳 Wallet & Withdraw', path: '/wallet' },
@@ -39,10 +38,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     { name: '🛡️ Identity Verification', path: '/kyc' },
   ];
 
-  // Only append 'Node Admin' if logged in user is the Founder
-  const isFounder = user?.email?.toLowerCase() === "contact.aprotech@gmail.com";
+  // Dynamic Navigation based ONLY on backend-assigned Role (ADMIN / FOUNDER)
+  const isAdmin = user?.role === "ADMIN" || user?.role === "FOUNDER";
   
-  const navItems = isFounder
+  const navItems = isAdmin
     ? [...baseNavItems, { name: '⚙️ Node Admin', path: '/admin' }]
     : baseNavItems;
 

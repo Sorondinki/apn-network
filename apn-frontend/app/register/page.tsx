@@ -1,11 +1,10 @@
-// app/register/page.tsx
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 export default function AuthPage() {
   const router = useRouter();
-  const [isLogin, setIsLogin] = useState(false); // Toggle tsakanin Login & Register
+  const [isLogin, setIsLogin] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [referralCode, setReferralCode] = useState("");
@@ -17,7 +16,7 @@ export default function AuthPage() {
     setLoading(true);
     setToast(null);
 
-    // Zabar endpoint dace (Login ko Register)
+    // Endpoint selection
     const endpoint = isLogin ? "/api/auth/login" : "/api/auth/register";
     const payload = isLogin ? { email, password } : { email, password, referralCode };
 
@@ -31,10 +30,10 @@ export default function AuthPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error || "Aunthetication failed");
+        throw new Error(data.error || "Authentication failed");
       }
 
-      // Adana amintaccen Session na User a LocalStorage domin wayoyi da kwamfuta
+      // Store User Session securely upon successful database authentication
       if (data.user) {
         localStorage.setItem("apn_user", JSON.stringify(data.user));
         if (data.user.balance !== undefined) {
@@ -51,7 +50,7 @@ export default function AuthPage() {
         router.push("/dashboard");
       }, 1000);
     } catch (err: any) {
-      setToast({ type: "error", msg: err.message });
+      setToast({ type: "error", msg: err.message || "An unexpected error occurred." });
     } finally {
       setLoading(false);
     }

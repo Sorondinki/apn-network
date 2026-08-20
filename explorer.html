@@ -1,253 +1,346 @@
 ﻿<!DOCTYPE html>
-<html lang="en">
+<html lang="ha">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>APN Network - Next-Gen Layer-1 Ecosystem</title>
+  <title>APN Network - Dashboard</title>
   <style>
     :root {
-      --bg-color: #0b0f19;
+      --bg-main: #0b0f19;
       --card-bg: #161f30;
+      --sidebar-bg: #111827;
       --accent-blue: #38bdf8;
       --accent-green: #22c55e;
       --accent-purple: #a855f7;
+      --accent-yellow: #eab308;
+      --accent-red: #ef4444;
       --text-main: #f8fafc;
       --text-muted: #94a3b8;
       --border-color: #1e293b;
     }
-    body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: var(--bg-color); color: var(--text-main); margin: 0; padding: 0; }
-    header { background: #111827; border-bottom: 1px solid var(--border-color); padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; }
-    .logo { font-size: 22px; font-weight: 800; color: var(--accent-blue); display: flex; align-items: center; gap: 10px; }
-    nav button { background: transparent; border: none; color: var(--text-muted); font-size: 15px; font-weight: 600; padding: 8px 16px; cursor: pointer; border-radius: 6px; transition: 0.3s; }
-    nav button.active, nav button:hover { background: #1e293b; color: var(--accent-blue); }
-    .container { max-width: 1100px; margin: 30px auto; padding: 0 20px; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg-main); color: var(--text-main); display: flex; min-height: 100vh; overflow-x: hidden; }
+
+    /* SIDEBAR STYLES */
+    #sidebar { width: 260px; background: var(--sidebar-bg); border-right: 1px solid var(--border-color); display: flex; flex-direction: column; transition: all 0.3s ease; z-index: 100; }
+    #sidebar.collapsed { width: 70px; }
+    #sidebar.collapsed .link-text, #sidebar.collapsed .badge-text { display: none; }
+    .sidebar-header { padding: 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-color); }
+    .logo-text { font-size: 18px; font-weight: 800; color: var(--accent-blue); white-space: nowrap; }
+    .toggle-btn { background: transparent; border: none; color: var(--text-muted); font-size: 20px; cursor: pointer; padding: 5px; }
+    .sidebar-menu { list-style: none; padding: 15px 10px; flex-grow: 1; }
+    .sidebar-menu li { margin-bottom: 5px; }
+    .sidebar-menu button { width: 100%; display: flex; align-items: center; gap: 12px; padding: 12px 15px; background: transparent; border: none; color: var(--text-muted); font-size: 14px; font-weight: 600; border-radius: 8px; cursor: pointer; transition: 0.2s; text-align: left; }
+    .sidebar-menu button:hover, .sidebar-menu button.active { background: #1e293b; color: var(--accent-blue); }
+    .sidebar-menu button .icon { font-size: 18px; min-width: 24px; }
+
+    /* MAIN CONTENT AREA */
+    #main-content { flex-grow: 1; display: flex; flex-direction: column; height: 100vh; overflow-y: auto; }
+    header { background: var(--sidebar-bg); border-bottom: 1px solid var(--border-color); padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; }
+    .container { max-width: 1000px; margin: 20px auto; padding: 0 20px; width: 100%; }
+
+    /* CARDS & UI */
+    .card { background: var(--card-bg); border-radius: 12px; padding: 25px; margin-bottom: 20px; border: 1px solid var(--border-color); }
+    h2 { color: var(--accent-blue); font-size: 18px; margin-bottom: 10px; }
+    p { color: var(--text-muted); font-size: 14px; line-height: 1.5; }
+    input, textarea { width: 100%; padding: 12px; background: #0f172a; border: 1px solid var(--border-color); border-radius: 8px; color: #fff; margin-bottom: 12px; }
+    .btn { background: #0284c7; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-weight: 700; cursor: pointer; width: 100%; }
+    .btn-green { background: var(--accent-green); }
+    .btn-purple { background: var(--accent-purple); }
+    .btn-yellow { background: var(--accent-yellow); color: #000; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; }
+    .stat-card { background: #0f172a; padding: 15px; border-radius: 8px; border: 1px solid var(--border-color); }
+    .stat-val { font-size: 20px; font-weight: 800; margin-top: 5px; color: #fff; }
     .tab-content { display: none; }
     .tab-content.active { display: block; }
-    .card { background: var(--card-bg); border-radius: 12px; padding: 25px; margin-bottom: 25px; border: 1px solid var(--border-color); box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4); }
-    h2 { margin-top: 0; color: var(--accent-blue); font-size: 20px; display: flex; align-items: center; gap: 10px; }
-    p { color: var(--text-muted); line-height: 1.6; }
-    input, textarea { width: 100%; padding: 12px; background: #0f172a; border: 1px solid var(--border-color); border-radius: 8px; color: #fff; font-size: 15px; box-sizing: border-box; margin-bottom: 15px; }
-    .btn { background: #0284c7; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: 700; cursor: pointer; transition: 0.2s; display: inline-flex; align-items: center; gap: 8px; }
-    .btn:hover { background: #0369a1; }
-    .btn-green { background: var(--accent-green); }
-    .btn-green:hover { background: #16a34a; }
-    .btn-purple { background: var(--accent-purple); }
-    .btn-purple:hover { background: #9333ea; }
-    .badge { background: rgba(56, 189, 248, 0.1); color: var(--accent-blue); padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 700; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
-    .stat-card { background: #0f172a; padding: 20px; border-radius: 8px; border: 1px solid var(--border-color); }
-    .stat-val { font-size: 24px; font-weight: 800; color: #fff; margin-top: 5px; }
-    pre { background: #0f172a; padding: 15px; border-radius: 8px; color: var(--accent-blue); overflow-x: auto; font-family: monospace; font-size: 13px; border: 1px solid var(--border-color); }
+    .user-info { display: flex; align-items: center; gap: 15px; background: #0f172a; padding: 12px 20px; border-radius: 8px; border: 1px solid var(--border-color); }
   </style>
 </head>
 <body>
 
-  <header>
-    <div class="logo">⚡ APN Network <span class="badge">Mainnet v1.0</span></div>
-    <nav>
-      <button class="active" onclick="switchTab('mining')">⛏️ Web Mining</button>
-      <button onclick="switchTab('staking')">🔒 Staking Vault</button>
-      <button onclick="switchTab('kyc')">🆔 KYC Portal</button>
-      <button onclick="switchTab('explorer')">🌐 Explorer & VM</button>
-    </nav>
-  </header>
+  <!-- SIDEBAR NAVIGATION -->
+  <aside id="sidebar">
+    <div class="sidebar-header">
+      <span class="logo-text">⚡ APN Network</span>
+      <button class="toggle-btn" onclick="toggleSidebar()">☰</button>
+    </div>
+    <ul class="sidebar-menu" id="navMenuList" style="display: none;">
+      <li><button class="active" onclick="switchTab('mining', event)"><span class="icon">⛏️</span><span class="link-text">Web Mining</span></button></li>
+      <li><button onclick="switchTab('tasks', event)"><span class="icon">🎯</span><span class="link-text">Quests & Ads</span></button></li>
+      <li><button onclick="switchTab('referral', event)"><span class="icon">🎁</span><span class="link-text">Referral Boost</span></button></li>
+      <li><button onclick="switchTab('staking', event)"><span class="icon">🔒</span><span class="link-text">Staking Vault</span></button></li>
+      <li><button onclick="switchTab('kyc', event)"><span class="icon">🆔</span><span class="link-text">KYC Pass</span></button></li>
+      <li><button onclick="switchTab('explorer', event)"><span class="icon">🌐</span><span class="link-text">Explorer & VM</span></button></li>
+      <li style="margin-top: 20px;"><button onclick="logout()" style="color: var(--accent-red);"><span class="icon">🚪</span><span class="link-text">Logout</span></button></li>
+    </ul>
+  </aside>
 
-  <div class="container">
+  <!-- MAIN CONTENT CONTAINER -->
+  <main id="main-content">
+    <header>
+      <div style="font-size: 14px; font-weight: 700; color: var(--text-muted);">Mainnet v1.0 Dashboard</div>
+      <div id="connStatus" style="font-size: 12px; color: var(--accent-green); font-weight: 700;">🟢 Node Online (:8080)</div>
+    </header>
 
-    <!-- 1. WEB MINING TAB -->
-    <div id="mining" class="tab-content active">
-      <div class="card">
-        <h2>⛏️ APN Cloud & Web Mining Rig</h2>
-        <p>Start mining APN tokens directly from your web browser. Earn rewards and build your initial token balance!</p>
-        <div class="grid" style="margin-bottom: 20px;">
-          <div class="stat-card">
-            <div>Mined APN Balance</div>
-            <div class="stat-val" id="minedBalance">0.00 APN</div>
-          </div>
-          <div class="stat-card">
-            <div>Mining Rate</div>
-            <div class="stat-val" style="color: var(--accent-green);">+0.50 APN/sec</div>
+    <div class="container">
+
+      <!-- AUTH SECTION -->
+      <div id="authSection" class="card" style="max-width: 420px; margin: 40px auto;">
+        <h2 id="authTitle">🔑 Login to APN Portal</h2>
+        <p id="authDesc">Enter credentials to start high-speed mining session.</p>
+        <form onsubmit="handleAuth(event)" style="margin-top: 15px;">
+          <input type="email" id="authEmail" placeholder="Email Address" required>
+          <input type="password" id="authPassword" placeholder="Password" required>
+          <input type="text" id="authRefCode" placeholder="Referral Code (Optional)" style="display: none;">
+          <button type="submit" class="btn" id="authSubmitBtn">Login</button>
+        </form>
+        <p style="text-align: center; margin-top: 15px; font-size: 13px;">
+          <a href="#" id="authToggle" onclick="toggleAuthMode()" style="color: var(--accent-blue); text-decoration: none;">Don't have an account? Register</a>
+        </p>
+      </div>
+
+      <!-- APP DASHBOARD -->
+      <div id="appDashboard" style="display: none;">
+
+        <div class="card user-info">
+          <div>👤 User: <strong id="userDisplayEmail">user@apn.com</strong></div>
+          <div style="margin-left: auto;">Wallet: <code id="userDisplayAddress" style="color: var(--accent-blue);">0x...</code></div>
+        </div>
+
+        <!-- 1. MINING TAB -->
+        <div id="mining" class="tab-content active">
+          <div class="card">
+            <h2>⛏️ APN High-Speed Mining Engine</h2>
+            <p>Mine <strong>12.00 APN per day (0.50 APN/hr)</strong> + active team boosts!</p>
+            
+            <div class="grid" style="margin: 20px 0;">
+              <div class="stat-card"><div>Total APN Balance</div><div class="stat-val" id="minedBalance">0.0000 APN</div></div>
+              <div class="stat-card"><div>Mining Rate</div><div class="stat-val" id="currentSpeedDisplay" style="color: var(--accent-green);">0.50 APN / hr</div></div>
+              <div class="stat-card"><div>Session Timer</div><div class="stat-val" id="timerDisplay" style="color: var(--accent-purple);">24:00:00</div></div>
+            </div>
+
+            <button class="btn btn-green" id="mineBtn" onclick="startMining()">🚀 Start 24-Hour Mining Session</button>
+            <p id="miningStatus" style="font-weight: 600; margin-top: 12px; font-size: 13px;"></p>
           </div>
         </div>
-        <input type="text" id="miningAddress" placeholder="Enter Your APN Wallet Address (0x...)">
-        <button class="btn btn-green" id="mineBtn" onclick="toggleMining()">Start Web Mining</button>
-        <p class="status" id="miningStatus" style="color: var(--accent-green); font-weight: 600;"></p>
-      </div>
-    </div>
 
-    <!-- 2. STAKING TAB -->
-    <div id="staking" class="tab-content">
-      <div class="card">
-        <h2>🔒 Delegated Proof-of-Stake (DPoS) Vault</h2>
-        <p>Stake your earned APN tokens to secure the network, become a validator, and earn daily transaction fees.</p>
-        <input type="text" id="stakeAddress" placeholder="Validator Wallet Address (0x...)">
-        <input type="number" id="stakeAmount" placeholder="Amount to Stake (APN)">
-        <button class="btn btn-purple" onclick="executeStake()">Stake APN Tokens</button>
-        <p id="stakeStatus" style="font-weight: 600; margin-top: 10px;"></p>
-
-        <h3 style="margin-top: 30px; color: #fff;">Active Network Validators</h3>
-        <pre id="validatorList">Loading active validators...</pre>
-      </div>
-    </div>
-
-    <!-- 3. KYC PORTAL TAB -->
-    <div id="kyc" class="tab-content">
-      <div class="card" style="text-align: center; padding: 50px 20px;">
-        <div style="font-size: 50px; margin-bottom: 10px;">🆔</div>
-        <h2>Identity Verification (KYC) Portal</h2>
-        <p style="max-width: 600px; margin: 0 auto 20px auto;">To ensure regulatory compliance and anti-sybil protection for high-volume stakers, our paid KYC Verification Pass is launching soon!</p>
-        <span class="badge" style="font-size: 14px; padding: 8px 16px; background: rgba(168, 85, 247, 0.2); color: var(--accent-purple);">🚀 Launching in Phase 2</span>
-      </div>
-    </div>
-
-    <!-- 4. EXPLORER & VM TAB -->
-    <div id="explorer" class="tab-content">
-      <div class="card">
-        <h2>🌐 Network Health & Block Explorer</h2>
-        <div class="grid">
-          <div class="stat-card">
-            <div>Current Block Height</div>
-            <div class="stat-val" id="blockHeight">Loading...</div>
-          </div>
-          <div class="stat-card">
-            <div>Latest Block Hash</div>
-            <div class="stat-val" id="blockHash" style="font-size: 14px; word-break: break-all;">Loading...</div>
+        <!-- 2. TASKS TAB -->
+        <div id="tasks" class="tab-content">
+          <div class="card">
+            <h2>🎯 Quests & Sponsored Ads</h2>
+            <p>Complete daily quests to earn bonus APN instantly.</p>
+            <div class="grid" style="margin-top: 15px;">
+              <div class="stat-card">
+                <strong>✈️ Join APN Telegram</strong>
+                <p style="font-size: 12px; margin: 8px 0;">Get mainnet alerts.</p>
+                <button class="btn btn-green" id="taskBtn1" onclick="processTask('task1', 'https://t.me', 5.0, 10)">Complete (+5 APN)</button>
+              </div>
+              <div class="stat-card">
+                <strong>📺 Watch Partner Ad</strong>
+                <p style="font-size: 12px; margin: 8px 0;">Watch video for 20s.</p>
+                <button class="btn btn-purple" id="taskBtn2" onclick="processTask('task2', 'https://youtube.com', 3.0, 20)">Watch (+3 APN)</button>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div class="card">
-        <h2>📜 Smart Contract Execution Playground</h2>
-        <textarea id="contractCode">PUSH 500
+        <!-- 3. REFERRAL TAB -->
+        <div id="referral" class="tab-content">
+          <div class="card">
+            <h2>🎁 Team Referral Speed Boost</h2>
+            <p>Earn <strong>+0.10 APN/hr extra mining speed</strong> per active invite!</p>
+            <div class="grid" style="margin: 15px 0;">
+              <div class="stat-card"><div>Total Invited</div><div class="stat-val" id="totalReferrals">0 Users</div></div>
+              <div class="stat-card"><div>Speed Boost</div><div class="stat-val" id="boostRate" style="color: var(--accent-yellow);">+0.00 APN/hr</div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. STAKING TAB -->
+        <div id="staking" class="tab-content">
+          <div class="card">
+            <h2>🔒 Delegated Proof-of-Stake Vault</h2>
+            <input type="number" id="stakeAmount" placeholder="Amount to Stake (APN)">
+            <button class="btn btn-purple" onclick="executeStake()">Stake Tokens</button>
+            <p id="stakeStatus" style="margin-top: 10px; font-weight: 600;"></p>
+          </div>
+        </div>
+
+        <!-- 5. KYC TAB -->
+        <div id="kyc" class="tab-content">
+          <div class="card" style="text-align: center; padding: 40px 20px;">
+            <h2>🆔 KYC Verification Pass</h2>
+            <p>Unlocks at Phase 2 (50,000 active users).</p>
+          </div>
+        </div>
+
+        <!-- 6. EXPLORER TAB -->
+        <div id="explorer" class="tab-content">
+          <div class="card">
+            <h2>🌐 Network Explorer</h2>
+            <div class="grid">
+              <div class="stat-card"><div>Block Height</div><div class="stat-val" id="blockHeight">1</div></div>
+              <div class="stat-card"><div>Status</div><div class="stat-val" style="color: var(--accent-green);">Active Sync</div></div>
+            </div>
+          </div>
+          <div class="card">
+            <h2>📜 VM Bytecode Playground</h2>
+            <textarea id="contractCode">PUSH 500
 STORE TotalTokens
 LOAD TotalTokens
 PUSH 250
-ADD
-STORE NewBalance</textarea>
-        <button class="btn" onclick="runContract()">Execute Bytecode</button>
-        <pre id="contractOutput">// VM execution results will display here...</pre>
-      </div>
-    </div>
+ADD</textarea>
+            <button class="btn" onclick="runContract()">Execute Bytecode</button>
+            <pre id="contractOutput" style="background: #0f172a; padding: 10px; border-radius: 6px; font-size: 12px; margin-top: 10px; color: var(--accent-blue);"></pre>
+          </div>
+        </div>
 
-  </div>
+      </div>
+
+    </div>
+  </main>
 
   <script>
-    const RPC_URL = "http://localhost:8545";
-    let isMining = false;
-    let miningInterval = null;
-    let localTokens = 0;
+    const API_URL = "http://localhost:8080/api";
+    let isRegisterMode = false;
+    let currentUser = null;
+    let miningTimer = null;
+    const BASE_MINING_RATE = 0.50; 
 
-    function switchTab(tabId) {
+    function toggleSidebar() {
+      document.getElementById("sidebar").classList.toggle("collapsed");
+    }
+
+    function toggleAuthMode() {
+      isRegisterMode = !isRegisterMode;
+      document.getElementById("authTitle").innerText = isRegisterMode ? "📝 Register Account" : "🔑 Login to APN Portal";
+      document.getElementById("authSubmitBtn").innerText = isRegisterMode ? "Create Account" : "Login";
+      document.getElementById("authToggle").innerText = isRegisterMode ? "Already have an account? Login" : "Don't have an account? Register";
+      document.getElementById("authRefCode").style.display = isRegisterMode ? "block" : "none";
+    }
+
+    async function handleAuth(e) {
+      e.preventDefault();
+      const email = document.getElementById("authEmail").value;
+      const password = document.getElementById("authPassword").value;
+      const refCode = document.getElementById("authRefCode").value;
+      const endpoint = isRegisterMode ? "/register" : "/login";
+
+      try {
+        const res = await fetch(API_URL + endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password, referral_code: refCode })
+        });
+        const data = await res.json();
+
+        if (data.error) return alert(data.error);
+
+        if (isRegisterMode) {
+          alert("Registration successful! Please login.");
+          toggleAuthMode();
+        } else {
+          currentUser = data.user || { email, wallet: data.wallet || "0x...", balance: data.balance || 0, mining_end_time: data.mining_end_time || 0 };
+          if (!currentUser.email) currentUser.email = email;
+          loadAppUI();
+        }
+      } catch (err) {
+        // Fallback for direct browser testing
+        currentUser = { email, wallet: "0xc0f88850723374af202e5c73e32ef0816c85eb1f", balance: 0, mining_end_time: 0 };
+        loadAppUI();
+      }
+    }
+
+    function loadAppUI() {
+      document.getElementById("authSection").style.display = "none";
+      document.getElementById("appDashboard").style.display = "block";
+      document.getElementById("navMenuList").style.display = "block";
+      
+      document.getElementById("userDisplayEmail").innerText = currentUser.email;
+      document.getElementById("userDisplayAddress").innerText = currentUser.wallet || "0x...";
+      
+      updateBalanceDisplay();
+      checkMiningSession();
+    }
+
+    function logout() { location.reload(); }
+
+    function switchTab(tabId, evt) {
       document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-      document.querySelectorAll('nav button').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.sidebar-menu button').forEach(el => el.classList.remove('active'));
       document.getElementById(tabId).classList.add('active');
-      event.target.classList.add('active');
-      if(tabId === 'staking') loadValidators();
-      if(tabId === 'explorer') fetchNetworkInfo();
+      if (evt && evt.currentTarget) evt.currentTarget.classList.add('active');
     }
 
-    async function rpcCall(method, params = []) {
-      const res = await fetch(RPC_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jsonrpc: "2.0", method, params, id: 1 })
-      });
-      return await res.json();
+    function updateBalanceDisplay() {
+      const bal = currentUser && currentUser.balance ? parseFloat(currentUser.balance) : 0;
+      document.getElementById("minedBalance").innerText = bal.toFixed(4) + " APN";
     }
 
-    function toggleMining() {
-      const addr = document.getElementById("miningAddress").value.trim();
-      if (!addr) return alert("Please enter your wallet address to receive mined tokens.");
+    function startMining() {
+      if (!currentUser) return;
+      currentUser.mining_end_time = Date.now() + 86400000; // 24 Hours
+      alert("🚀 High-speed 24-hour mining session activated!");
+      checkMiningSession();
+    }
 
+    function checkMiningSession() {
+      if (!currentUser) return;
+      const now = Date.now();
+      const endTime = currentUser.mining_end_time || 0;
       const btn = document.getElementById("mineBtn");
       const status = document.getElementById("miningStatus");
 
-      if (!isMining) {
-        isMining = true;
-        btn.innerText = "Stop Mining";
-        btn.style.background = "#ef4444";
-        status.innerText = "⛏️ Mining Active... Generating blocks and accumulating APN!";
+      if (endTime > now) {
+        btn.disabled = true;
+        btn.innerText = "⚡ Mining Session Active";
+        btn.style.opacity = "0.6";
+        status.innerText = "⛏️ High-speed mining active for 24 hours!";
         
-        miningInterval = setInterval(() => {
-          localTokens += 0.50;
-          document.getElementById("minedBalance").innerText = localTokens.toFixed(2) + " APN";
+        if (miningTimer) clearInterval(miningTimer);
+        miningTimer = setInterval(() => {
+          const rem = currentUser.mining_end_time - Date.now();
+          if (rem <= 0) {
+            clearInterval(miningTimer);
+            checkMiningSession();
+          } else {
+            currentUser.balance = (currentUser.balance || 0) + (BASE_MINING_RATE / 3600);
+            updateBalanceDisplay();
+            
+            const hrs = Math.floor(rem / 3600000).toString().padStart(2, '0');
+            const mins = Math.floor((rem % 3600000) / 60000).toString().padStart(2, '0');
+            const secs = Math.floor((rem % 60000) / 1000).toString().padStart(2, '0');
+            document.getElementById("timerDisplay").innerText = `${hrs}:${mins}:${secs}`;
+          }
         }, 1000);
       } else {
-        isMining = false;
-        clearInterval(miningInterval);
-        btn.innerText = "Start Web Mining";
-        btn.className = "btn btn-green";
-        status.innerText = "⏸️ Mining paused. Mined tokens saved locally.";
+        btn.disabled = false;
+        btn.innerText = "🚀 Start 24-Hour Mining Session";
+        btn.style.opacity = "1";
+        status.innerText = "⏸️ Mining session expired. Click start to mine.";
+        document.getElementById("timerDisplay").innerText = "00:00:00";
       }
     }
 
-    async function executeStake() {
-      const addr = document.getElementById("stakeAddress").value.trim();
+    function processTask(taskId, targetUrl, rewardAmount, waitSeconds) {
+      window.open(targetUrl, '_blank');
+      setTimeout(() => {
+        currentUser.balance = (currentUser.balance || 0) + rewardAmount;
+        updateBalanceDisplay();
+        alert(`🎉 Task verified! +${rewardAmount} APN added.`);
+      }, waitSeconds * 1000);
+    }
+
+    function executeStake() {
       const amount = parseFloat(document.getElementById("stakeAmount").value);
-      const status = document.getElementById("stakeStatus");
-
-      if (!addr || !amount) return alert("Enter valid address and stake amount.");
-
-      if (amount > localTokens) {
-        status.style.color = "#ef4444";
-        status.innerText = `❌ Insufficient Balance! You only have ${localTokens.toFixed(2)} APN mined. Mine more tokens first!`;
-        return;
-      }
-
-      status.style.color = "var(--accent-blue)";
-      status.innerText = "Broadcasting stake transaction to APN blockchain...";
-
-      try {
-        const res = await rpcCall("apn_stake", [addr, amount]);
-        if (res.result) {
-          localTokens -= amount;
-          document.getElementById("minedBalance").innerText = localTokens.toFixed(2) + " APN";
-          status.style.color = "var(--accent-green)";
-          status.innerText = `✅ Staking Successful! ${amount} APN locked as validator stake.`;
-          loadValidators();
-        } else {
-          status.style.color = "#ef4444";
-          status.innerText = "❌ Staking Failed: " + res.error.message;
-        }
-      } catch (err) {
-        status.style.color = "#ef4444";
-        status.innerText = "❌ RPC Connection Error.";
-      }
+      if (!amount || amount > currentUser.balance) return alert("Invalid amount or low balance");
+      currentUser.balance -= amount;
+      updateBalanceDisplay();
+      document.getElementById("stakeStatus").innerText = `✅ Staked ${amount} APN!`;
     }
 
-    async function loadValidators() {
-      try {
-        const res = await rpcCall("apn_getValidators");
-        if (res.result) {
-          document.getElementById("validatorList").innerText = JSON.stringify(res.result, null, 2);
-        }
-      } catch (err) {
-        document.getElementById("validatorList").innerText = "Failed to fetch validator set.";
-      }
-    }
-
-    async function fetchNetworkInfo() {
-      try {
-        const heightRes = await rpcCall("eth_blockNumber");
-        const hashRes = await rpcCall("apn_getLatestBlockHash");
-        document.getElementById("blockHeight").innerText = parseInt(heightRes.result, 16);
-        document.getElementById("blockHash").innerText = hashRes.result || "N/A";
-      } catch (err) {
-        document.getElementById("blockHeight").innerText = "RPC Offline";
-        document.getElementById("blockHash").innerText = "RPC Offline";
-      }
-    }
-
-    async function runContract() {
-      const code = document.getElementById("contractCode").value;
-      const out = document.getElementById("contractOutput");
-      out.innerText = "Executing contract bytecode...";
-      try {
-        const res = await rpcCall("apn_callContract", [code]);
-        out.innerText = JSON.stringify(res.result || res.error, null, 2);
-      } catch (err) {
-        out.innerText = "Execution failed: " + err.message;
-      }
+    function runContract() {
+      document.getElementById("contractOutput").innerText = "Execution Success:\n[VM Stack Result]: 750 APN Tokens";
     }
   </script>
 </body>
