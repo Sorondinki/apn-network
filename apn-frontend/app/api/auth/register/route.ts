@@ -24,8 +24,11 @@ export async function POST(req: Request) {
     const walletAddress = "0x" + Array.from(crypto.getRandomValues(new Uint8Array(20)))
       .map(b => b.toString(16).padStart(2, '0')).join('');
 
-    // Check for a valid referral code
-    let referrerId = null;
+    // Generate a unique Referral Code for the new user
+    const generatedReferralCode = "APN" + Math.random().toString(36).substring(2, 8).toUpperCase();
+
+    // Check for a valid referrer code
+    let referrerId: string | null = null;
     if (referralCode) {
       const referrer = await prisma.user.findUnique({ where: { referralCode } });
       if (referrer) {
@@ -33,13 +36,15 @@ export async function POST(req: Request) {
       }
     }
 
-    // Save new user to SQLite Database
+    // Save new user to Database
     const newUser = await prisma.user.create({
       data: {
         email,
         passwordHash: hashedPassword,
         walletAddress,
+        referralCode: generatedReferralCode,
         referredById: referrerId,
+        hasChangedRefCode: false,
       },
     });
 
@@ -65,6 +70,7 @@ export async function POST(req: Request) {
       { status: 201 }
     );
   } catch (error) {
+    console.error("Registration error:", error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
