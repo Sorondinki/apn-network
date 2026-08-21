@@ -14,7 +14,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // Direct Database Query With Error Handling
     const cleanEmail = email.trim().toLowerCase();
     
     const user = await prisma.user.findUnique({ 
@@ -28,7 +27,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // Inganta Password
     const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
 
     if (!isPasswordValid) {
@@ -38,7 +36,12 @@ export async function POST(req: Request) {
       );
     }
 
-    // Maida Response tare da kariya daga null Values
+    // Safely parse miningStartTime to ISO String or Null
+    let formattedMiningTime = null;
+    if (user.miningStartTime) {
+      formattedMiningTime = new Date(user.miningStartTime).toISOString();
+    }
+
     return NextResponse.json(
       { 
         message: 'Login successful!', 
@@ -51,7 +54,7 @@ export async function POST(req: Request) {
           stakedBalance: user.stakedBalance ?? 0,
           referralCode: user.referralCode || '',
           isMining: Boolean(user.isMining),
-          miningStartTime: user.miningStartTime ? user.miningStartTime.toISOString() : null
+          miningStartTime: formattedMiningTime
         } 
       },
       { status: 200 }
