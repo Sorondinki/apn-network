@@ -1,14 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  typescript: {
-    // Wuce TypeScript errors lokacin Vercel build
-    ignoreBuildErrors: true,
-  },
-  eslint: {
-    // Wuce ESLint errors lokacin Vercel build
-    ignoreDuringBuilds: true,
-  },
+  /* sauran configurations dinka na gaskiya */
 };
 
 export default nextConfig;
