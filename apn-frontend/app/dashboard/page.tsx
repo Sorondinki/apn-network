@@ -15,7 +15,7 @@ export default function DashboardPage() {
   balanceRef.current = balance;
 
   // Check if current user is the Founder / Admin
-  const isFounder = user?.email?.toLowerCase() === "contact.aprotech@gmail.com";
+  const isFounder = user?.email?.toLowerCase() === "contact.aprotech@gmail.com" || user?.email?.toLowerCase() === "sorondinkiseeme@gmail.com";
   // Standard User Rate = 0.5 APN/hr, Founder Rate = 5.0 APN/hr (10x Speed Boost)
   const hourlyRate = isFounder ? 5.0 : 0.5;
 
@@ -30,37 +30,41 @@ export default function DashboardPage() {
     const userData = JSON.parse(savedUser);
     setUser(userData);
 
-    const savedBalance = localStorage.getItem("apn_user_balance");
-    let initialBal = 0;
+    // Fetch freshest data from DB/Local storage
+    const initialBal = parseFloat(userData.balance || "0");
+    const startTimeStr = localStorage.getItem("apn_mining_start_time");
 
-    if (savedBalance) {
-      initialBal = parseFloat(savedBalance);
-    } else if (userData.balance !== undefined) {
-      initialBal = parseFloat(userData.balance);
-    }
+    if (startTimeStr) {
+      const startTime = parseInt(startTimeStr, 10);
+      const elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
 
-    baseBalanceRef.current = initialBal;
-    setBalance(initialBal);
-
-    const startTime = localStorage.getItem("apn_mining_start_time");
-
-    if (startTime) {
-      const elapsedSeconds = Math.floor((Date.now() - parseInt(startTime, 10)) / 1000);
       if (elapsedSeconds < 86400) {
         setIsMining(true);
         setSessionTime(elapsedSeconds);
-        // Calculate accrued balance dynamically up to this moment with custom speed
-        const currentHourlyRate = userData?.email?.toLowerCase() === "contact.aprotech@gmail.com" ? 5.0 : 0.5;
+
+        // Fetch saved base balance or calculate current state safely
+        const savedBase = localStorage.getItem("apn_base_balance");
+        const realBase = savedBase ? parseFloat(savedBase) : initialBal;
+        
+        baseBalanceRef.current = realBase;
+
+        const currentHourlyRate = (userData?.email?.toLowerCase() === "contact.aprotech@gmail.com" || userData?.email?.toLowerCase() === "sorondinkiseeme@gmail.com") ? 5.0 : 0.5;
         const minedSoFar = elapsedSeconds * (currentHourlyRate / 3600);
-        setBalance(initialBal + minedSoFar);
+        setBalance(realBase + minedSoFar);
       } else {
         setIsMining(false);
+        baseBalanceRef.current = initialBal;
+        setBalance(initialBal);
         localStorage.removeItem("apn_mining_start_time");
+        localStorage.removeItem("apn_base_balance");
       }
+    } else {
+      baseBalanceRef.current = initialBal;
+      setBalance(initialBal);
     }
   }, [router]);
 
-  // Real-time Engine with Prisma Database Auto-Sync (Every 10 seconds)
+  // Real-time Engine (Pure Dynamic Display without base balance duplication)
   useEffect(() => {
     let interval: NodeJS.Timeout;
     let syncInterval: NodeJS.Timeout;
@@ -76,20 +80,21 @@ export default function DashboardPage() {
         if (elapsedSeconds >= 86400) {
           setIsMining(false);
           localStorage.removeItem("apn_mining_start_time");
+          localStorage.removeItem("apn_base_balance");
           setSessionTime(86400);
           return;
         }
 
         setSessionTime(elapsedSeconds);
 
-        // Precise live calculation using user specific hourly rate
+        // Precise live calculation using user specific hourly rate from BASE
         const liveMined = elapsedSeconds * (hourlyRate / 3600);
         const liveTotal = baseBalanceRef.current + liveMined;
 
         setBalance(liveTotal);
-        localStorage.setItem("apn_user_balance", liveTotal.toString());
       }, 1000);
 
+      // Periodically Sync to DB WITHOUT overwriting base balance on refresh
       syncInterval = setInterval(() => {
         if (user?.id) {
           const startTimeStr = localStorage.getItem("apn_mining_start_time");
@@ -106,7 +111,7 @@ export default function DashboardPage() {
             }),
           });
         }
-      }, 10000);
+      }, 15000);
     }
 
     return () => {
@@ -119,7 +124,10 @@ export default function DashboardPage() {
     if (!isMining) {
       const now = Date.now();
       setIsMining(true);
+      
+      // Lock down current exact balance as the BASE for this 24h session
       baseBalanceRef.current = balance;
+      localStorage.setItem("apn_base_balance", balance.toString());
       localStorage.setItem("apn_mining_start_time", now.toString());
 
       if (user?.id) {
@@ -137,6 +145,8 @@ export default function DashboardPage() {
     } else {
       setIsMining(false);
       localStorage.removeItem("apn_mining_start_time");
+      localStorage.removeItem("apn_base_balance");
+      
       if (user?.id) {
         fetch("/api/user/sync-balance", {
           method: "POST",

@@ -1,53 +1,47 @@
 // app/api/user/sync-balance/route.ts
-import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { NextResponse } from 'next/server';
+import { supabase } from '@/lib/supabase';
 
 export async function POST(req: Request) {
   try {
-    const { userId, balance, miningStartTime } = await req.json();
+    const body = await req.json();
+    const { userId, balance, isMining, miningStartTime } = body;
 
     if (!userId) {
       return NextResponse.json(
-        { success: false, message: "User ID is required" },
+        { success: false, error: "User ID is required." },
         { status: 400 }
       );
     }
 
-    // 1. Check if user actually exists in Database first to prevent P2025 crash
-    const existingUser = await prisma.user.findUnique({
-      where: { id: userId },
-    });
+    // Convert values appropriately
+    const parsedBalance = parseFloat(balance);
+    const parsedStartTime = miningStartTime ? new Date(parseInt(miningStartTime, 10)).toISOString() : null;
 
-    if (!existingUser) {
-      return NextResponse.json(
-        { success: false, message: "User record not found in database." },
-        { status: 444 }
-      );
+    // Direct Supabase Update
+    const { data, error } = await supabase
+      .from('User')
+      .update({
+        balance: parsedBalance,
+        isMining: Boolean(isMining),
+        miningStartTime: parsedStartTime,
+        updatedAt: new Date().toISOString(),
+      })
+      .eq('id', userId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Supabase Sync Error:", error);
+      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 
-    // 2. Prepare update payload
-    const updateData: any = {
-      balance: parseFloat(balance),
-    };
+    return NextResponse.json({ success: true, user: data });
 
-    if (miningStartTime !== undefined) {
-      updateData.miningStartTime = miningStartTime ? BigInt(miningStartTime) : null;
-    }
-
-    // 3. Perform update safely
-    const updatedUser = await prisma.user.update({
-      where: { id: userId },
-      data: updateData,
-    });
-
-    return NextResponse.json({
-      success: true,
-      balance: updatedUser.balance,
-    });
   } catch (error: any) {
-    console.error("Sync Balance Error:", error);
+    console.error("Sync Balance API Error:", error);
     return NextResponse.json(
-      { success: false, error: error.message },
+      { success: false, error: error?.message || "Internal Server Error" },
       { status: 500 }
     );
   }
