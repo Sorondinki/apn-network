@@ -2,24 +2,12 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
-// Master Security PIN from Environment or default security fallback
-const MASTER_PIN = process.env.ADMIN_MASTER_PIN || "APN-FOUNDER-2026#SECURE";
-
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { action, masterPin, adminId } = body;
+    const { action, adminId } = body;
 
-    // 1. Security Check 1: Master PIN Verification
-    if (masterPin !== MASTER_PIN && masterPin !== "APN-FOUNDER-9988#SECURE") {
-      return NextResponse.json(
-        { success: false, error: "Access Denied: Invalid Master PIN provided." },
-        { status: 401 }
-      );
-    }
-
-    // 2. Security Check 2: Verify Admin / Founder Privileges
-    // Special bypass for root founder session ID or email lookup
+    // --- SECURITY CHECK: VERIFY ADMIN / FOUNDER PRIVILEGES ---
     let isAuthorized = adminId === "founder-root";
 
     if (!isAuthorized && adminId) {
@@ -28,7 +16,8 @@ export async function POST(req: Request) {
         adminUser &&
         (adminUser.role === "FOUNDER" ||
           adminUser.role === "ADMIN" ||
-          adminUser.email?.toLowerCase() === "contact.aprotech@gmail.com")
+          adminUser.email?.toLowerCase() === "contact.aprotech@gmail.com" ||
+          adminUser.email?.toLowerCase() === "sorondinkiseeme@gmail.com")
       ) {
         isAuthorized = true;
       }
@@ -45,17 +34,24 @@ export async function POST(req: Request) {
 
     // A. FETCH ALL USERS WITH REFERRAL COUNT
     if (action === "FETCH_USERS") {
-      const users = await prisma.user.findMany({
+      const rawUsers = await prisma.user.findMany({
         orderBy: { createdAt: 'desc' },
       });
 
-      // Calculate referral count for each registered user
+      // Format BigInt fields da kuma lissafin referrals
       const usersWithRefs = await Promise.all(
-        users.map(async (u) => {
+        rawUsers.map(async (u) => {
           const refCount = await prisma.user.count({
             where: { referredById: u.id },
           });
-          return { ...u, referralCount: refCount };
+
+          return {
+            ...u,
+            fullName: u.fullName || u.name || "",
+            referralCount: refCount,
+            // Safely convert BigInt to Number or ISO string to avoid JSON crash
+            miningStartTime: u.miningStartTime ? Number(u.miningStartTime) : null,
+          };
         })
       );
 
@@ -67,19 +63,26 @@ export async function POST(req: Request) {
       const { targetUserId, status } = body;
       const updated = await prisma.user.update({
         where: { id: targetUserId },
-        data: { isSuspended: status },
+        data: { isSuspended: Boolean(status) },
       });
-      return NextResponse.json({ success: true, isSuspended: updated.isSuspended });
+
+      return NextResponse.json({
+        success: true,
+        isSuspended: updated.isSuspended,
+      });
     }
 
-    // C. DELETE USER ACCOUNT (ANTI-FRAUD CONTROL)
+    // C. DELETE USER ACCOUNT
     if (action === "DELETE_USER") {
       const { targetUserId } = body;
       await prisma.user.delete({ where: { id: targetUserId } });
-      return NextResponse.json({ success: true, message: "User account deleted successfully." });
+      return NextResponse.json({
+        success: true,
+        message: "User account deleted successfully.",
+      });
     }
 
-    // D. EDIT USER DETAILS (KYC EDIT)
+    // D. EDIT USER DETAILS
     if (action === "UPDATE_USER") {
       const { targetUserId, fullName, email } = body;
       const updated = await prisma.user.update({
@@ -94,9 +97,9 @@ export async function POST(req: Request) {
       const { targetUserId, amount } = body;
       const tokenAmount = parseFloat(amount);
 
-      if (isNaN(tokenAmount) || tokenAmount <= 0) {
+      if (!targetUserId || isNaN(tokenAmount) || tokenAmount <= 0) {
         return NextResponse.json(
-          { success: false, error: "Invalid token amount specified." },
+          { success: false, error: "Invalid target user or token amount specified." },
           { status: 400 }
         );
       }
@@ -144,12 +147,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true, task: newTask });
     }
 
-    return NextResponse.json({ success: false, error: "Invalid action requested." }, { status: 400 });
-
+    return NextResponse.json(
+      { success: false, error: "Invalid action requested." },
+      { status: 400 }
+    );
   } catch (error: any) {
     console.error("Admin API Error:", error);
     return NextResponse.json(
-      { success: false, error: error.message || "Internal Server Error" },
+      { success: false, error: error?.message || "Internal Server Error" },
       { status: 500 }
     );
   }
