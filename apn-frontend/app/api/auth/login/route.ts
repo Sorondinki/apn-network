@@ -36,10 +36,10 @@ export async function POST(req: Request) {
       );
     }
 
-    // Safely parse miningStartTime to ISO String or Null
-    let formattedMiningTime = null;
-    if (user.miningStartTime) {
-      formattedMiningTime = new Date(user.miningStartTime).toISOString();
+    // Safely convert BigInt to Number or ISO String
+    let formattedMiningTime: string | null = null;
+    if (user.miningStartTime !== null && user.miningStartTime !== undefined) {
+      formattedMiningTime = new Date(Number(user.miningStartTime)).toISOString();
     }
 
     return NextResponse.json(
