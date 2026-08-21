@@ -41,22 +41,24 @@ export default function ReferralPage() {
     setCustomCodeInput(refCode);
     setCodeChanged(userData.hasChangedRefCode || false);
 
-    // Fetch live referral stats from server
-    async function fetchReferralStats() {
-      try {
-        const res = await fetch(`/referrals?userId=${userData.id}`);
-        const data = await res.json();
-        if (data.success) {
-          setStats({
-            totalInvited: data.totalInvited || 0,
-            commissionsEarned: data.commissionsEarned || "0.00",
-            tier: data.tier || "Level 1 Miner",
-          });
-        }
-      } catch (err) {
-        console.error("Error fetching referral stats:", err);
-      }
+    // Canja wannan layin na fetchStats:
+
+async function fetchReferralStats() {
+  try {
+    // Gyara URL daga /referrals zuwa /api/referrals
+    const res = await fetch(`/api/referrals?userId=${userData.id}`);
+    const data = await res.json();
+    if (data.success) {
+      setStats({
+        totalInvited: data.totalInvited || data.referrals?.length || 0,
+        commissionsEarned: data.commissionsEarned || "0.00",
+        tier: data.tier || "Level 1 Miner",
+      });
     }
+  } catch (err) {
+    console.error("Error fetching referral stats:", err);
+  }
+}
 
     if (userData.id) fetchReferralStats();
   }, [router]);

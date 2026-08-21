@@ -34,12 +34,15 @@ export default function FounderAdminDashboard() {
   const [taskLink, setTaskLink] = useState("");
   const [taskCategory, setTaskCategory] = useState("TWITTER");
 
-  // Helper for Custom Toast Notifications
+  // Social Announcement State
+  const [postTitle, setPostTitle] = useState("");
+  const [postContent, setPostContent] = useState("");
+  const [postMediaUrl, setPostMediaUrl] = useState("");
+  const [targetPlatform, setTargetPlatform] = useState("ALL");
+
   const showToast = (message: string, type: "success" | "error" | "info" = "info") => {
     setToast({ message, type });
-    setTimeout(() => {
-      setToast(null);
-    }, 4000);
+    setTimeout(() => setToast(null), 4000);
   };
 
   useEffect(() => {
@@ -51,13 +54,11 @@ export default function FounderAdminDashboard() {
 
     try {
       const userData = JSON.parse(savedUser);
-
-      // FOUNDER ACCESS CHECK: Allow by Email (contact.aprotech@gmail.com) OR Role (FOUNDER / ADMIN)
       const isFounderEmail = userData.email?.toLowerCase() === "contact.aprotech@gmail.com";
       const hasAdminRole = userData.role === "FOUNDER" || userData.role === "ADMIN";
 
       if (!isFounderEmail && !hasAdminRole) {
-        showToast("Access Denied: You do not have permission to access the Founder Console.", "error");
+        showToast("Access Denied: Founder/Admin credentials required.", "error");
         setTimeout(() => router.push("/dashboard"), 1500);
         return;
       }
@@ -70,7 +71,7 @@ export default function FounderAdminDashboard() {
     }
   }, [router]);
 
-  // Fetch Users
+  // Fetch Users Function Fix
   const fetchUsers = async (adminId: string) => {
     setLoading(true);
     try {
@@ -80,11 +81,10 @@ export default function FounderAdminDashboard() {
         body: JSON.stringify({
           action: "FETCH_USERS",
           adminId: adminId,
-          masterPin: "APN-FOUNDER-2026#SECURE", // Server Master Key Sync
         }),
       });
       const data = await res.json();
-      if (data.success) {
+      if (data.success || Array.isArray(data.users)) {
         setUsers(data.users || []);
       } else {
         showToast(data.error || "Failed to load user records.", "error");
@@ -96,16 +96,14 @@ export default function FounderAdminDashboard() {
     }
   };
 
-  // Trigger Master PIN Prompt
   const triggerAction = (actionData: any) => {
     setPendingAction(actionData);
     setShowPinModal(true);
   };
 
-  // Execute Action upon PIN Verification
   const executeActionWithPin = async () => {
     if (!masterPin) {
-      showToast("Please enter your Master Security PIN!", "error");
+      showToast("Please enter Master Security PIN!", "error");
       return;
     }
 
@@ -131,19 +129,17 @@ export default function FounderAdminDashboard() {
         setPendingAction(null);
         setEditingUser(null);
 
-        // Clear forms
-        setTaskTitle("");
-        setTaskDesc("");
-        setTaskReward("");
-        setTaskLink("");
+        // Reset forms
+        setTaskTitle(""); setTaskDesc(""); setTaskReward(""); setTaskLink("");
+        setPostTitle(""); setPostContent(""); setPostMediaUrl("");
         setTransferAmount("");
 
         fetchUsers(admin?.id || "founder-root");
       } else {
-        showToast(data.error || "Execution failed. Invalid Security PIN.", "error");
+        showToast(data.error || "Execution failed. Check Master PIN.", "error");
       }
     } catch (e) {
-      showToast("Network connection error. Please try again.", "error");
+      showToast("Network connection error.", "error");
     }
   };
 
@@ -151,27 +147,21 @@ export default function FounderAdminDashboard() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-white p-4 md:p-8 space-y-8 max-w-7xl mx-auto font-sans relative">
-      
-      {/* CUSTOM TOAST NOTIFICATION CONTAINER */}
       {toast && (
-        <div className="fixed top-5 right-5 z-50 flex items-center gap-3 px-5 py-3.5 rounded-2xl bg-gray-900 border border-gray-700 shadow-2xl backdrop-blur-xl animate-bounce">
-          <span className="text-lg">
-            {toast.type === "success" && "✅"}
-            {toast.type === "error" && "⚠️"}
-            {toast.type === "info" && "ℹ️"}
-          </span>
-          <span className="text-xs font-semibold text-white tracking-wide">{toast.message}</span>
+        <div className="fixed top-5 right-5 z-50 flex items-center gap-3 px-5 py-3 rounded-2xl bg-gray-900 border border-gray-700 shadow-2xl backdrop-blur-xl animate-bounce">
+          <span>{toast.type === "success" ? "✅" : toast.type === "error" ? "⚠️" : "ℹ️"}</span>
+          <span className="text-xs font-semibold text-white">{toast.message}</span>
         </div>
       )}
 
-      {/* HEADER SECTION */}
-      <div className="p-8 rounded-3xl bg-gradient-to-r from-emerald-900/40 via-slate-900 to-purple-900/40 border border-emerald-500/30 backdrop-blur-xl flex flex-col md:flex-row justify-between items-center gap-6 shadow-2xl">
+      {/* HEADER */}
+      <div className="p-8 rounded-3xl bg-gradient-to-r from-emerald-900/40 via-slate-900 to-purple-900/40 border border-emerald-500/30 flex flex-col md:flex-row justify-between items-center gap-6 shadow-2xl">
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-semibold border border-emerald-500/40">
-            🛡️ APN Network Security & Founder Console
+            🛡️ APN Network Founder Console
           </div>
           <h1 className="text-3xl font-black mt-2 tracking-tight">Founder Executive Portal</h1>
-          <p className="text-gray-400 text-xs mt-1">Manage users, distribute native tokens, publish tasks, and oversee network security.</p>
+          <p className="text-gray-400 text-xs mt-1">Manage network users, broadcast announcements, and distribute tokens.</p>
         </div>
         <div className="bg-black/50 p-4 rounded-2xl border border-gray-800 text-right">
           <span className="text-[10px] text-gray-400 font-bold block uppercase">Primary Admin</span>
@@ -179,32 +169,82 @@ export default function FounderAdminDashboard() {
         </div>
       </div>
 
-      {/* ACTION GRID: TASKS & TOKEN TRANSFER */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {/* MAIN ACTION GRID */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         
-        {/* FORM 1: POST A NEW TASK */}
+        {/* FORM 1: SOCIAL MEDIA ANNOUNCEMENT */}
         <div className="p-6 rounded-2xl bg-slate-900/60 border border-gray-800 space-y-4 shadow-xl">
-          <h3 className="text-lg font-bold text-emerald-400 flex items-center gap-2">
-            📢 Post New Network Task
+          <h3 className="text-md font-bold text-purple-400 flex items-center gap-2">
+            🌐 Social Broadcast Post
           </h3>
           <div className="space-y-3 text-xs">
             <input
               type="text"
-              placeholder="Task Title (e.g., Follow APN Twitter)"
+              placeholder="Announcement Title"
+              value={postTitle}
+              onChange={(e) => setPostTitle(e.target.value)}
+              className="w-full bg-black/60 border border-gray-800 rounded-xl p-3 text-white focus:border-purple-500 outline-none"
+            />
+            <textarea
+              placeholder="Post Content / Update details..."
+              value={postContent}
+              onChange={(e) => setPostContent(e.target.value)}
+              className="w-full bg-black/60 border border-gray-800 rounded-xl p-3 text-white focus:border-purple-500 outline-none h-20"
+            />
+            <input
+              type="text"
+              placeholder="Banner Image URL (Optional)"
+              value={postMediaUrl}
+              onChange={(e) => setPostMediaUrl(e.target.value)}
+              className="w-full bg-black/60 border border-gray-800 rounded-xl p-3 text-white focus:border-purple-500 outline-none"
+            />
+            <select
+              value={targetPlatform}
+              onChange={(e) => setTargetPlatform(e.target.value)}
+              className="w-full bg-black/60 border border-gray-800 rounded-xl p-3 text-white focus:border-purple-500 outline-none"
+            >
+              <option value="ALL">All APN Feeds & Telegram</option>
+              <option value="TWITTER">Twitter/X Channel</option>
+              <option value="TELEGRAM">Telegram Announcement Group</option>
+            </select>
+            <button
+              onClick={() => triggerAction({
+                action: "CREATE_ANNOUNCEMENT",
+                title: postTitle,
+                content: postContent,
+                mediaUrl: postMediaUrl,
+                platform: targetPlatform,
+              })}
+              className="w-full py-3 bg-purple-600 hover:bg-purple-500 font-bold text-white rounded-xl transition shadow-lg shadow-purple-900/40"
+            >
+              📢 Broadcast Update
+            </button>
+          </div>
+        </div>
+
+        {/* FORM 2: POST A NEW TASK */}
+        <div className="p-6 rounded-2xl bg-slate-900/60 border border-gray-800 space-y-4 shadow-xl">
+          <h3 className="text-md font-bold text-emerald-400 flex items-center gap-2">
+            🚀 Post New Network Task
+          </h3>
+          <div className="space-y-3 text-xs">
+            <input
+              type="text"
+              placeholder="Task Title (e.g., Retweet APN Post)"
               value={taskTitle}
               onChange={(e) => setTaskTitle(e.target.value)}
               className="w-full bg-black/60 border border-gray-800 rounded-xl p-3 text-white focus:border-emerald-500 outline-none"
             />
             <textarea
-              placeholder="Task Description"
+              placeholder="Task Instructions"
               value={taskDesc}
               onChange={(e) => setTaskDesc(e.target.value)}
               className="w-full bg-black/60 border border-gray-800 rounded-xl p-3 text-white focus:border-emerald-500 outline-none h-20"
             />
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2">
               <input
                 type="number"
-                placeholder="Reward Amount (APN)"
+                placeholder="Reward (APN)"
                 value={taskReward}
                 onChange={(e) => setTaskReward(e.target.value)}
                 className="bg-black/60 border border-gray-800 rounded-xl p-3 text-white focus:border-emerald-500 outline-none"
@@ -217,12 +257,11 @@ export default function FounderAdminDashboard() {
                 <option value="TWITTER">Twitter/X</option>
                 <option value="TELEGRAM">Telegram</option>
                 <option value="YOUTUBE">YouTube</option>
-                <option value="WEBSITE">Website</option>
               </select>
             </div>
             <input
               type="text"
-              placeholder="Task Link URL (e.g. https://x.com/...)"
+              placeholder="Task URL"
               value={taskLink}
               onChange={(e) => setTaskLink(e.target.value)}
               className="w-full bg-black/60 border border-gray-800 rounded-xl p-3 text-white focus:border-emerald-500 outline-none"
@@ -238,24 +277,24 @@ export default function FounderAdminDashboard() {
               })}
               className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 font-bold text-white rounded-xl transition shadow-lg shadow-emerald-900/40"
             >
-              🚀 Publish to Tasks Page
+              ⚡ Publish Task
             </button>
           </div>
         </div>
 
-        {/* FORM 2: DIRECT TOKEN DISTRIBUTION */}
+        {/* FORM 3: DIRECT TOKEN VAULT */}
         <div className="p-6 rounded-2xl bg-slate-900/60 border border-gray-800 space-y-4 shadow-xl">
-          <h3 className="text-lg font-bold text-blue-400 flex items-center gap-2">
-            💎 Direct Token Distribution (Founder Vault)
+          <h3 className="text-md font-bold text-blue-400 flex items-center gap-2">
+            💎 Direct Token Distribution
           </h3>
-          <p className="text-xs text-gray-400">Transfer native APN tokens directly to members or buyers for staking.</p>
+          <p className="text-xs text-gray-400">Transfer native APN directly to member balances.</p>
           <div className="space-y-3 text-xs">
             <select
               value={transferTargetId}
               onChange={(e) => setTransferTargetId(e.target.value)}
               className="w-full bg-black/60 border border-gray-800 rounded-xl p-3 text-white focus:border-blue-500 outline-none"
             >
-              <option value="">-- Select Recipient User --</option>
+              <option value="">-- Select Recipient --</option>
               {users.map((u) => (
                 <option key={u.id} value={u.id}>
                   {u.fullName || u.email} ({Number(u.balance || 0).toFixed(2)} APN)
@@ -277,14 +316,14 @@ export default function FounderAdminDashboard() {
               })}
               className="w-full py-3 bg-blue-600 hover:bg-blue-500 font-bold text-white rounded-xl transition shadow-lg shadow-blue-900/40"
             >
-              💸 Transfer APN Tokens Now
+              💸 Transfer APN Tokens
             </button>
           </div>
         </div>
 
       </div>
 
-      {/* TABLE SECTION: USER MANAGEMENT & ANTI-FRAUD CONTROL */}
+      {/* USER DATABASE TABLE */}
       <div className="p-6 rounded-3xl bg-slate-900/50 border border-gray-800 backdrop-blur-md space-y-4 shadow-2xl">
         <div className="flex justify-between items-center">
           <h3 className="text-xl font-extrabold text-white">📋 Registered Network Users</h3>
@@ -294,7 +333,7 @@ export default function FounderAdminDashboard() {
         </div>
 
         {loading ? (
-          <p className="text-gray-400 text-xs animate-pulse p-4">Loading user database records...</p>
+          <p className="text-gray-400 text-xs animate-pulse p-4">Loading user records...</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
@@ -303,8 +342,8 @@ export default function FounderAdminDashboard() {
                   <th className="p-3">User / Email</th>
                   <th className="p-3">Wallet Balance</th>
                   <th className="p-3">Referrals</th>
-                  <th className="p-3">Account Status</th>
-                  <th className="p-3 text-center">Executive Actions</th>
+                  <th className="p-3">Status</th>
+                  <th className="p-3 text-center">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-800/60">
@@ -318,60 +357,38 @@ export default function FounderAdminDashboard() {
                       {Number(u.balance || 0).toFixed(4)} APN
                     </td>
                     <td className="p-3 font-mono text-purple-400 font-bold">
-                      👥 {u.referralCount || 0}
+                      👥 {u.referralCount || u._count?.referrals || 0}
                     </td>
                     <td className="p-3">
-                      {u.isSuspended ? (
-                        <span className="px-2 py-1 bg-red-500/20 text-red-400 border border-red-500/30 rounded-md font-bold">
-                          🚫 Suspended
-                        </span>
-                      ) : (
-                        <span className="px-2 py-1 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-md font-bold">
-                          ✅ Active
-                        </span>
-                      )}
+                      <span className={`px-2 py-1 rounded-md font-bold text-[10px] ${
+                        u.isSuspended 
+                          ? "bg-red-500/20 text-red-400 border border-red-500/30" 
+                          : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                      }`}>
+                        {u.isSuspended ? "🚫 Suspended" : "✅ Active"}
+                      </span>
                     </td>
                     <td className="p-3 flex items-center justify-center gap-2">
-                      
-                      {/* EDIT KYC BUTTON */}
                       <button
                         onClick={() => {
                           setEditingUser(u);
                           setEditName(u.fullName || "");
                           setEditEmail(u.email);
                         }}
-                        className="px-2.5 py-1 bg-amber-600/20 text-amber-400 hover:bg-amber-600/40 rounded-lg border border-amber-500/30 transition"
+                        className="px-2.5 py-1 bg-amber-600/20 text-amber-400 hover:bg-amber-600/40 rounded-lg border border-amber-500/30"
                       >
-                        ✏️ Edit KYC
+                        ✏️ KYC
                       </button>
-
-                      {/* SUSPEND / UNSUSPEND BUTTON */}
                       <button
                         onClick={() => triggerAction({
                           action: "TOGGLE_SUSPEND",
                           targetUserId: u.id,
                           status: !u.isSuspended,
                         })}
-                        className={`px-2.5 py-1 rounded-lg border transition font-medium ${
-                          u.isSuspended
-                            ? "bg-blue-600/20 text-blue-400 border-blue-500/30"
-                            : "bg-orange-600/20 text-orange-400 border-orange-500/30"
-                        }`}
+                        className="px-2.5 py-1 bg-orange-600/20 text-orange-400 hover:bg-orange-600/40 rounded-lg border border-orange-500/30"
                       >
                         {u.isSuspended ? "Unsuspend" : "Suspend"}
                       </button>
-
-                      {/* DELETE USER BUTTON */}
-                      <button
-                        onClick={() => triggerAction({
-                          action: "DELETE_USER",
-                          targetUserId: u.id,
-                        })}
-                        className="px-2.5 py-1 bg-red-600/20 text-red-400 hover:bg-red-600/40 rounded-lg border border-red-500/30 transition"
-                      >
-                        🗑️ Delete
-                      </button>
-
                     </td>
                   </tr>
                 ))}
@@ -381,74 +398,22 @@ export default function FounderAdminDashboard() {
         )}
       </div>
 
-      {/* EDIT USER MODAL */}
-      {editingUser && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50">
-          <div className="bg-slate-900 border border-gray-800 p-6 rounded-2xl max-w-md w-full space-y-4">
-            <h3 className="text-lg font-bold text-white">Update User KYC Profile</h3>
-            <div className="space-y-3 text-xs">
-              <label className="text-gray-400 block">Full Name</label>
-              <input
-                type="text"
-                value={editName}
-                onChange={(e) => setEditName(e.target.value)}
-                className="w-full bg-black/60 border border-gray-800 rounded-xl p-3 text-white"
-              />
-              <label className="text-gray-400 block">Email Address</label>
-              <input
-                type="email"
-                value={editEmail}
-                onChange={(e) => setEditEmail(e.target.value)}
-                className="w-full bg-black/60 border border-gray-800 rounded-xl p-3 text-white"
-              />
-            </div>
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => setEditingUser(null)}
-                className="px-4 py-2 bg-gray-800 text-gray-300 rounded-xl text-xs font-semibold"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => triggerAction({
-                  action: "UPDATE_USER",
-                  targetUserId: editingUser.id,
-                  fullName: editName,
-                  email: editEmail,
-                })}
-                className="px-4 py-2 bg-emerald-600 font-bold text-white rounded-xl text-xs"
-              >
-                Save Changes
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MASTER SECURITY PIN VERIFICATION MODAL */}
+      {/* MASTER PIN MODAL */}
       {showPinModal && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-xl flex items-center justify-center p-4 z-50">
           <div className="bg-slate-900 border border-red-500/40 p-6 rounded-3xl max-w-sm w-full space-y-4 text-center shadow-2xl">
-            <div className="w-12 h-12 bg-red-500/10 border border-red-500/30 text-red-400 rounded-full flex items-center justify-center mx-auto text-xl">
-              🔐
-            </div>
             <h3 className="text-lg font-black text-white">Master PIN Authentication</h3>
-            <p className="text-xs text-gray-400">
-              Enter your Founder Master Security PIN to execute this high-privilege network command.
-            </p>
+            <p className="text-xs text-gray-400">Enter your Founder Master Security PIN to confirm action.</p>
             <input
               type="password"
               placeholder="Enter Master PIN"
               value={masterPin}
               onChange={(e) => setMasterPin(e.target.value)}
-              className="w-full bg-black/80 border border-red-500/50 rounded-xl p-3 text-center text-white text-sm tracking-widest focus:outline-none"
+              className="w-full bg-black/80 border border-red-500/50 rounded-xl p-3 text-center text-white text-sm focus:outline-none"
             />
             <div className="flex gap-2">
               <button
-                onClick={() => {
-                  setShowPinModal(false);
-                  setMasterPin("");
-                }}
+                onClick={() => { setShowPinModal(false); setMasterPin(""); }}
                 className="w-1/2 py-2.5 bg-gray-800 text-gray-300 font-bold rounded-xl text-xs"
               >
                 Cancel
@@ -457,13 +422,12 @@ export default function FounderAdminDashboard() {
                 onClick={executeActionWithPin}
                 className="w-1/2 py-2.5 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl text-xs shadow-lg shadow-red-900/50"
               >
-                Confirm Action 🚀
+                Confirm 🚀
               </button>
             </div>
           </div>
         </div>
       )}
-
     </div>
   );
 }
