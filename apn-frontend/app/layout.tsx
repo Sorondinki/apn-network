@@ -279,6 +279,20 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     Privacy Policy
                   </Link>
 
+                  <footer className="w-full bg-slate-950 border-t border-slate-900 py-6 px-4 text-center text-xs text-slate-500">
+                    <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4 font-mono">
+                      <div>
+                        © {new Date().getFullYear()} APN Network. All rights reserved.
+                      </div>
+                      <div className="flex flex-wrap gap-4 text-slate-400">
+                        <Link href="/whitepaper" className="hover:text-emerald-400 transition">Whitepaper</Link>
+                        <Link href="/roadmap" className="hover:text-emerald-400 transition">Roadmap</Link>
+                        <Link href="/privacy-policy" className="hover:text-emerald-400 transition">Privacy Policy</Link>
+                        <Link href="/terms" className="hover:text-emerald-400 transition">Terms of Service</Link>
+                      </div>
+                    </div>
+                  </footer>
+
                   <button
                     onClick={() => {
                       setIsMobileMenuOpen(false);
