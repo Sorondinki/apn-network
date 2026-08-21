@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -155,9 +156,11 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6 p-4 max-w-7xl mx-auto">
-      {/* HERO SECTION MATCHING SCREENSHOT EXACTLY */}
+      {/* HERO SECTION WITH EMBEDDED APN TOKEN LOGO DISPLAY */}
       <div className="relative overflow-hidden p-8 rounded-3xl bg-gray-900/50 border border-gray-800/80 backdrop-blur-xl flex flex-col md:flex-row items-center justify-between gap-6">
-        <div className="space-y-3 max-w-xl">
+        
+        {/* LEFT INFORMATION CONTAINER */}
+        <div className="space-y-3 max-w-xl z-10">
           <div className="flex flex-wrap items-center gap-2">
             <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-medium">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
@@ -172,7 +175,7 @@ export default function DashboardPage() {
             )}
           </div>
 
-          <h1 className="text-4xl font-black text-white tracking-tight">
+          <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
             APN Web Mining Console
           </h1>
           <p className="text-gray-400 text-xs leading-relaxed">
@@ -180,8 +183,31 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        {/* MINING BUTTON */}
-        <div>
+        {/* CENTER APN TOKEN GRAPHIC WITH MINING ANIMATION */}
+        <div className="relative flex items-center justify-center my-2 md:my-0">
+          {/* Glowing Aura ring when active */}
+          <div className={`absolute w-32 h-32 rounded-full transition-all duration-700 ${
+            isMining ? "bg-blue-500/20 blur-xl animate-pulse" : "bg-transparent"
+          }`} />
+          
+          <div className={`relative p-3 rounded-full bg-gradient-to-b from-gray-800/80 to-gray-900/90 border ${
+            isMining ? "border-blue-500/50 shadow-2xl shadow-blue-500/30" : "border-gray-800"
+          }`}>
+            <Image
+              src="/images/apn-token512x512.png"
+              alt="APN Token Logo"
+              width={80}
+              height={80}
+              priority
+              className={`object-contain transition-all duration-500 ${
+                isMining ? "scale-105 filter drop-shadow-[0_0_15px_rgba(59,130,246,0.6)]" : "opacity-80 grayscale-[20%]"
+              }`}
+            />
+          </div>
+        </div>
+
+        {/* MINING BUTTON WITH ICON INTEGRATION */}
+        <div className="z-10">
           <button
             onClick={toggleMining}
             className={`px-8 py-4 rounded-2xl font-bold text-base transition-all duration-300 shadow-2xl flex items-center gap-3 ${
@@ -190,24 +216,40 @@ export default function DashboardPage() {
                 : "bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-900/50"
             }`}
           >
-            <span className="w-3 h-3 rounded-full bg-white animate-ping" />
-            {isMining ? "Pause Session" : "Start Session"}
+            <Image
+              src="/images/apn-token512x512.png"
+              alt="Token Icon"
+              width={22}
+              height={22}
+              className="object-contain"
+            />
+            <span>{isMining ? "Pause Session" : "Start Session"}</span>
           </button>
         </div>
       </div>
 
-      {/* METRICS CARDS MATCHING SCREENSHOT EXACTLY */}
+      {/* METRICS CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-        {/* Balance Card */}
+        
+        {/* Balance Card with APN Token Image */}
         <div className="p-6 rounded-2xl bg-gray-900/40 border border-gray-800/80 backdrop-blur-md">
           <span className="text-[11px] text-gray-400 font-bold uppercase tracking-wider block">
             TOTAL APN BALANCE
           </span>
-          <div className="flex items-baseline gap-2 mt-4">
-            <span className="text-3xl font-extrabold text-emerald-400 font-mono tracking-tight">
-              {balance.toFixed(6)}
-            </span>
-            <span className="text-xs font-semibold text-gray-400">APN</span>
+          <div className="flex items-center gap-3 mt-4">
+            <Image
+              src="/images/apn-token512x512.png"
+              alt="APN Logo"
+              width={34}
+              height={34}
+              className="object-contain shrink-0"
+            />
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-extrabold text-emerald-400 font-mono tracking-tight">
+                {balance.toFixed(6)}
+              </span>
+              <span className="text-xs font-semibold text-gray-400">APN</span>
+            </div>
           </div>
         </div>
 
@@ -235,7 +277,6 @@ export default function DashboardPage() {
             NODE EXECUTION STATUS
           </span>
           <div className="flex items-center gap-3 mt-4">
-            {/* Blinking Indicator Dot */}
             <span className="relative flex h-4 w-4">
               {isMining && (
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -258,7 +299,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* PROGRESS BAR MATCHING SCREENSHOT */}
+      {/* PROGRESS BAR */}
       <div className="p-6 rounded-2xl bg-gray-900/40 border border-gray-800/80 backdrop-blur-md space-y-3">
         <div className="flex justify-between items-center text-xs text-gray-400 font-medium">
           <span>24-Hour Mining Cycle Progress</span>

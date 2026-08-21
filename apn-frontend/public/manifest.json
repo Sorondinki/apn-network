@@ -4,18 +4,24 @@
   "description": "Next-Gen Web3 PoS Mining & Layer-1 Ecosystem",
   "start_url": "/dashboard",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#080c14",
   "theme_color": "#3b82f6",
+  "scope": "/",
+  "id": "/dashboard",
+  "categories": ["finance", "utilities"],
   "icons": [
     {
-      "src": "https://cdn-icons-png.flaticon.com/512/2092/2092063.png",
+      "src": "/images/apn-network192x192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     },
     {
-      "src": "https://cdn-icons-png.flaticon.com/512/2092/2092063.png",
+      "src": "/images/apn-token512x512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ]
 }
