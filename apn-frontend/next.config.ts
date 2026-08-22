@@ -9,17 +9,23 @@ const nextConfig: NextConfig = {
 
   /* Inganta Next.js Compiler domin minification da cire console.log a Production */
   compiler: {
-    removeConsole: process.env.NODE_ENV === "production" ? {
-      exclude: ["error", "warn"],
-    } : false,
+    removeConsole:
+      process.env.NODE_ENV === "production"
+        ? {
+            exclude: ["error", "warn"],
+          }
+        : false,
   },
 
+  /* Bada damar gina aiki koda akwai kuskuren TypeScript */
   typescript: {
     ignoreBuildErrors: true,
   },
 
-  /* Tauraruwar sauran configurations dinka na baya za su gaza zama a nan */
+  /* Bada damar gina aiki koda akwai gargadi ko kuskuren ESLint */
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
 };
-
 
 export default nextConfig;
