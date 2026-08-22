@@ -9,17 +9,21 @@ export default function DashboardPage() {
   const [isMining, setIsMining] = useState(false);
   const [balance, setBalance] = useState(0.000000);
   const [sessionTime, setSessionTime] = useState(0);
+  const [referralCount, setReferralCount] = useState(0);
 
   const baseBalanceRef = useRef(0);
   const balanceRef = useRef(balance);
   balanceRef.current = balance;
 
-  // Check if current user is the Founder / Admin
-  const isFounder = user?.email?.toLowerCase() === "contact.aprotech@gmail.com" || user?.email?.toLowerCase() === "sorondinkiseeme@gmail.com";
-  // Standard User Rate = 0.5 APN/hr, Founder Rate = 5.0 APN/hr (10x Speed Boost)
-  const hourlyRate = isFounder ? 5.0 : 0.5;
+  // Checking Admin/Founder status securely using User Role / Flags from Backend payload
+  const isFounder = user?.role === "ADMIN" || user?.isFounder === true;
+  
+  // Calculate Base + Referral Bonus (+0.2 APN/hr per active referral)
+  const baseRate = isFounder ? 5.0 : 0.5;
+  const referralBonusRate = referralCount * 0.2;
+  const hourlyRate = baseRate + referralBonusRate;
 
-  // Load User & Mining Session
+  // Load User, Referrals & Mining Session
   useEffect(() => {
     const savedUser = localStorage.getItem("apn_user");
     if (!savedUser) {
@@ -29,6 +33,18 @@ export default function DashboardPage() {
 
     const userData = JSON.parse(savedUser);
     setUser(userData);
+
+    // Fetch live referral count for speed boost calculation
+    if (userData?.id) {
+      fetch(`/api/user/referrals?userId=${userData.id}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success && typeof data.totalInvited === "number") {
+            setReferralCount(data.totalInvited);
+          }
+        })
+        .catch((err) => console.error("Error fetching referral bonus:", err));
+    }
 
     // Fetch freshest data from DB/Local storage
     const initialBal = parseFloat(userData.balance || "0");
@@ -42,14 +58,16 @@ export default function DashboardPage() {
         setIsMining(true);
         setSessionTime(elapsedSeconds);
 
-        // Fetch saved base balance or calculate current state safely
         const savedBase = localStorage.getItem("apn_base_balance");
         const realBase = savedBase ? parseFloat(savedBase) : initialBal;
         
         baseBalanceRef.current = realBase;
 
-        const currentHourlyRate = (userData?.email?.toLowerCase() === "contact.aprotech@gmail.com" || userData?.email?.toLowerCase() === "sorondinkiseeme@gmail.com") ? 5.0 : 0.5;
-        const minedSoFar = elapsedSeconds * (currentHourlyRate / 3600);
+        const liveHourlyRate = (userData?.role === "ADMIN" || userData?.isFounder === true) 
+          ? 5.0 + (referralCount * 0.2) 
+          : 0.5 + (referralCount * 0.2);
+
+        const minedSoFar = elapsedSeconds * (liveHourlyRate / 3600);
         setBalance(realBase + minedSoFar);
       } else {
         setIsMining(false);
@@ -62,9 +80,9 @@ export default function DashboardPage() {
       baseBalanceRef.current = initialBal;
       setBalance(initialBal);
     }
-  }, [router]);
+  }, [router, referralCount]);
 
-  // Real-time Engine (Pure Dynamic Display without base balance duplication)
+  // Real-time Engine
   useEffect(() => {
     let interval: NodeJS.Timeout;
     let syncInterval: NodeJS.Timeout;
@@ -87,14 +105,14 @@ export default function DashboardPage() {
 
         setSessionTime(elapsedSeconds);
 
-        // Precise live calculation using user specific hourly rate from BASE
+        // Dynamic balance tick using base balance + accumulated rate including bonus
         const liveMined = elapsedSeconds * (hourlyRate / 3600);
         const liveTotal = baseBalanceRef.current + liveMined;
 
         setBalance(liveTotal);
       }, 1000);
 
-      // Periodically Sync to DB WITHOUT overwriting base balance on refresh
+      // Periodically Sync to DB
       syncInterval = setInterval(() => {
         if (user?.id) {
           const startTimeStr = localStorage.getItem("apn_mining_start_time");
@@ -125,7 +143,6 @@ export default function DashboardPage() {
       const now = Date.now();
       setIsMining(true);
       
-      // Lock down current exact balance as the BASE for this 24h session
       baseBalanceRef.current = balance;
       localStorage.setItem("apn_base_balance", balance.toString());
       localStorage.setItem("apn_mining_start_time", now.toString());
@@ -166,7 +183,7 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6 p-4 max-w-7xl mx-auto">
-      {/* HERO SECTION WITH EMBEDDED APN TOKEN LOGO DISPLAY */}
+      {/* HERO SECTION */}
       <div className="relative overflow-hidden p-8 rounded-3xl bg-gray-900/50 border border-gray-800/80 backdrop-blur-xl flex flex-col md:flex-row items-center justify-between gap-6">
         
         {/* LEFT INFORMATION CONTAINER */}
@@ -180,7 +197,14 @@ export default function DashboardPage() {
             {/* FOUNDER SPECIAL BADGE */}
             {isFounder && (
               <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-bold tracking-wide shadow-lg shadow-amber-950/50">
-                ⚡ Founder Master Node (10x Speed)
+                ⚡ Founder Master Node
+              </div>
+            )}
+
+            {/* REFERRAL BOOST BADGE */}
+            {referralCount > 0 && (
+              <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-blue-500/20 border border-blue-500/40 text-blue-300 text-xs font-bold tracking-wide">
+                🚀 +{(referralCount * 0.2).toFixed(1)} APN/hr Boost ({referralCount} Ref)
               </div>
             )}
           </div>
@@ -193,9 +217,8 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        {/* CENTER APN TOKEN GRAPHIC WITH MINING ANIMATION */}
+        {/* CENTER APN TOKEN GRAPHIC */}
         <div className="relative flex items-center justify-center my-2 md:my-0">
-          {/* Glowing Aura ring when active */}
           <div className={`absolute w-32 h-32 rounded-full transition-all duration-700 ${
             isMining ? "bg-blue-500/20 blur-xl animate-pulse" : "bg-transparent"
           }`} />
@@ -216,7 +239,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* MINING BUTTON WITH ICON INTEGRATION */}
+        {/* MINING BUTTON */}
         <div className="z-10">
           <button
             onClick={toggleMining}
@@ -241,7 +264,7 @@ export default function DashboardPage() {
       {/* METRICS CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         
-        {/* Balance Card with APN Token Image */}
+        {/* Balance Card */}
         <div className="p-6 rounded-2xl bg-gray-900/40 border border-gray-800/80 backdrop-blur-md">
           <span className="text-[11px] text-gray-400 font-bold uppercase tracking-wider block">
             TOTAL APN BALANCE
@@ -266,16 +289,16 @@ export default function DashboardPage() {
         {/* Mining Rate Card */}
         <div className="p-6 rounded-2xl bg-gray-900/40 border border-gray-800/80 backdrop-blur-md">
           <span className="text-[11px] text-gray-400 font-bold uppercase tracking-wider block">
-            BASE MINING RATE
+            TOTAL MINING RATE
           </span>
           <div className="flex items-baseline gap-2 mt-4">
             <span className="text-3xl font-extrabold text-blue-400 font-mono tracking-tight">
-              {hourlyRate.toFixed(1)}
+              {hourlyRate.toFixed(2)}
             </span>
             <span className="text-xs font-semibold text-gray-400">APN / hr</span>
-            {isFounder && (
-              <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-md font-bold ml-1 border border-amber-500/30">
-                10x Boost
+            {referralCount > 0 && (
+              <span className="text-[10px] bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-md font-bold ml-1 border border-blue-500/30">
+                +{(referralCount * 0.2).toFixed(1)} Ref Bonus
               </span>
             )}
           </div>
