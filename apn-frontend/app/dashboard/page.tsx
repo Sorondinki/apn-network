@@ -3,12 +3,10 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import MaintenanceOverlay from "@/components/MaintenanceOverlay"; // Tabbatar hanya ta dace da inda tsarin Maintenance yake
 
 export default function DashboardPage() {
   // -------------------------------------------------------------
   // MAINTENANCE SWITCH (KULLA/BUDE DASHBOARD)
-  // Maida wannan 'false' idan ka gama gyara kana so kowa ya gani.
   // -------------------------------------------------------------
   const isMaintenance = true;
 
@@ -20,16 +18,12 @@ export default function DashboardPage() {
   const [sessionTime, setSessionTime] = useState(0);
   const [activeReferrals, setActiveReferrals] = useState(0);
   const [totalReferrals, setTotalReferrals] = useState(0);
-
-  // Announcement Banner Dismiss State
   const [showNotice, setShowNotice] = useState(true);
 
-  // Strict Internal Refs to Prevent Race Conditions & Stale State Bugs
   const baseBalanceRef = useRef(0);
   const balanceRef = useRef(balance);
   balanceRef.current = balance;
 
-  // Security: DevTools & Anti-Tamper Enforcement
   useEffect(() => {
     const handleContextMenu = (e: MouseEvent) => e.preventDefault();
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -45,32 +39,19 @@ export default function DashboardPage() {
     window.addEventListener("contextmenu", handleContextMenu);
     window.addEventListener("keydown", handleKeyDown);
 
-    const devToolsInterval = setInterval(() => {
-      const startTime = performance.now();
-      debugger;
-      const endTime = performance.now();
-      if (endTime - startTime > 100) {
-        console.clear();
-      }
-    }, 2000);
-
     return () => {
       window.removeEventListener("contextmenu", handleContextMenu);
       window.removeEventListener("keydown", handleKeyDown);
-      clearInterval(devToolsInterval);
     };
   }, []);
 
   const isFounder = user?.role === "ADMIN" || user?.isFounder === true;
-
-  // Base Dynamic Rates
   const baseRate = isFounder ? 5.0 : 0.5;
   const referralBonusRate = activeReferrals * 0.2;
   const hourlyRate = baseRate + referralBonusRate;
   const hourlyRateRef = useRef(hourlyRate);
   hourlyRateRef.current = hourlyRate;
 
-  // Single Source of Truth Fetcher from Server API
   const syncAndLoadUserData = useCallback(async () => {
     try {
       const savedUser = localStorage.getItem("apn_user");
@@ -80,7 +61,6 @@ export default function DashboardPage() {
       }
 
       const localUserData = JSON.parse(savedUser);
-
       const userRes = await fetch(`/api/user/profile?userId=${localUserData.id}`);
       const userData = await userRes.json();
 
@@ -114,12 +94,9 @@ export default function DashboardPage() {
         if (elapsedSeconds < 86400) {
           setIsMining(true);
           setSessionTime(elapsedSeconds);
-
           const savedBase = localStorage.getItem("apn_base_balance");
           const realBase = savedBase ? parseFloat(savedBase) : dbBalance;
-
           baseBalanceRef.current = realBase;
-
           const minedSoFar = elapsedSeconds * (hourlyRateRef.current / 3600);
           setBalance(realBase + minedSoFar);
         } else {
@@ -145,7 +122,6 @@ export default function DashboardPage() {
     syncAndLoadUserData();
   }, [syncAndLoadUserData]);
 
-  // Mining Heartbeat Engine & Periodic Server Database Persistence (15s Sync)
   useEffect(() => {
     let interval: NodeJS.Timeout;
     let syncInterval: NodeJS.Timeout;
@@ -167,10 +143,8 @@ export default function DashboardPage() {
         }
 
         setSessionTime(elapsedSeconds);
-
         const liveMined = elapsedSeconds * (hourlyRateRef.current / 3600);
         const liveTotal = baseBalanceRef.current + liveMined;
-
         setBalance(liveTotal);
       }, 1000);
 
@@ -203,7 +177,6 @@ export default function DashboardPage() {
     if (!isMining) {
       const now = Date.now();
       setIsMining(true);
-
       baseBalanceRef.current = balance;
       localStorage.setItem("apn_base_balance", balance.toString());
       localStorage.setItem("apn_mining_start_time", now.toString());
@@ -249,11 +222,51 @@ export default function DashboardPage() {
   };
 
   // -------------------------------------------------------------
-  // MAINTENANCE OVERLAY CHECK
-  // Switched dynamically: If true, renders full maintenance page
+  // DIRECT MAINTENANCE SCREEN (INLINED - NO EXTERNAL IMPORT NEEDED)
   // -------------------------------------------------------------
   if (isMaintenance) {
-    return <MaintenanceOverlay />;
+    return (
+      <div className="min-h-[80vh] flex flex-col items-center justify-center p-4 text-center">
+        <div className="relative mb-6">
+          <div className="absolute inset-0 rounded-full bg-blue-500/20 blur-xl animate-pulse" />
+          <Image
+            src="/images/apn-token512x512.png"
+            alt="APN Network Logo"
+            width={120}
+            height={120}
+            priority
+            className="relative object-contain drop-shadow-[0_0_20px_rgba(59,130,246,0.6)] animate-spin-slow"
+          />
+        </div>
+
+        <span className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-semibold mb-4">
+          <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+          Scheduled Protocol Maintenance
+        </span>
+
+        <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight mb-3">
+          APN Mainnet Engine Upgrade
+        </h1>
+
+        <p className="max-w-md text-gray-400 text-sm leading-relaxed mb-8">
+          Muna gudanar da sauye-sauye da haɓaka ƙarfin **APN Layer-1 Consensus Protocol**. 
+          Duk ma'adananka (Balances da Referrals) suna nan a kulle cikin aminci.
+        </p>
+
+        <div className="w-full max-w-sm p-4 rounded-2xl bg-gray-900/60 border border-gray-800 backdrop-blur-md flex flex-col gap-3">
+          <button
+            onClick={() => router.push("/register")}
+            className="w-full py-3 px-4 rounded-xl font-bold text-sm bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white transition-all shadow-lg shadow-blue-900/30"
+          >
+            Sabuwar Rajista / Join APN Network
+          </button>
+
+          <p className="text-[11px] text-gray-500">
+            Sabuwar rajista tana aiki lami lafiya yayin gudanar da maintenance.
+          </p>
+        </div>
+      </div>
+    );
   }
 
   if (isLoading || !user) {
@@ -267,8 +280,6 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6 p-4 max-w-7xl mx-auto selection:bg-blue-500 selection:text-white">
-      
-      {/* IN-APP ANNOUNCEMENT BANNER */}
       {showNotice && (
         <div className="relative overflow-hidden p-4 rounded-2xl bg-gradient-to-r from-blue-950/80 via-indigo-950/80 to-purple-950/80 border border-blue-500/30 backdrop-blur-md flex items-center justify-between gap-4 shadow-xl animate-fadeIn">
           <div className="flex items-center gap-3">
@@ -291,23 +302,17 @@ export default function DashboardPage() {
 
       {/* HERO SECTION */}
       <div className="relative overflow-hidden p-8 rounded-3xl bg-gradient-to-br from-gray-900/90 via-gray-900/60 to-gray-950/90 border border-gray-800/80 backdrop-blur-xl flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl">
-        
-        {/* LEFT INFORMATION CONTAINER */}
         <div className="space-y-3 max-w-xl z-10">
           <div className="flex flex-wrap items-center gap-2">
             <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-medium backdrop-blur-md">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
               PoS Layer-1 Web Node Active
             </div>
-
-            {/* FOUNDER SPECIAL BADGE */}
             {isFounder && (
               <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-gradient-to-r from-amber-500/20 to-yellow-500/10 border border-amber-500/40 text-amber-300 text-xs font-bold tracking-wide shadow-lg shadow-amber-950/50">
                 ⚡ Founder Master Node
               </div>
             )}
-
-            {/* ACTIVE REFERRAL BOOST BADGE */}
             {activeReferrals > 0 && (
               <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-blue-500/20 border border-blue-500/40 text-blue-300 text-xs font-bold tracking-wide">
                 🚀 +{(activeReferrals * 0.2).toFixed(1)} APN/hr Boost ({activeReferrals} Active)
@@ -323,7 +328,6 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        {/* CENTER APN TOKEN GRAPHIC WITH GLOW */}
         <div className="relative flex items-center justify-center my-2 md:my-0">
           <div className={`absolute w-36 h-36 rounded-full transition-all duration-700 ${
             isMining ? "bg-blue-500/30 blur-2xl animate-pulse" : "bg-transparent"
@@ -345,7 +349,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* MINING BUTTON */}
         <div className="z-10 flex flex-col items-center gap-2">
           <button
             onClick={toggleMining}
@@ -375,8 +378,6 @@ export default function DashboardPage() {
 
       {/* METRICS CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-        
-        {/* Balance Card */}
         <div className="p-6 rounded-2xl bg-gray-900/40 border border-gray-800/80 backdrop-blur-md hover:border-emerald-500/30 transition-all duration-300">
           <span className="text-[11px] text-gray-400 font-bold uppercase tracking-wider block">
             TOTAL APN BALANCE
@@ -398,7 +399,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Mining Rate Card */}
         <div className="p-6 rounded-2xl bg-gray-900/40 border border-gray-800/80 backdrop-blur-md hover:border-blue-500/30 transition-all duration-300">
           <span className="text-[11px] text-gray-400 font-bold uppercase tracking-wider block">
             TOTAL MINING RATE
@@ -416,7 +416,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Node Execution Status Card */}
         <div className="p-6 rounded-2xl bg-gray-900/40 border border-gray-800/80 backdrop-blur-md hover:border-purple-500/30 transition-all duration-300">
           <span className="text-[11px] text-gray-400 font-bold uppercase tracking-wider block">
             NODE EXECUTION STATUS
@@ -444,7 +443,6 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* PROGRESS BAR SECTION */}
       <div className="p-6 rounded-2xl bg-gray-900/40 border border-gray-800/80 backdrop-blur-md space-y-3">
         <div className="flex justify-between items-center text-xs text-gray-400 font-medium">
           <span>24-Hour Mining Cycle Progress</span>
@@ -458,7 +456,6 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* FEATURE PROMOTIONAL CARDS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
         <div 
           onClick={() => router.push('/dashboard/referrals')}
