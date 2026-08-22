@@ -1,4 +1,5 @@
 "use client";
+
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
@@ -15,15 +16,50 @@ export default function DashboardPage() {
   const balanceRef = useRef(balance);
   balanceRef.current = balance;
 
-  // Checking Admin/Founder status securely using User Role / Flags from Backend payload
+  // Anti-DevTools Security & Code Tampering Protection
+  useEffect(() => {
+    const handleContextMenu = (e: MouseEvent) => e.preventDefault();
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        e.key === "F12" ||
+        (e.ctrlKey && e.shiftKey && (e.key === "I" || e.key === "i" || e.key === "J" || e.key === "j" || e.key === "C" || e.key === "c")) ||
+        (e.ctrlKey && (e.key === "U" || e.key === "u"))
+      ) {
+        e.preventDefault();
+      }
+    };
+
+    window.addEventListener("contextmenu", handleContextMenu);
+    window.addEventListener("keydown", handleKeyDown);
+
+    // Dynamic Debugger Loop to confuse DevTools users
+    const devToolsInterval = setInterval(() => {
+      const startTime = performance.now();
+      debugger;
+      const endTime = performance.now();
+      if (endTime - startTime > 100) {
+        console.clear();
+      }
+    }, 2000);
+
+    return () => {
+      window.removeEventListener("contextmenu", handleContextMenu);
+      window.removeEventListener("keydown", handleKeyDown);
+      clearInterval(devToolsInterval);
+    };
+  }, []);
+
+  // Checking Admin/Founder status securely
   const isFounder = user?.role === "ADMIN" || user?.isFounder === true;
-  
+
   // Calculate Base + Referral Bonus (+0.2 APN/hr per active referral)
   const baseRate = isFounder ? 5.0 : 0.5;
   const referralBonusRate = referralCount * 0.2;
   const hourlyRate = baseRate + referralBonusRate;
+  const hourlyRateRef = useRef(hourlyRate);
+  hourlyRateRef.current = hourlyRate;
 
-  // Load User, Referrals & Mining Session
+  // Load User, Referrals & Mining Session safely on mount
   useEffect(() => {
     const savedUser = localStorage.getItem("apn_user");
     if (!savedUser) {
@@ -34,7 +70,7 @@ export default function DashboardPage() {
     const userData = JSON.parse(savedUser);
     setUser(userData);
 
-    // Fetch live referral count for speed boost calculation
+    // Fetch live referral count
     if (userData?.id) {
       fetch(`/api/user/referrals?userId=${userData.id}`)
         .then((res) => res.json())
@@ -46,7 +82,6 @@ export default function DashboardPage() {
         .catch((err) => console.error("Error fetching referral bonus:", err));
     }
 
-    // Fetch freshest data from DB/Local storage
     const initialBal = parseFloat(userData.balance || "0");
     const startTimeStr = localStorage.getItem("apn_mining_start_time");
 
@@ -60,7 +95,7 @@ export default function DashboardPage() {
 
         const savedBase = localStorage.getItem("apn_base_balance");
         const realBase = savedBase ? parseFloat(savedBase) : initialBal;
-        
+
         baseBalanceRef.current = realBase;
 
         const liveHourlyRate = (userData?.role === "ADMIN" || userData?.isFounder === true) 
@@ -80,9 +115,9 @@ export default function DashboardPage() {
       baseBalanceRef.current = initialBal;
       setBalance(initialBal);
     }
-  }, [router, referralCount]);
+  }, [router]);
 
-  // Real-time Engine
+  // Real-time Engine without refresh duplication issues
   useEffect(() => {
     let interval: NodeJS.Timeout;
     let syncInterval: NodeJS.Timeout;
@@ -105,14 +140,12 @@ export default function DashboardPage() {
 
         setSessionTime(elapsedSeconds);
 
-        // Dynamic balance tick using base balance + accumulated rate including bonus
-        const liveMined = elapsedSeconds * (hourlyRate / 3600);
+        const liveMined = elapsedSeconds * (hourlyRateRef.current / 3600);
         const liveTotal = baseBalanceRef.current + liveMined;
 
         setBalance(liveTotal);
       }, 1000);
 
-      // Periodically Sync to DB
       syncInterval = setInterval(() => {
         if (user?.id) {
           const startTimeStr = localStorage.getItem("apn_mining_start_time");
@@ -136,13 +169,13 @@ export default function DashboardPage() {
       clearInterval(interval);
       clearInterval(syncInterval);
     };
-  }, [isMining, user, hourlyRate]);
+  }, [isMining, user]);
 
   const toggleMining = () => {
     if (!isMining) {
       const now = Date.now();
       setIsMining(true);
-      
+
       baseBalanceRef.current = balance;
       localStorage.setItem("apn_base_balance", balance.toString());
       localStorage.setItem("apn_mining_start_time", now.toString());
@@ -163,7 +196,7 @@ export default function DashboardPage() {
       setIsMining(false);
       localStorage.removeItem("apn_mining_start_time");
       localStorage.removeItem("apn_base_balance");
-      
+
       if (user?.id) {
         fetch("/api/user/sync-balance", {
           method: "POST",
@@ -179,24 +212,33 @@ export default function DashboardPage() {
     }
   };
 
+  // Convert remaining seconds to HH:MM:SS countdown
+  const formatCountdown = (elapsed: number) => {
+    const remaining = Math.max(0, 86400 - elapsed);
+    const h = Math.floor(remaining / 3600);
+    const m = Math.floor((remaining % 3600) / 60);
+    const s = remaining % 60;
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
+
   if (!user) return null;
 
   return (
-    <div className="space-y-6 p-4 max-w-7xl mx-auto">
+    <div className="space-y-6 p-4 max-w-7xl mx-auto selection:bg-blue-500 selection:text-white">
       {/* HERO SECTION */}
-      <div className="relative overflow-hidden p-8 rounded-3xl bg-gray-900/50 border border-gray-800/80 backdrop-blur-xl flex flex-col md:flex-row items-center justify-between gap-6">
+      <div className="relative overflow-hidden p-8 rounded-3xl bg-gradient-to-br from-gray-900/90 via-gray-900/60 to-gray-950/90 border border-gray-800/80 backdrop-blur-xl flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl">
         
         {/* LEFT INFORMATION CONTAINER */}
         <div className="space-y-3 max-w-xl z-10">
           <div className="flex flex-wrap items-center gap-2">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-medium">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-medium backdrop-blur-md">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
               PoS Layer-1 Web Node Active
             </div>
 
             {/* FOUNDER SPECIAL BADGE */}
             {isFounder && (
-              <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-bold tracking-wide shadow-lg shadow-amber-950/50">
+              <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-gradient-to-r from-amber-500/20 to-yellow-500/10 border border-amber-500/40 text-amber-300 text-xs font-bold tracking-wide shadow-lg shadow-amber-950/50">
                 ⚡ Founder Master Node
               </div>
             )}
@@ -209,7 +251,7 @@ export default function DashboardPage() {
             )}
           </div>
 
-          <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
+          <h1 className="text-3xl sm:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white via-gray-200 to-gray-400 tracking-tight">
             APN Web Mining Console
           </h1>
           <p className="text-gray-400 text-xs leading-relaxed">
@@ -217,36 +259,36 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        {/* CENTER APN TOKEN GRAPHIC */}
+        {/* CENTER APN TOKEN GRAPHIC WITH GLOW */}
         <div className="relative flex items-center justify-center my-2 md:my-0">
-          <div className={`absolute w-32 h-32 rounded-full transition-all duration-700 ${
-            isMining ? "bg-blue-500/20 blur-xl animate-pulse" : "bg-transparent"
+          <div className={`absolute w-36 h-36 rounded-full transition-all duration-700 ${
+            isMining ? "bg-blue-500/30 blur-2xl animate-pulse" : "bg-transparent"
           }`} />
           
-          <div className={`relative p-3 rounded-full bg-gradient-to-b from-gray-800/80 to-gray-900/90 border ${
-            isMining ? "border-blue-500/50 shadow-2xl shadow-blue-500/30" : "border-gray-800"
+          <div className={`relative p-4 rounded-full bg-gradient-to-b from-gray-800/90 to-gray-900/95 border ${
+            isMining ? "border-blue-500/60 shadow-[0_0_30px_rgba(59,130,246,0.3)]" : "border-gray-800"
           }`}>
             <Image
               src="/images/apn-token512x512.png"
               alt="APN Token Logo"
-              width={80}
-              height={80}
+              width={88}
+              height={88}
               priority
               className={`object-contain transition-all duration-500 ${
-                isMining ? "scale-105 filter drop-shadow-[0_0_15px_rgba(59,130,246,0.6)]" : "opacity-80 grayscale-[20%]"
+                isMining ? "scale-105 filter drop-shadow-[0_0_18px_rgba(59,130,246,0.8)] animate-spin-slow" : "opacity-80 grayscale-[20%]"
               }`}
             />
           </div>
         </div>
 
         {/* MINING BUTTON */}
-        <div className="z-10">
+        <div className="z-10 flex flex-col items-center gap-2">
           <button
             onClick={toggleMining}
-            className={`px-8 py-4 rounded-2xl font-bold text-base transition-all duration-300 shadow-2xl flex items-center gap-3 ${
+            className={`px-8 py-4 rounded-2xl font-bold text-base transition-all duration-300 shadow-2xl flex items-center gap-3 active:scale-95 ${
               isMining
-                ? "bg-red-600 hover:bg-red-500 text-white shadow-red-900/50"
-                : "bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-900/50"
+                ? "bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white shadow-red-900/40"
+                : "bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-emerald-900/40"
             }`}
           >
             <Image
@@ -258,6 +300,12 @@ export default function DashboardPage() {
             />
             <span>{isMining ? "Pause Session" : "Start Session"}</span>
           </button>
+          
+          {isMining && (
+            <span className="text-[11px] font-mono text-blue-400 bg-blue-950/60 border border-blue-800/50 px-3 py-0.5 rounded-full">
+              Session Ends: {formatCountdown(sessionTime)}
+            </span>
+          )}
         </div>
       </div>
 
@@ -265,7 +313,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         
         {/* Balance Card */}
-        <div className="p-6 rounded-2xl bg-gray-900/40 border border-gray-800/80 backdrop-blur-md">
+        <div className="p-6 rounded-2xl bg-gray-900/40 border border-gray-800/80 backdrop-blur-md hover:border-emerald-500/30 transition-all duration-300">
           <span className="text-[11px] text-gray-400 font-bold uppercase tracking-wider block">
             TOTAL APN BALANCE
           </span>
@@ -287,7 +335,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Mining Rate Card */}
-        <div className="p-6 rounded-2xl bg-gray-900/40 border border-gray-800/80 backdrop-blur-md">
+        <div className="p-6 rounded-2xl bg-gray-900/40 border border-gray-800/80 backdrop-blur-md hover:border-blue-500/30 transition-all duration-300">
           <span className="text-[11px] text-gray-400 font-bold uppercase tracking-wider block">
             TOTAL MINING RATE
           </span>
@@ -305,7 +353,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Node Execution Status Card */}
-        <div className="p-6 rounded-2xl bg-gray-900/40 border border-gray-800/80 backdrop-blur-md">
+        <div className="p-6 rounded-2xl bg-gray-900/40 border border-gray-800/80 backdrop-blur-md hover:border-purple-500/30 transition-all duration-300">
           <span className="text-[11px] text-gray-400 font-bold uppercase tracking-wider block">
             NODE EXECUTION STATUS
           </span>
@@ -332,17 +380,41 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* PROGRESS BAR */}
+      {/* PROGRESS BAR SECTION */}
       <div className="p-6 rounded-2xl bg-gray-900/40 border border-gray-800/80 backdrop-blur-md space-y-3">
         <div className="flex justify-between items-center text-xs text-gray-400 font-medium">
           <span>24-Hour Mining Cycle Progress</span>
-          <span>{((sessionTime / 86400) * 100).toFixed(1)}% Completed</span>
+          <span className="font-mono text-blue-400">{((sessionTime / 86400) * 100).toFixed(1)}% Completed</span>
         </div>
-        <div className="w-full bg-black/60 h-2 rounded-full overflow-hidden border border-gray-800">
+        <div className="w-full bg-black/60 h-2.5 rounded-full overflow-hidden border border-gray-800 p-0.5">
           <div
-            className="bg-blue-500 h-full transition-all duration-300"
+            className="bg-gradient-to-r from-blue-600 to-indigo-500 h-full rounded-full transition-all duration-500 shadow-lg shadow-blue-500/50"
             style={{ width: `${(sessionTime / 86400) * 100}%` }}
           />
+        </div>
+      </div>
+
+      {/* FEATURE PROMOTIONAL CARDS FOR USER ENGAGEMENT */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
+        <div 
+          onClick={() => router.push('/dashboard/referrals')}
+          className="p-5 rounded-2xl bg-gradient-to-br from-gray-900/60 to-gray-950/80 border border-gray-800/80 hover:border-blue-500/50 transition-all cursor-pointer group"
+        >
+          <div className="text-blue-400 mb-2 group-hover:scale-110 transition-transform w-max">👥</div>
+          <h3 className="text-sm font-bold text-white">Gayyaci Abokai (Referrals)</h3>
+          <p className="text-xs text-gray-400 mt-1">Sami +0.2 APN/hr ga kowanne aboki da ka gayyata ya fara mining.</p>
+        </div>
+
+        <div className="p-5 rounded-2xl bg-gradient-to-br from-gray-900/60 to-gray-950/80 border border-gray-800/80 hover:border-emerald-500/50 transition-all">
+          <div className="text-emerald-400 mb-2 w-max">🛡️</div>
+          <h3 className="text-sm font-bold text-white">Kariya & Tsaro (Node Security)</h3>
+          <p className="text-xs text-gray-400 mt-1">Ana kare ma'aunin APN tokens ɗinka ta hanyar tsarin PoS Layer-1 Protocol.</p>
+        </div>
+
+        <div className="p-5 rounded-2xl bg-gradient-to-br from-gray-900/60 to-gray-950/80 border border-gray-800/80 hover:border-amber-500/50 transition-all sm:col-span-2 lg:col-span-1">
+          <div className="text-amber-400 mb-2 w-max">⚡</div>
+          <h3 className="text-sm font-bold text-white">Sauri & Scalability</h3>
+          <p className="text-xs text-gray-400 mt-1">Cigaba da buɗe shafin domin tabbatar da saurin cika session ɗinka.</p>
         </div>
       </div>
     </div>
