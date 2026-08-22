@@ -32,7 +32,6 @@ export default function DashboardPage() {
     window.addEventListener("contextmenu", handleContextMenu);
     window.addEventListener("keydown", handleKeyDown);
 
-    // Dynamic Debugger Loop to confuse DevTools users
     const devToolsInterval = setInterval(() => {
       const startTime = performance.now();
       debugger;
@@ -49,17 +48,16 @@ export default function DashboardPage() {
     };
   }, []);
 
-  // Checking Admin/Founder status securely
   const isFounder = user?.role === "ADMIN" || user?.isFounder === true;
 
-  // Calculate Base + Referral Bonus (+0.2 APN/hr per active referral)
+  // Base Mining Rates
   const baseRate = isFounder ? 5.0 : 0.5;
   const referralBonusRate = referralCount * 0.2;
   const hourlyRate = baseRate + referralBonusRate;
   const hourlyRateRef = useRef(hourlyRate);
   hourlyRateRef.current = hourlyRate;
 
-  // Load User, Referrals & Mining Session safely on mount
+  // Load User, Balance, and Mining Session accurately on mount
   useEffect(() => {
     const savedUser = localStorage.getItem("apn_user");
     if (!savedUser) {
@@ -70,7 +68,6 @@ export default function DashboardPage() {
     const userData = JSON.parse(savedUser);
     setUser(userData);
 
-    // Fetch live referral count
     if (userData?.id) {
       fetch(`/api/user/referrals?userId=${userData.id}`)
         .then((res) => res.json())
@@ -79,7 +76,7 @@ export default function DashboardPage() {
             setReferralCount(data.totalInvited);
           }
         })
-        .catch((err) => console.error("Error fetching referral bonus:", err));
+        .catch((err) => console.error("Error fetching referral details:", err));
     }
 
     const initialBal = parseFloat(userData.balance || "0");
@@ -98,11 +95,7 @@ export default function DashboardPage() {
 
         baseBalanceRef.current = realBase;
 
-        const liveHourlyRate = (userData?.role === "ADMIN" || userData?.isFounder === true) 
-          ? 5.0 + (referralCount * 0.2) 
-          : 0.5 + (referralCount * 0.2);
-
-        const minedSoFar = elapsedSeconds * (liveHourlyRate / 3600);
+        const minedSoFar = elapsedSeconds * (hourlyRateRef.current / 3600);
         setBalance(realBase + minedSoFar);
       } else {
         setIsMining(false);
@@ -117,7 +110,7 @@ export default function DashboardPage() {
     }
   }, [router]);
 
-  // Real-time Engine without refresh duplication issues
+  // Real-time Mining Engine with Precise Deterministic Balance Calculation
   useEffect(() => {
     let interval: NodeJS.Timeout;
     let syncInterval: NodeJS.Timeout;
@@ -160,7 +153,7 @@ export default function DashboardPage() {
               isMining: true,
               miningStartTime: startTime,
             }),
-          });
+          }).catch((err) => console.error("Balance sync error:", err));
         }
       }, 15000);
     }
@@ -169,7 +162,7 @@ export default function DashboardPage() {
       clearInterval(interval);
       clearInterval(syncInterval);
     };
-  }, [isMining, user]);
+  }, [isMining, user?.id]);
 
   const toggleMining = () => {
     if (!isMining) {
@@ -212,13 +205,12 @@ export default function DashboardPage() {
     }
   };
 
-  // Convert remaining seconds to HH:MM:SS countdown
   const formatCountdown = (elapsed: number) => {
     const remaining = Math.max(0, 86400 - elapsed);
     const h = Math.floor(remaining / 3600);
     const m = Math.floor((remaining % 3600) / 60);
     const s = remaining % 60;
-    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   };
 
   if (!user) return null;
@@ -394,27 +386,27 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* FEATURE PROMOTIONAL CARDS FOR USER ENGAGEMENT */}
+      {/* FEATURE PROMOTIONAL CARDS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
         <div 
           onClick={() => router.push('/dashboard/referrals')}
           className="p-5 rounded-2xl bg-gradient-to-br from-gray-900/60 to-gray-950/80 border border-gray-800/80 hover:border-blue-500/50 transition-all cursor-pointer group"
         >
           <div className="text-blue-400 mb-2 group-hover:scale-110 transition-transform w-max">👥</div>
-          <h3 className="text-sm font-bold text-white">Gayyaci Abokai (Referrals)</h3>
-          <p className="text-xs text-gray-400 mt-1">Sami +0.2 APN/hr ga kowanne aboki da ka gayyata ya fara mining.</p>
+          <h3 className="text-sm font-bold text-white">Invite Friends (Referrals)</h3>
+          <p className="text-xs text-gray-400 mt-1">Earn +0.2 APN/hr boost for every active friend you invite to mine.</p>
         </div>
 
         <div className="p-5 rounded-2xl bg-gradient-to-br from-gray-900/60 to-gray-950/80 border border-gray-800/80 hover:border-emerald-500/50 transition-all">
           <div className="text-emerald-400 mb-2 w-max">🛡️</div>
-          <h3 className="text-sm font-bold text-white">Kariya & Tsaro (Node Security)</h3>
-          <p className="text-xs text-gray-400 mt-1">Ana kare ma'aunin APN tokens ɗinka ta hanyar tsarin PoS Layer-1 Protocol.</p>
+          <h3 className="text-sm font-bold text-white">Node Vault & Security</h3>
+          <p className="text-xs text-gray-400 mt-1">Your mined APN token balance is cryptographically secured via PoS protocol.</p>
         </div>
 
         <div className="p-5 rounded-2xl bg-gradient-to-br from-gray-900/60 to-gray-950/80 border border-gray-800/80 hover:border-amber-500/50 transition-all sm:col-span-2 lg:col-span-1">
           <div className="text-amber-400 mb-2 w-max">⚡</div>
-          <h3 className="text-sm font-bold text-white">Sauri & Scalability</h3>
-          <p className="text-xs text-gray-400 mt-1">Cigaba da buɗe shafin domin tabbatar da saurin cika session ɗinka.</p>
+          <h3 className="text-sm font-bold text-white">High Execution Speed</h3>
+          <p className="text-xs text-gray-400 mt-1">Keep your node console session open to ensure maximum network hash efficiency.</p>
         </div>
       </div>
     </div>
