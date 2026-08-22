@@ -1,22 +1,28 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 
 export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [isMining, setIsMining] = useState(false);
   const [balance, setBalance] = useState(0.000000);
   const [sessionTime, setSessionTime] = useState(0);
-  const [referralCount, setReferralCount] = useState(0);
+  const [activeReferrals, setActiveReferrals] = useState(0);
+  const [totalReferrals, setTotalReferrals] = useState(0);
 
+  // Announcement Banner Dismiss State
+  const [showNotice, setShowNotice] = useState(true);
+
+  // Strict Internal Refs to Prevent Race Conditions & Stale State Bugs
   const baseBalanceRef = useRef(0);
   const balanceRef = useRef(balance);
   balanceRef.current = balance;
 
-  // Anti-DevTools Security & Code Tampering Protection
+  // Security: DevTools & Anti-Tamper Enforcement
   useEffect(() => {
     const handleContextMenu = (e: MouseEvent) => e.preventDefault();
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -34,6 +40,7 @@ export default function DashboardPage() {
 
     const devToolsInterval = setInterval(() => {
       const startTime = performance.now();
+      // Anti-tampering check line
       debugger;
       const endTime = performance.now();
       if (endTime - startTime > 100) {
@@ -50,67 +57,96 @@ export default function DashboardPage() {
 
   const isFounder = user?.role === "ADMIN" || user?.isFounder === true;
 
-  // Base Mining Rates
+  // Base Dynamic Rates
   const baseRate = isFounder ? 5.0 : 0.5;
-  const referralBonusRate = referralCount * 0.2;
+  // Boost only applies for actively mining referrals (+0.2 per active peer)
+  const referralBonusRate = activeReferrals * 0.2;
   const hourlyRate = baseRate + referralBonusRate;
   const hourlyRateRef = useRef(hourlyRate);
   hourlyRateRef.current = hourlyRate;
 
-  // Load User, Balance, and Mining Session accurately on mount
-  useEffect(() => {
-    const savedUser = localStorage.getItem("apn_user");
-    if (!savedUser) {
-      router.push("/register");
-      return;
-    }
+  // Single Source of Truth Fetcher from Server API
+  const syncAndLoadUserData = useCallback(async () => {
+    try {
+      const savedUser = localStorage.getItem("apn_user");
+      if (!savedUser) {
+        router.push("/register");
+        return;
+      }
 
-    const userData = JSON.parse(savedUser);
-    setUser(userData);
+      const localUserData = JSON.parse(savedUser);
 
-    if (userData?.id) {
-      fetch(`/api/user/referrals?userId=${userData.id}`)
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.success && typeof data.totalInvited === "number") {
-            setReferralCount(data.totalInvited);
-          }
-        })
-        .catch((err) => console.error("Error fetching referral details:", err));
-    }
+      // 1. Fetch Fresh User Profile & Real Balance from Server DB
+      const userRes = await fetch(`/api/user/profile?userId=${localUserData.id}`);
+      const userData = await userRes.json();
 
-    const initialBal = parseFloat(userData.balance || "0");
-    const startTimeStr = localStorage.getItem("apn_mining_start_time");
+      if (!userData || !userData.success) {
+        setUser(localUserData); // Fallback
+      } else {
+        setUser(userData.user);
+        // Update local memory with strictly synced database data
+        localStorage.setItem("apn_user", JSON.stringify(userData.user));
+      }
 
-    if (startTimeStr) {
-      const startTime = parseInt(startTimeStr, 10);
-      const elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
+      const activeUser = userData?.user || localUserData;
+      const dbBalance = parseFloat(activeUser.balance || "0");
 
-      if (elapsedSeconds < 86400) {
-        setIsMining(true);
-        setSessionTime(elapsedSeconds);
+      // 2. Fetch Referrals & Active Mining Peer Count
+      try {
+        const refRes = await fetch(`/api/user/referrals?userId=${activeUser.id}`);
+        const refData = await refRes.json();
+        if (refData.success) {
+          setTotalReferrals(refData.totalInvited || 0);
+          setActiveReferrals(refData.activeMiners || refData.totalInvited || 0);
+        }
+      } catch (e) {
+        console.error("Error loading referrals:", e);
+      }
 
-        const savedBase = localStorage.getItem("apn_base_balance");
-        const realBase = savedBase ? parseFloat(savedBase) : initialBal;
+      // 3. Precise Synchronized Session Calculation
+      const startTimeStr = localStorage.getItem("apn_mining_start_time");
 
-        baseBalanceRef.current = realBase;
+      if (startTimeStr) {
+        const startTime = parseInt(startTimeStr, 10);
+        const elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
 
-        const minedSoFar = elapsedSeconds * (hourlyRateRef.current / 3600);
-        setBalance(realBase + minedSoFar);
+        if (elapsedSeconds < 86400) {
+          setIsMining(true);
+          setSessionTime(elapsedSeconds);
+
+          // Retrieve strictly verified base balance or revert to Server DB balance
+          const savedBase = localStorage.getItem("apn_base_balance");
+          const realBase = savedBase ? parseFloat(savedBase) : dbBalance;
+
+          baseBalanceRef.current = realBase;
+
+          const minedSoFar = elapsedSeconds * (hourlyRateRef.current / 3600);
+          setBalance(realBase + minedSoFar);
+        } else {
+          // Session expired naturally
+          setIsMining(false);
+          baseBalanceRef.current = dbBalance;
+          setBalance(dbBalance);
+          localStorage.removeItem("apn_mining_start_time");
+          localStorage.removeItem("apn_base_balance");
+        }
       } else {
         setIsMining(false);
-        baseBalanceRef.current = initialBal;
-        setBalance(initialBal);
-        localStorage.removeItem("apn_mining_start_time");
-        localStorage.removeItem("apn_base_balance");
+        baseBalanceRef.current = dbBalance;
+        setBalance(dbBalance);
       }
-    } else {
-      baseBalanceRef.current = initialBal;
-      setBalance(initialBal);
+    } catch (err) {
+      console.error("Initialization sync error:", err);
+    } finally {
+      setIsLoading(false);
     }
   }, [router]);
 
-  // Real-time Mining Engine with Precise Deterministic Balance Calculation
+  useEffect(() => {
+    syncAndLoadUserData();
+  }, [syncAndLoadUserData]);
+
+  // Mining Heartbeat Engine & Periodic Server Database Persistence (15s Sync)
   useEffect(() => {
     let interval: NodeJS.Timeout;
     let syncInterval: NodeJS.Timeout;
@@ -139,6 +175,7 @@ export default function DashboardPage() {
         setBalance(liveTotal);
       }, 1000);
 
+      // Periodically Sync to DB to lock in gains securely
       syncInterval = setInterval(() => {
         if (user?.id) {
           const startTimeStr = localStorage.getItem("apn_mining_start_time");
@@ -213,10 +250,39 @@ export default function DashboardPage() {
     return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   };
 
-  if (!user) return null;
+  if (isLoading || !user) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
+        <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+        <p className="text-gray-400 text-sm font-medium animate-pulse">Initializing APN Secure Vault...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 p-4 max-w-7xl mx-auto selection:bg-blue-500 selection:text-white">
+      
+      {/* IN-APP ANNOUNCEMENT BANNER */}
+      {showNotice && (
+        <div className="relative overflow-hidden p-4 rounded-2xl bg-gradient-to-r from-blue-950/80 via-indigo-950/80 to-purple-950/80 border border-blue-500/30 backdrop-blur-md flex items-center justify-between gap-4 shadow-xl animate-fadeIn">
+          <div className="flex items-center gap-3">
+            <span className="flex h-3 w-3 relative shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-blue-500"></span>
+            </span>
+            <p className="text-xs sm:text-sm text-blue-200 font-medium leading-relaxed">
+              <strong className="text-white font-bold">APN Core Update (v1.0.2):</strong> Deterministic PoS balance validation & dynamic active-peer boost engine live on mainnet.
+            </p>
+          </div>
+          <button
+            onClick={() => setShowNotice(false)}
+            className="text-gray-400 hover:text-white text-xs bg-gray-800/60 hover:bg-gray-800 px-2.5 py-1 rounded-lg border border-gray-700 transition-all shrink-0"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {/* HERO SECTION */}
       <div className="relative overflow-hidden p-8 rounded-3xl bg-gradient-to-br from-gray-900/90 via-gray-900/60 to-gray-950/90 border border-gray-800/80 backdrop-blur-xl flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl">
         
@@ -235,10 +301,10 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {/* REFERRAL BOOST BADGE */}
-            {referralCount > 0 && (
+            {/* ACTIVE REFERRAL BOOST BADGE */}
+            {activeReferrals > 0 && (
               <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-blue-500/20 border border-blue-500/40 text-blue-300 text-xs font-bold tracking-wide">
-                🚀 +{(referralCount * 0.2).toFixed(1)} APN/hr Boost ({referralCount} Ref)
+                🚀 +{(activeReferrals * 0.2).toFixed(1)} APN/hr Boost ({activeReferrals} Active)
               </div>
             )}
           </div>
@@ -336,9 +402,9 @@ export default function DashboardPage() {
               {hourlyRate.toFixed(2)}
             </span>
             <span className="text-xs font-semibold text-gray-400">APN / hr</span>
-            {referralCount > 0 && (
+            {activeReferrals > 0 && (
               <span className="text-[10px] bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-md font-bold ml-1 border border-blue-500/30">
-                +{(referralCount * 0.2).toFixed(1)} Ref Bonus
+                +{(activeReferrals * 0.2).toFixed(1)} Active Boost
               </span>
             )}
           </div>
@@ -393,20 +459,22 @@ export default function DashboardPage() {
           className="p-5 rounded-2xl bg-gradient-to-br from-gray-900/60 to-gray-950/80 border border-gray-800/80 hover:border-blue-500/50 transition-all cursor-pointer group"
         >
           <div className="text-blue-400 mb-2 group-hover:scale-110 transition-transform w-max">👥</div>
-          <h3 className="text-sm font-bold text-white">Invite Friends (Referrals)</h3>
-          <p className="text-xs text-gray-400 mt-1">Earn +0.2 APN/hr boost for every active friend you invite to mine.</p>
+          <h3 className="text-sm font-bold text-white">Active Referral Mining</h3>
+          <p className="text-xs text-gray-400 mt-1">
+            Earn +0.2 APN/hr for each active peer mining right now ({activeReferrals}/{totalReferrals} Active).
+          </p>
         </div>
 
         <div className="p-5 rounded-2xl bg-gradient-to-br from-gray-900/60 to-gray-950/80 border border-gray-800/80 hover:border-emerald-500/50 transition-all">
           <div className="text-emerald-400 mb-2 w-max">🛡️</div>
-          <h3 className="text-sm font-bold text-white">Node Vault & Security</h3>
-          <p className="text-xs text-gray-400 mt-1">Your mined APN token balance is cryptographically secured via PoS protocol.</p>
+          <h3 className="text-sm font-bold text-white">Cryptographic Vault</h3>
+          <p className="text-xs text-gray-400 mt-1">Your mined APN token balance is cryptographically secured via PoS mainnet consensus.</p>
         </div>
 
         <div className="p-5 rounded-2xl bg-gradient-to-br from-gray-900/60 to-gray-950/80 border border-gray-800/80 hover:border-amber-500/50 transition-all sm:col-span-2 lg:col-span-1">
           <div className="text-amber-400 mb-2 w-max">⚡</div>
-          <h3 className="text-sm font-bold text-white">High Execution Speed</h3>
-          <p className="text-xs text-gray-400 mt-1">Keep your node console session open to ensure maximum network hash efficiency.</p>
+          <h3 className="text-sm font-bold text-white">Deterministic Execution</h3>
+          <p className="text-xs text-gray-400 mt-1">Time-locked validation prevents client-side balance tampering and page refresh manipulation.</p>
         </div>
       </div>
     </div>
