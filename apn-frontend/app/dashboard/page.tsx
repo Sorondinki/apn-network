@@ -3,8 +3,15 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import MaintenanceOverlay from "@/components/MaintenanceOverlay"; // Tabbatar hanya ta dace da inda tsarin Maintenance yake
 
 export default function DashboardPage() {
+  // -------------------------------------------------------------
+  // MAINTENANCE SWITCH (KULLA/BUDE DASHBOARD)
+  // Maida wannan 'false' idan ka gama gyara kana so kowa ya gani.
+  // -------------------------------------------------------------
+  const isMaintenance = true;
+
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -40,7 +47,6 @@ export default function DashboardPage() {
 
     const devToolsInterval = setInterval(() => {
       const startTime = performance.now();
-      // Anti-tampering check line
       debugger;
       const endTime = performance.now();
       if (endTime - startTime > 100) {
@@ -59,7 +65,6 @@ export default function DashboardPage() {
 
   // Base Dynamic Rates
   const baseRate = isFounder ? 5.0 : 0.5;
-  // Boost only applies for actively mining referrals (+0.2 per active peer)
   const referralBonusRate = activeReferrals * 0.2;
   const hourlyRate = baseRate + referralBonusRate;
   const hourlyRateRef = useRef(hourlyRate);
@@ -76,22 +81,19 @@ export default function DashboardPage() {
 
       const localUserData = JSON.parse(savedUser);
 
-      // 1. Fetch Fresh User Profile & Real Balance from Server DB
       const userRes = await fetch(`/api/user/profile?userId=${localUserData.id}`);
       const userData = await userRes.json();
 
       if (!userData || !userData.success) {
-        setUser(localUserData); // Fallback
+        setUser(localUserData);
       } else {
         setUser(userData.user);
-        // Update local memory with strictly synced database data
         localStorage.setItem("apn_user", JSON.stringify(userData.user));
       }
 
       const activeUser = userData?.user || localUserData;
       const dbBalance = parseFloat(activeUser.balance || "0");
 
-      // 2. Fetch Referrals & Active Mining Peer Count
       try {
         const refRes = await fetch(`/api/user/referrals?userId=${activeUser.id}`);
         const refData = await refRes.json();
@@ -103,7 +105,6 @@ export default function DashboardPage() {
         console.error("Error loading referrals:", e);
       }
 
-      // 3. Precise Synchronized Session Calculation
       const startTimeStr = localStorage.getItem("apn_mining_start_time");
 
       if (startTimeStr) {
@@ -114,7 +115,6 @@ export default function DashboardPage() {
           setIsMining(true);
           setSessionTime(elapsedSeconds);
 
-          // Retrieve strictly verified base balance or revert to Server DB balance
           const savedBase = localStorage.getItem("apn_base_balance");
           const realBase = savedBase ? parseFloat(savedBase) : dbBalance;
 
@@ -123,7 +123,6 @@ export default function DashboardPage() {
           const minedSoFar = elapsedSeconds * (hourlyRateRef.current / 3600);
           setBalance(realBase + minedSoFar);
         } else {
-          // Session expired naturally
           setIsMining(false);
           baseBalanceRef.current = dbBalance;
           setBalance(dbBalance);
@@ -175,7 +174,6 @@ export default function DashboardPage() {
         setBalance(liveTotal);
       }, 1000);
 
-      // Periodically Sync to DB to lock in gains securely
       syncInterval = setInterval(() => {
         if (user?.id) {
           const startTimeStr = localStorage.getItem("apn_mining_start_time");
@@ -249,6 +247,14 @@ export default function DashboardPage() {
     const s = remaining % 60;
     return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   };
+
+  // -------------------------------------------------------------
+  // MAINTENANCE OVERLAY CHECK
+  // Switched dynamically: If true, renders full maintenance page
+  // -------------------------------------------------------------
+  if (isMaintenance) {
+    return <MaintenanceOverlay />;
+  }
 
   if (isLoading || !user) {
     return (
