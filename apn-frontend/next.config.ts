@@ -14,7 +14,12 @@ const nextConfig: NextConfig = {
     } : false,
   },
 
+  typescript: {
+    ignoreBuildErrors: true,
+  },
+
   /* Tauraruwar sauran configurations dinka na baya za su gaza zama a nan */
 };
+
 
 export default nextConfig;

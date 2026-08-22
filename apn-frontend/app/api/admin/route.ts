@@ -47,7 +47,7 @@ export async function POST(req: Request) {
 
           return {
             ...u,
-            fullName: u.fullName || u.name || "",
+            name: u.name || u.name || "",
             referralCount: refCount,
             // Safely convert BigInt to Number or ISO string to avoid JSON crash
             miningStartTime: u.miningStartTime ? Number(u.miningStartTime) : null,
@@ -84,10 +84,10 @@ export async function POST(req: Request) {
 
     // D. EDIT USER DETAILS
     if (action === "UPDATE_USER") {
-      const { targetUserId, fullName, email } = body;
+      const { targetUserId, name, email } = body;
       const updated = await prisma.user.update({
         where: { id: targetUserId },
-        data: { fullName, email },
+        data: { name, email },
       });
       return NextResponse.json({ success: true, user: updated });
     }
