@@ -1,5 +1,6 @@
+// app/api/auth/login/route.ts
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { supabase } from '@/lib/supabase';
 import bcrypt from 'bcryptjs';
 
 export async function POST(req: Request) {
@@ -16,18 +17,31 @@ export async function POST(req: Request) {
 
     const cleanEmail = email.trim().toLowerCase();
     
-    const user = await prisma.user.findUnique({ 
-      where: { email: cleanEmail } 
-    });
+    // Neman amfani daga Supabase
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', cleanEmail)
+      .single();
 
-    if (!user || !user.passwordHash) {
+    if (error || !user) {
       return NextResponse.json(
         { error: 'Invalid email or password' }, 
         { status: 401 }
       );
     }
 
-    const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
+    // Tabbatar da passwordHash ko password_hash daga database
+    const userPasswordHash = user.passwordHash || user.password_hash;
+
+    if (!userPasswordHash) {
+      return NextResponse.json(
+        { error: 'Invalid email or password' }, 
+        { status: 401 }
+      );
+    }
+
+    const isPasswordValid = await bcrypt.compare(password, userPasswordHash);
 
     if (!isPasswordValid) {
       return NextResponse.json(
@@ -36,10 +50,11 @@ export async function POST(req: Request) {
       );
     }
 
-    // Safely convert BigInt to Number or ISO String
+    // Safely convert BigInt/Timestamp to ISO String
+    const rawMiningTime = user.miningStartTime || user.mining_start_time;
     let formattedMiningTime: string | null = null;
-    if (user.miningStartTime !== null && user.miningStartTime !== undefined) {
-      formattedMiningTime = new Date(Number(user.miningStartTime)).toISOString();
+    if (rawMiningTime !== null && rawMiningTime !== undefined) {
+      formattedMiningTime = new Date(Number(rawMiningTime)).toISOString();
     }
 
     return NextResponse.json(
@@ -51,9 +66,9 @@ export async function POST(req: Request) {
           name: user.name || '', 
           role: user.role || 'USER',
           balance: user.balance ?? 0,
-          stakedBalance: user.stakedBalance ?? 0,
-          referralCode: user.referralCode || '',
-          isMining: Boolean(user.isMining),
+          stakedBalance: user.stakedBalance ?? user.staked_balance ?? 0,
+          referralCode: user.referralCode || user.referral_code || '',
+          isMining: Boolean(user.isMining ?? user.is_mining),
           miningStartTime: formattedMiningTime
         } 
       },

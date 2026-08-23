@@ -1,6 +1,6 @@
 // app/api/admin/route.ts
-import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { NextResponse } from "next/server";
+import { supabase } from "@/lib/supabase";
 
 export async function POST(req: Request) {
   try {
@@ -11,7 +11,12 @@ export async function POST(req: Request) {
     let isAuthorized = adminId === "founder-root";
 
     if (!isAuthorized && adminId) {
-      const adminUser = await prisma.user.findUnique({ where: { id: adminId } });
+      const { data: adminUser } = await supabase
+        .from("users")
+        .select("*")
+        .eq("id", adminId)
+        .single();
+
       if (
         adminUser &&
         (adminUser.role === "FOUNDER" ||
@@ -34,23 +39,25 @@ export async function POST(req: Request) {
 
     // A. FETCH ALL USERS WITH REFERRAL COUNT
     if (action === "FETCH_USERS") {
-      const rawUsers = await prisma.user.findMany({
-        orderBy: { createdAt: 'desc' },
-      });
+      const { data: rawUsers, error: usersErr } = await supabase
+        .from("users")
+        .select("*")
+        .order("created_at", { ascending: false });
 
-      // Format BigInt fields da kuma lissafin referrals
+      if (usersErr) throw usersErr;
+
       const usersWithRefs = await Promise.all(
-        rawUsers.map(async (u) => {
-          const refCount = await prisma.user.count({
-            where: { referredById: u.id },
-          });
+        (rawUsers || []).map(async (u) => {
+          const { count } = await supabase
+            .from("users")
+            .select("id", { count: "exact", head: true })
+            .eq("referred_by_id", u.id);
 
           return {
             ...u,
-            name: u.name || u.name || "",
-            referralCount: refCount,
-            // Safely convert BigInt to Number or ISO string to avoid JSON crash
-            miningStartTime: u.miningStartTime ? Number(u.miningStartTime) : null,
+            name: u.name || "",
+            referralCount: count || 0,
+            miningStartTime: u.mining_start_time ? Number(u.mining_start_time) : null,
           };
         })
       );
@@ -61,21 +68,31 @@ export async function POST(req: Request) {
     // B. SUSPEND / UNSUSPEND USER ACCOUNT
     if (action === "TOGGLE_SUSPEND") {
       const { targetUserId, status } = body;
-      const updated = await prisma.user.update({
-        where: { id: targetUserId },
-        data: { isSuspended: Boolean(status) },
-      });
+      const { data: updated, error } = await supabase
+        .from("users")
+        .update({ is_suspended: Boolean(status) })
+        .eq("id", targetUserId)
+        .select()
+        .single();
+
+      if (error) throw error;
 
       return NextResponse.json({
         success: true,
-        isSuspended: updated.isSuspended,
+        isSuspended: updated.is_suspended,
       });
     }
 
     // C. DELETE USER ACCOUNT
     if (action === "DELETE_USER") {
       const { targetUserId } = body;
-      await prisma.user.delete({ where: { id: targetUserId } });
+      const { error } = await supabase
+        .from("users")
+        .delete()
+        .eq("id", targetUserId);
+
+      if (error) throw error;
+
       return NextResponse.json({
         success: true,
         message: "User account deleted successfully.",
@@ -85,10 +102,15 @@ export async function POST(req: Request) {
     // D. EDIT USER DETAILS
     if (action === "UPDATE_USER") {
       const { targetUserId, name, email } = body;
-      const updated = await prisma.user.update({
-        where: { id: targetUserId },
-        data: { name, email },
-      });
+      const { data: updated, error } = await supabase
+        .from("users")
+        .update({ name, email })
+        .eq("id", targetUserId)
+        .select()
+        .single();
+
+      if (error) throw error;
+
       return NextResponse.json({ success: true, user: updated });
     }
 
@@ -104,20 +126,36 @@ export async function POST(req: Request) {
         );
       }
 
-      const updated = await prisma.user.update({
-        where: { id: targetUserId },
-        data: { balance: { increment: tokenAmount } },
-      });
+      // Fetch existing balance
+      const { data: targetUser, error: fetchErr } = await supabase
+        .from("users")
+        .select("balance")
+        .eq("id", targetUserId)
+        .single();
+
+      if (fetchErr) throw fetchErr;
+
+      const currentBalance = parseFloat(targetUser?.balance || "0");
+      const newBalance = currentBalance + tokenAmount;
+
+      const { data: updated, error: updateErr } = await supabase
+        .from("users")
+        .update({ balance: newBalance })
+        .eq("id", targetUserId)
+        .select()
+        .single();
+
+      if (updateErr) throw updateErr;
 
       // Log transaction record
-      await prisma.transaction.create({
-        data: {
-          userId: targetUserId,
+      await supabase.from("transactions").insert([
+        {
+          user_id: targetUserId,
           amount: tokenAmount,
           type: "FOUNDER_AIRDROP",
           description: "Direct token transfer from Founder Vault",
         },
-      });
+      ]);
 
       return NextResponse.json({ success: true, newBalance: updated.balance });
     }
@@ -133,16 +171,22 @@ export async function POST(req: Request) {
         );
       }
 
-      const newTask = await prisma.task.create({
-        data: {
-          title,
-          description: description || "",
-          reward: parseFloat(reward),
-          link,
-          category: category || "GENERAL",
-          isActive: true,
-        },
-      });
+      const { data: newTask, error } = await supabase
+        .from("tasks")
+        .insert([
+          {
+            title,
+            description: description || "",
+            reward: parseFloat(reward),
+            link,
+            category: category || "GENERAL",
+            is_active: true,
+          },
+        ])
+        .select()
+        .single();
+
+      if (error) throw error;
 
       return NextResponse.json({ success: true, task: newTask });
     }

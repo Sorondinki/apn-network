@@ -1,6 +1,6 @@
 // app/api/user/update-ref-code/route.ts
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { supabase } from "@/lib/supabase";
 
 export async function POST(req: Request) {
   try {
@@ -14,9 +14,11 @@ export async function POST(req: Request) {
     }
 
     // Check if code is already taken
-    const existingCode = await prisma.user.findFirst({
-      where: { referralCode: newReferralCode },
-    });
+    const { data: existingCode } = await supabase
+      .from("users")
+      .select("id")
+      .or(`referralCode.eq.${newReferralCode},referral_code.eq.${newReferralCode}`)
+      .maybeSingle();
 
     if (existingCode) {
       return NextResponse.json(
@@ -26,13 +28,17 @@ export async function POST(req: Request) {
     }
 
     // Update user's referral code
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
+    const { error: updateError } = await supabase
+      .from("users")
+      .update({
+        referral_code: newReferralCode,
         referralCode: newReferralCode,
+        has_changed_ref_code: true,
         hasChangedRefCode: true,
-      },
-    });
+      })
+      .eq("id", userId);
+
+    if (updateError) throw updateError;
 
     return NextResponse.json({
       success: true,
