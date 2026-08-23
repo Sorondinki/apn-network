@@ -10,7 +10,7 @@ export default function DashboardPage() {
   // MAINTENANCE SWITCH (KULLA/BUDE DASHBOARD)
   // Maida wannan 'false' idan ka gama gyara kana so kowa ya gani.
   // -------------------------------------------------------------
-  const isMaintenance = true;
+  const isMaintenance = false;
 
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
