@@ -30,7 +30,7 @@ export default function MaintenanceOverlay() {
       </h1>
 
       <p className="max-w-md text-gray-400 text-sm leading-relaxed mb-8">
-        Muna gudanar da sauye-sauye da haɓaka ƙarfin APN Layer-1 Consensus Protocol. Duk ma'adananka suna nan a kulle cikin aminci.
+        We are executing essential upgrades to the APN Layer-1 Consensus Protocol. All user balances and assets remain fully secure on-chain.
       </p>
 
       <div className="w-full max-w-sm p-4 rounded-2xl bg-gray-900/60 border border-gray-800 backdrop-blur-md flex flex-col gap-3">
@@ -38,11 +38,11 @@ export default function MaintenanceOverlay() {
           onClick={() => router.push("/register")}
           className="w-full py-3 px-4 rounded-xl font-bold text-sm bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white transition-all shadow-lg shadow-blue-900/30"
         >
-          Sabuwar Rajista / Join APN Network
+          New Registration / Join APN Network
         </button>
 
         <p className="text-[11px] text-gray-500">
-          Sabuwar rajista tana aiki lami lafiya yayin gudanar da maintenance.
+          New account registrations remain fully operational during maintenance.
         </p>
       </div>
     </div>
