@@ -14,18 +14,18 @@ export async function POST(req: Request) {
       );
     }
 
-    // Convert values appropriately
     const parsedBalance = parseFloat(balance);
-    const parsedStartTime = miningStartTime ? new Date(parseInt(miningStartTime, 10)).toISOString() : null;
+    const parsedStartTime = miningStartTime ? Number(miningStartTime) : null;
 
-    // Direct Supabase Update
     const { data, error } = await supabase
-      .from('User')
+      .from('users')
       .update({
         balance: parsedBalance,
+        is_mining: Boolean(isMining),
         isMining: Boolean(isMining),
+        mining_start_time: parsedStartTime,
         miningStartTime: parsedStartTime,
-        updatedAt: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       })
       .eq('id', userId)
       .select()
