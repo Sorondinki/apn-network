@@ -1,3 +1,4 @@
+// next.config.ts
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
@@ -20,11 +21,6 @@ const nextConfig: NextConfig = {
   /* Bada damar gina aiki koda akwai kuskuren TypeScript */
   typescript: {
     ignoreBuildErrors: true,
-  },
-
-  /* Bada damar gina aiki koda akwai gargadi ko kuskuren ESLint */
-  eslint: {
-    ignoreDuringBuilds: true,
   },
 };
 

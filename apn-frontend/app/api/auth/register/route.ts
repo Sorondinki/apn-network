@@ -1,5 +1,6 @@
+// app/api/auth/register/route.ts
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { supabase } from '@/lib/supabase';
 import bcrypt from 'bcryptjs';
 
 export async function POST(req: Request) {
@@ -11,8 +12,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Please provide both email and password' }, { status: 400 });
     }
 
+    const cleanEmail = email.trim().toLowerCase();
+
     // Check if user already exists
-    const existingUser = await prisma.user.findUnique({ where: { email } });
+    const { data: existingUser } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', cleanEmail)
+      .maybeSingle();
+
     if (existingUser) {
       return NextResponse.json({ error: 'User with this email already exists' }, { status: 400 });
     }
@@ -29,48 +37,74 @@ export async function POST(req: Request) {
 
     // Check for a valid referrer code
     let referrerId: string | null = null;
+    let referrerBalance = 0;
+
     if (referralCode) {
-      const referrer = await prisma.user.findUnique({ where: { referralCode } });
+      const { data: referrer } = await supabase
+        .from('users')
+        .select('id, balance')
+        .or(`referralCode.eq.${referralCode},referral_code.eq.${referralCode}`)
+        .maybeSingle();
+
       if (referrer) {
         referrerId = referrer.id;
+        referrerBalance = parseFloat(referrer.balance || "0");
       }
     }
 
     // Save new user to Database
-    const newUser = await prisma.user.create({
-      data: {
-        email,
-        passwordHash: hashedPassword,
-        walletAddress,
-        referralCode: generatedReferralCode,
-        referredById: referrerId,
-        hasChangedRefCode: false,
-      },
-    });
+    const { data: newUser, error: insertError } = await supabase
+      .from('users')
+      .insert([
+        {
+          email: cleanEmail,
+          password_hash: hashedPassword,
+          passwordHash: hashedPassword,
+          wallet_address: walletAddress,
+          walletAddress: walletAddress,
+          referral_code: generatedReferralCode,
+          referralCode: generatedReferralCode,
+          referred_by_id: referrerId,
+          referredById: referrerId,
+          has_changed_ref_code: false,
+          hasChangedRefCode: false,
+        },
+      ])
+      .select()
+      .single();
+
+    if (insertError) throw insertError;
 
     // Credit Referral Reward (5.0 APN) to the Referrer
     if (referrerId) {
-      await prisma.user.update({
-        where: { id: referrerId },
-        data: { balance: { increment: 5.0 } },
-      });
+      const newBalance = referrerBalance + 5.0;
 
-      await prisma.transaction.create({
-        data: {
-          userId: referrerId,
-          amount: 5.0,
-          type: 'REFERRAL_BONUS',
-          description: `Referral bonus earned from inviting ${email}`,
-        },
-      });
+      await supabase
+        .from('users')
+        .update({
+          balance: newBalance,
+        })
+        .eq('id', referrerId);
+
+      await supabase
+        .from('transactions')
+        .insert([
+          {
+            user_id: referrerId,
+            userId: referrerId,
+            amount: 5.0,
+            type: 'REFERRAL_BONUS',
+            description: `Referral bonus earned from inviting ${cleanEmail}`,
+          },
+        ]);
     }
 
     return NextResponse.json(
       { message: 'Account created successfully!', user: newUser },
       { status: 201 }
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error("Registration error:", error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ error: error?.message || 'Internal Server Error' }, { status: 500 });
   }
 }
