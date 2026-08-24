@@ -71,7 +71,7 @@ export default function DashboardPage() {
   hourlyRateRef.current = hourlyRate;
 
   // Single Source of Truth Fetcher from Server API
-  const syncAndLoadUserData = useCallback(async () => {
+const syncAndLoadUserData = useCallback(async () => {
     try {
       const savedUser = localStorage.getItem("apn_user");
       if (!savedUser) {
@@ -80,33 +80,29 @@ export default function DashboardPage() {
       }
 
       const localUserData = JSON.parse(savedUser);
+      setUser(localUserData); // Set local data first so UI renders instantly!
 
-      const userRes = await fetch(`/api/user/profile?userId=${localUserData.id}`);
-      const userData = await userRes.json();
+      const dbBalance = parseFloat(localUserData.balance || "0");
 
-      if (!userData || !userData.success) {
-        setUser(localUserData);
-      } else {
-        setUser(userData.user);
-        localStorage.setItem("apn_user", JSON.stringify(userData.user));
-      }
-
-      const activeUser = userData?.user || localUserData;
-      const dbBalance = parseFloat(activeUser.balance || "0");
-
+      // Optional API sync with Timeout safety
       try {
-        const refRes = await fetch(`/api/user/referrals?userId=${activeUser.id}`);
-        const refData = await refRes.json();
-        if (refData.success) {
-          setTotalReferrals(refData.totalInvited || 0);
-          setActiveReferrals(refData.activeMiners || refData.totalInvited || 0);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 4000); // 4 seconds max limit
+
+        const userRes = await fetch(`/api/user/profile?userId=${localUserData.id}`, { signal: controller.signal });
+        clearTimeout(timeoutId);
+        
+        const userData = await userRes.json();
+        if (userData && userData.success) {
+          setUser(userData.user);
+          localStorage.setItem("apn_user", JSON.stringify(userData.user));
         }
       } catch (e) {
-        console.error("Error loading referrals:", e);
+        console.warn("Profile fetch timed out or failed, using local session:", e);
       }
 
+      // Check mining timer from LocalStorage
       const startTimeStr = localStorage.getItem("apn_mining_start_time");
-
       if (startTimeStr) {
         const startTime = parseInt(startTimeStr, 10);
         const elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
@@ -117,7 +113,6 @@ export default function DashboardPage() {
 
           const savedBase = localStorage.getItem("apn_base_balance");
           const realBase = savedBase ? parseFloat(savedBase) : dbBalance;
-
           baseBalanceRef.current = realBase;
 
           const minedSoFar = elapsedSeconds * (hourlyRateRef.current / 3600);
@@ -137,10 +132,10 @@ export default function DashboardPage() {
     } catch (err) {
       console.error("Initialization sync error:", err);
     } finally {
-      setIsLoading(false);
+      setIsLoading(false); // ALWAYS remove loading spinner no matter what!
     }
   }, [router]);
-
+  
   useEffect(() => {
     syncAndLoadUserData();
   }, [syncAndLoadUserData]);
