@@ -1,4 +1,5 @@
 "use client";
+
 import './globals.css';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -13,6 +14,42 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   const [isMounted, setIsMounted] = useState(false);
 
   const isAuthPage = pathname === '/register' || pathname === '/login' || pathname === '/';
+
+  // 🛡️ SECURITY ENGINE: DevTools, Keyboard Shortcuts & Anti-Tamper Protection
+  useEffect(() => {
+    // Block Right-Click Context Menu
+    const handleContextMenu = (e: MouseEvent) => e.preventDefault();
+
+    // Block F12, Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+Shift+C, Ctrl+U
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        e.key === "F12" ||
+        (e.ctrlKey && e.shiftKey && (e.key === "I" || e.key === "i" || e.key === "J" || e.key === "j" || e.key === "C" || e.key === "c")) ||
+        (e.ctrlKey && (e.key === "U" || e.key === "u"))
+      ) {
+        e.preventDefault();
+      }
+    };
+
+    window.addEventListener("contextmenu", handleContextMenu);
+    window.addEventListener("keydown", handleKeyDown);
+
+    // Dynamic Debugger Loop to freeze DevTools if opened
+    const devToolsInterval = setInterval(() => {
+      const startTime = performance.now();
+      debugger;
+      const endTime = performance.now();
+      if (endTime - startTime > 100) {
+        console.clear();
+      }
+    }, 2000);
+
+    return () => {
+      window.removeEventListener("contextmenu", handleContextMenu);
+      window.removeEventListener("keydown", handleKeyDown);
+      clearInterval(devToolsInterval);
+    };
+  }, []);
 
   // Prevent Hydration Mismatch & Securely Load User Session
   useEffect(() => {
@@ -76,10 +113,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="theme-color" content="#3b82f6" />
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
         <title>Alpha Proficiency Network - APN Protocol</title>
-        <link rel="manifest" href="/manifest.json" />
-        <meta name="theme-color" content="#3b82f6" />
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-        <title>Alpha Proficiency Network - APN Protocol</title>
 
         {/* iOS Safari Special PWA Tags */}
         <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -88,7 +121,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="apple-touch-icon" href="/images/apn-network192x192.png" />
         <link rel="apple-touch-icon" sizes="512x512" href="/images/apn-token512x512.png" />
       </head>
-      <body className="flex flex-col md:flex-row min-h-screen md:h-screen w-full bg-[#080c14] text-white font-sans selection:bg-blue-600 selection:text-white">
+      <body className="flex flex-col md:flex-row min-h-screen md:h-screen w-full bg-[#080c14] text-white font-sans selection:bg-blue-600 selection:text-white select-none">
         
         {/* DESKTOP & MOBILE NAVIGATION LAYER */}
         {isMounted && !isAuthPage && (

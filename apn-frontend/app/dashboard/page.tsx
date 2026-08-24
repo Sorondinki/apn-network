@@ -3,14 +3,14 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import MaintenanceOverlay from "../components/MaintenanceOverlay"; // Tabbatar hanya ta dace da inda tsarin Maintenance yake
+import MaintenanceOverlay from "../components/MaintenanceOverlay";
 
 export default function DashboardPage() {
   // -------------------------------------------------------------
   // MAINTENANCE SWITCH (KULLA/BUDE DASHBOARD)
-  // Maida wannan 'false' idan ka gama gyara kana so kowa ya gani.
+  // An maida shi 'false' domin kowa ya iya Login da Mining yanzu.
   // -------------------------------------------------------------
-  const isMaintenance = true;
+  const isMaintenance = false;
 
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
@@ -63,8 +63,8 @@ export default function DashboardPage() {
 
   const isFounder = user?.role === "ADMIN" || user?.isFounder === true;
 
-  // Base Dynamic Rates
-  const baseRate = isFounder ? 5.0 : 0.5;
+  // Exact Rate Setup: Base = 0.5 APN/hr (24h Total = 12 APN max baseline)
+  const baseRate = isFounder ? 2.0 : 0.5; // Founder: 2.0 APN/hr, Regular User: 0.5 APN/hr
   const referralBonusRate = activeReferrals * 0.2;
   const hourlyRate = baseRate + referralBonusRate;
   const hourlyRateRef = useRef(hourlyRate);
@@ -145,7 +145,7 @@ export default function DashboardPage() {
     syncAndLoadUserData();
   }, [syncAndLoadUserData]);
 
-  // Mining Heartbeat Engine & Periodic Server Database Persistence (15s Sync)
+  // Mining Engine: Precision Per-Second Increment & Background Syncing
   useEffect(() => {
     let interval: NodeJS.Timeout;
     let syncInterval: NodeJS.Timeout;
@@ -199,44 +199,26 @@ export default function DashboardPage() {
     };
   }, [isMining, user?.id]);
 
-  const toggleMining = () => {
-    if (!isMining) {
-      const now = Date.now();
-      setIsMining(true);
+  const startMiningSession = () => {
+    if (isMining) return; // Disallow manual pause/stop while running
+    const now = Date.now();
+    setIsMining(true);
 
-      baseBalanceRef.current = balance;
-      localStorage.setItem("apn_base_balance", balance.toString());
-      localStorage.setItem("apn_mining_start_time", now.toString());
+    baseBalanceRef.current = balance;
+    localStorage.setItem("apn_base_balance", balance.toString());
+    localStorage.setItem("apn_mining_start_time", now.toString());
 
-      if (user?.id) {
-        fetch("/api/user/sync-balance", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            userId: user.id,
-            balance: balance,
-            isMining: true,
-            miningStartTime: now,
-          }),
-        });
-      }
-    } else {
-      setIsMining(false);
-      localStorage.removeItem("apn_mining_start_time");
-      localStorage.removeItem("apn_base_balance");
-
-      if (user?.id) {
-        fetch("/api/user/sync-balance", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            userId: user.id,
-            balance: balanceRef.current,
-            isMining: false,
-            miningStartTime: null,
-          }),
-        });
-      }
+    if (user?.id) {
+      fetch("/api/user/sync-balance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user.id,
+          balance: balance,
+          isMining: true,
+          miningStartTime: now,
+        }),
+      });
     }
   };
 
@@ -248,17 +230,13 @@ export default function DashboardPage() {
     return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   };
 
-  // -------------------------------------------------------------
-  // MAINTENANCE OVERLAY CHECK
-  // Switched dynamically: If true, renders full maintenance page
-  // -------------------------------------------------------------
   if (isMaintenance) {
     return <MaintenanceOverlay />;
   }
 
   if (isLoading || !user) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
+      <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4 select-none">
         <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
         <p className="text-gray-400 text-sm font-medium animate-pulse">Initializing APN Secure Vault...</p>
       </div>
@@ -266,18 +244,18 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="space-y-6 p-4 max-w-7xl mx-auto selection:bg-blue-500 selection:text-white">
+    <div className="space-y-6 p-4 max-w-7xl mx-auto selection:bg-blue-500 selection:text-white select-none">
       
-      {/* IN-APP ANNOUNCEMENT BANNER */}
+      {/* ANNOUNCEMENT BANNER */}
       {showNotice && (
-        <div className="relative overflow-hidden p-4 rounded-2xl bg-gradient-to-r from-blue-950/80 via-indigo-950/80 to-purple-950/80 border border-blue-500/30 backdrop-blur-md flex items-center justify-between gap-4 shadow-xl animate-fadeIn">
+        <div className="relative overflow-hidden p-4 rounded-2xl bg-gradient-to-r from-blue-950/80 via-indigo-950/80 to-purple-950/80 border border-blue-500/30 backdrop-blur-md flex items-center justify-between gap-4 shadow-xl">
           <div className="flex items-center gap-3">
             <span className="flex h-3 w-3 relative shrink-0">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-blue-500"></span>
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-blue-500" />
             </span>
             <p className="text-xs sm:text-sm text-blue-200 font-medium leading-relaxed">
-              <strong className="text-white font-bold">APN Core Update (v1.0.2):</strong> Deterministic PoS balance validation & dynamic active-peer boost engine live on mainnet.
+              <strong className="text-white font-bold">APN Core (v1.0.2):</strong> PoS Node validation engine active. Maximum base yield: 12 APN / 24 Hours.
             </p>
           </div>
           <button
@@ -289,10 +267,10 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* HERO SECTION */}
+      {/* MAIN HERO SECTION */}
       <div className="relative overflow-hidden p-8 rounded-3xl bg-gradient-to-br from-gray-900/90 via-gray-900/60 to-gray-950/90 border border-gray-800/80 backdrop-blur-xl flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl">
         
-        {/* LEFT INFORMATION CONTAINER */}
+        {/* LEFT INFORMATION */}
         <div className="space-y-3 max-w-xl z-10">
           <div className="flex flex-wrap items-center gap-2">
             <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-medium backdrop-blur-md">
@@ -300,14 +278,12 @@ export default function DashboardPage() {
               PoS Layer-1 Web Node Active
             </div>
 
-            {/* FOUNDER SPECIAL BADGE */}
             {isFounder && (
               <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-gradient-to-r from-amber-500/20 to-yellow-500/10 border border-amber-500/40 text-amber-300 text-xs font-bold tracking-wide shadow-lg shadow-amber-950/50">
                 ⚡ Founder Master Node
               </div>
             )}
 
-            {/* ACTIVE REFERRAL BOOST BADGE */}
             {activeReferrals > 0 && (
               <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-blue-500/20 border border-blue-500/40 text-blue-300 text-xs font-bold tracking-wide">
                 🚀 +{(activeReferrals * 0.2).toFixed(1)} APN/hr Boost ({activeReferrals} Active)
@@ -323,52 +299,54 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        {/* CENTER APN TOKEN GRAPHIC WITH GLOW */}
+        {/* CENTER APN ANIMATED GRAPHIC */}
         <div className="relative flex items-center justify-center my-2 md:my-0">
-          <div className={`absolute w-36 h-36 rounded-full transition-all duration-700 ${
-            isMining ? "bg-blue-500/30 blur-2xl animate-pulse" : "bg-transparent"
+          <div className={`absolute w-40 h-40 rounded-full transition-all duration-700 ${
+            isMining ? "bg-blue-500/30 blur-3xl animate-pulse" : "bg-transparent"
           }`} />
           
-          <div className={`relative p-4 rounded-full bg-gradient-to-b from-gray-800/90 to-gray-900/95 border ${
-            isMining ? "border-blue-500/60 shadow-[0_0_30px_rgba(59,130,246,0.3)]" : "border-gray-800"
+          <div className={`relative p-5 rounded-full bg-gradient-to-b from-gray-800/90 to-gray-900/95 border transition-all duration-500 ${
+            isMining ? "border-blue-500/60 shadow-[0_0_35px_rgba(59,130,246,0.4)]" : "border-gray-800"
           }`}>
             <Image
               src="/images/apn-token512x512.png"
               alt="APN Token Logo"
-              width={88}
-              height={88}
+              width={96}
+              height={96}
               priority
-              className={`object-contain transition-all duration-500 ${
-                isMining ? "scale-105 filter drop-shadow-[0_0_18px_rgba(59,130,246,0.8)] animate-spin-slow" : "opacity-80 grayscale-[20%]"
+              className={`object-contain transition-all duration-700 ${
+                isMining ? "scale-105 filter drop-shadow-[0_0_20px_rgba(59,130,246,0.9)] animate-spin-slow" : "opacity-75 grayscale-[20%]"
               }`}
             />
           </div>
         </div>
 
-        {/* MINING BUTTON */}
-        <div className="z-10 flex flex-col items-center gap-2">
-          <button
-            onClick={toggleMining}
-            className={`px-8 py-4 rounded-2xl font-bold text-base transition-all duration-300 shadow-2xl flex items-center gap-3 active:scale-95 ${
-              isMining
-                ? "bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white shadow-red-900/40"
-                : "bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-emerald-900/40"
-            }`}
-          >
-            <Image
-              src="/images/apn-token512x512.png"
-              alt="Token Icon"
-              width={22}
-              height={22}
-              className="object-contain"
-            />
-            <span>{isMining ? "Pause Session" : "Start Session"}</span>
-          </button>
-          
-          {isMining && (
-            <span className="text-[11px] font-mono text-blue-400 bg-blue-950/60 border border-blue-800/50 px-3 py-0.5 rounded-full">
-              Session Ends: {formatCountdown(sessionTime)}
-            </span>
+        {/* ACTION BUTTON (NO PAUSE OPTION - ALWAYS ACTIVE) */}
+        <div className="z-10 flex flex-col items-center gap-3">
+          {isMining ? (
+            <div className="flex flex-col items-center space-y-2">
+              <div className="px-8 py-4 rounded-2xl bg-gradient-to-r from-emerald-600/90 to-teal-600/90 border border-emerald-400/30 text-white font-bold text-base shadow-2xl flex items-center gap-3 animate-pulse">
+                <span className="w-3 h-3 rounded-full bg-emerald-400 animate-ping" />
+                <span>Mining Session Active ⚡</span>
+              </div>
+              <span className="text-xs font-mono text-blue-300 bg-blue-950/80 border border-blue-800/60 px-4 py-1 rounded-full shadow-inner">
+                Time Remaining: {formatCountdown(sessionTime)}
+              </span>
+            </div>
+          ) : (
+            <button
+              onClick={startMiningSession}
+              className="px-8 py-4 rounded-2xl font-bold text-base transition-all duration-300 shadow-2xl flex items-center gap-3 active:scale-95 bg-gradient-to-r from-emerald-600 via-teal-600 to-green-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-emerald-900/40 hover:shadow-emerald-900/60"
+            >
+              <Image
+                src="/images/apn-token512x512.png"
+                alt="Token Icon"
+                width={24}
+                height={24}
+                className="object-contain"
+              />
+              <span>Start 24h Mining Session 🚀</span>
+            </button>
           )}
         </div>
       </div>
@@ -424,13 +402,13 @@ export default function DashboardPage() {
           <div className="flex items-center gap-3 mt-4">
             <span className="relative flex h-4 w-4">
               {isMining && (
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
               )}
               <span
                 className={`relative inline-flex rounded-full h-4 w-4 ${
                   isMining ? "bg-emerald-500 animate-pulse" : "bg-gray-600"
                 }`}
-              ></span>
+              />
             </span>
 
             <span
