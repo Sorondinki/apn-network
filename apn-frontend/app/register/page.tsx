@@ -72,7 +72,13 @@ function AuthForm() {
         body: JSON.stringify(payload),
       });
 
-      const data = await res.json();
+      const contentType = res.headers.get("content-type");
+      let data: any = {};
+      if (contentType && contentType.includes("application/json")) {
+        data = await res.json();
+      } else {
+        throw new Error("Server error or invalid route configuration.");
+      }
 
       if (!res.ok) {
         throw new Error(data.error || "Authentication failed");
@@ -112,7 +118,15 @@ function AuthForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: email.trim() }),
       });
-      const data = await res.json();
+
+      const contentType = res.headers.get("content-type");
+      let data: any = {};
+      if (contentType && contentType.includes("application/json")) {
+        data = await res.json();
+      } else {
+        throw new Error("Reset endpoint not found or server returned invalid response.");
+      }
+
       if (!res.ok) throw new Error(data.error || "Failed to dispatch reset instructions.");
       setToast({ type: "success", msg: "Password recovery instructions sent to your email inbox!" });
     } catch (err: any) {
@@ -124,12 +138,10 @@ function AuthForm() {
 
   return (
     <div className="flex items-center justify-center min-h-[90vh] px-4 py-8 relative overflow-hidden select-none">
-      {/* Background Ambient Glow */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
 
       <div className="glass-card p-8 rounded-3xl border border-gray-800/80 w-full max-w-md shadow-2xl relative bg-gray-950/70 backdrop-blur-2xl">
         
-        {/* Animated APN Token Header Logo */}
         <div className="flex flex-col items-center justify-center mb-6">
           <div className="relative flex items-center justify-center mb-3">
             <div className="absolute inset-0 rounded-full bg-blue-500/20 blur-lg animate-pulse" />
@@ -147,7 +159,6 @@ function AuthForm() {
           </span>
         </div>
 
-        {/* TAB TOGGLE SWITCHER */}
         <div className="flex bg-black/80 p-1.5 rounded-2xl mb-6 border border-gray-800/80 shadow-inner">
           <button
             type="button"
@@ -173,7 +184,6 @@ function AuthForm() {
           </button>
         </div>
 
-        {/* TOAST NOTIFICATION */}
         {toast && (
           <div
             className={`mb-6 p-3.5 rounded-2xl text-xs font-medium border backdrop-blur-md transition-all ${
@@ -198,7 +208,6 @@ function AuthForm() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Email Address */}
           <div>
             <label className="text-xs font-semibold text-gray-400 mb-1.5 block">Email Address</label>
             <input
@@ -211,7 +220,6 @@ function AuthForm() {
             />
           </div>
 
-          {/* Password Input with Show/Hide & Forgot Password */}
           <div>
             <div className="flex justify-between items-center mb-1.5">
               <label className="text-xs font-semibold text-gray-400">Password</label>
@@ -244,7 +252,6 @@ function AuthForm() {
             </div>
           </div>
 
-          {/* Referral Code Field (Auto-filled if linked) */}
           {!isLogin && (
             <div>
               <div className="flex justify-between items-center mb-1.5">
@@ -265,7 +272,6 @@ function AuthForm() {
             </div>
           )}
 
-          {/* Submit Button */}
           <button
             type="submit"
             disabled={loading}

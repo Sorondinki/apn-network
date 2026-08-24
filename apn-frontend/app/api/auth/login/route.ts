@@ -17,12 +17,12 @@ export async function POST(req: Request) {
 
     const cleanEmail = email.trim().toLowerCase();
     
-    // Neman amfani daga Supabase
+    // Amfani da maybeSingle() don kaucewa crash idan ba a samu mai amfani ba
     const { data: user, error } = await supabase
       .from('users')
       .select('*')
       .eq('email', cleanEmail)
-      .single();
+      .maybeSingle();
 
     if (error || !user) {
       return NextResponse.json(
@@ -31,7 +31,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // Tabbatar da passwordHash ko password_hash daga database
+    // Duba nau'in hash guda biyu (camelCase ko snake_case)
     const userPasswordHash = user.passwordHash || user.password_hash;
 
     if (!userPasswordHash) {
