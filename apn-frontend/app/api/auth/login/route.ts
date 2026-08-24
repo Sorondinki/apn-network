@@ -17,11 +17,11 @@ export async function POST(req: Request) {
 
     const cleanEmail = email.trim().toLowerCase();
     
-    // Amfani da maybeSingle() don kaucewa crash idan ba a samu mai amfani ba
+    // An gyara sunan teburin ya koma 'User' (kamar yadda yake a Supabase dinka)
     const { data: user, error } = await supabase
-      .from('users')
+      .from('User')
       .select('*')
-      .eq('email', cleanEmail)
+      .ilike('email', cleanEmail)
       .maybeSingle();
 
     if (error || !user) {
@@ -31,7 +31,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // Duba nau'in hash guda biyu (camelCase ko snake_case)
     const userPasswordHash = user.passwordHash || user.password_hash;
 
     if (!userPasswordHash) {
@@ -50,7 +49,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // Safely convert BigInt/Timestamp to ISO String
     const rawMiningTime = user.miningStartTime || user.mining_start_time;
     let formattedMiningTime: string | null = null;
     if (rawMiningTime !== null && rawMiningTime !== undefined) {

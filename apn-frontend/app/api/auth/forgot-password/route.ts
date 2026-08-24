@@ -16,11 +16,11 @@ export async function POST(req: Request) {
 
     const cleanEmail = email.trim().toLowerCase();
 
-    // Tabbatar an samu mai amfani a database din
+    // An gyara zuwa teburin 'User' da ilike
     const { data: user, error: userError } = await supabase
-      .from('users')
+      .from('User')
       .select('email')
-      .eq('email', cleanEmail)
+      .ilike('email', cleanEmail)
       .maybeSingle();
 
     if (userError || !user) {
@@ -30,7 +30,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // Tura sakon sake saita Password ta hanyar Supabase Auth Engine
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
       redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://apn-network.vercel.app'}/reset-password`,
     });
