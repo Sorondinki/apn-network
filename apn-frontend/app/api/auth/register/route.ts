@@ -4,7 +4,8 @@ import bcrypt from 'bcryptjs';
 
 export async function POST(req: Request) {
   try {
-    const { email, password, referralCode } = await req.json();
+    const body = await req.json();
+    const { email, password, referralCode } = body;
 
     if (!email || !password) {
       return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
@@ -12,12 +13,17 @@ export async function POST(req: Request) {
 
     const cleanEmail = email.trim().toLowerCase();
 
-    // Duba idan mutum yana nan
-    const { data: existingUser } = await supabase
+    // 1. Duba idan mutum yana nan
+    const { data: existingUser, error: checkError } = await supabase
       .from('User')
       .select('id')
       .ilike('email', cleanEmail)
       .maybeSingle();
+
+    if (checkError) {
+      console.error('Supabase fetch error:', checkError);
+      return NextResponse.json({ error: 'Database connection failed' }, { status: 500 });
+    }
 
     if (existingUser) {
       return NextResponse.json({ error: 'User with this email already exists' }, { status: 400 });
@@ -31,7 +37,7 @@ export async function POST(req: Request) {
     let referrerId: string | null = null;
     let referrerBalance = 0;
 
-    if (referralCode) {
+    if (referralCode && referralCode.trim() !== "") {
       const { data: referrer } = await supabase
         .from('User')
         .select('id, balance')
@@ -40,11 +46,11 @@ export async function POST(req: Request) {
 
       if (referrer) {
         referrerId = referrer.id;
-        referrerBalance = typeof referrer.balance === 'number' ? referrer.balance : parseFloat(referrer.balance || "0");
+        referrerBalance = Number(referrer.balance) || 0;
       }
     }
 
-    // Insert zuwa Supabase da ainihin column names din hotonka
+    // 2. Insert sabon user
     const { data: newUser, error: insertError } = await supabase
       .from('User')
       .insert([
@@ -62,9 +68,11 @@ export async function POST(req: Request) {
       .single();
 
     if (insertError) {
+      console.error('Insert Error:', insertError);
       return NextResponse.json({ error: insertError.message }, { status: 500 });
     }
 
+    // 3. Update balance na referrer
     if (referrerId) {
       await supabase
         .from('User')
@@ -74,6 +82,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ message: 'Account created successfully!', user: newUser }, { status: 201 });
   } catch (error: any) {
+    console.error('Register API Error:', error);
     return NextResponse.json({ error: error?.message || 'Internal Server Error' }, { status: 500 });
   }
 }
