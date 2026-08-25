@@ -10,7 +10,7 @@ export async function POST(req: Request) {
     // 1. Tabbatar da shigar bayanan
     if (!email || !password) {
       return NextResponse.json(
-        { error: 'Tabbatar ka shigar da Email da Password' },
+        { error: 'Make sure your Email and Password are correct' },
         { status: 400 }
       );
     }
@@ -28,7 +28,7 @@ export async function POST(req: Request) {
     if (fetchError) {
       console.error('Supabase Login Error:', fetchError);
       return NextResponse.json(
-        { error: 'An samu matsala wajen haɗawa da server' },
+        { error: 'There is a problem with the server' },
         { status: 500 }
       );
     }
@@ -36,7 +36,7 @@ export async function POST(req: Request) {
     // Idan babu user
     if (!user) {
       return NextResponse.json(
-        { error: 'Zaɓaɓɓen email ɗin ba ya cikin tsarinmu' },
+        { error: 'Invalid email or password' },
         { status: 401 }
       );
     }
@@ -46,7 +46,7 @@ export async function POST(req: Request) {
     
     if (!dbHash) {
       return NextResponse.json(
-        { error: 'An samu matsala da asusunka, da fatan ka sake canza password' },
+        { error: 'There is problem with your account, please change your password' },
         { status: 401 }
       );
     }
@@ -56,7 +56,7 @@ export async function POST(req: Request) {
 
     if (!isPasswordValid) {
       return NextResponse.json(
-        { error: 'Kuskuren Password, sake dubawa ka sake gwadawa' },
+        { error: 'Invalid Password, please try again' },
         { status: 401 }
       );
     }
@@ -64,7 +64,7 @@ export async function POST(req: Request) {
     // 4. Maido da nasarar Login
     return NextResponse.json(
       {
-        message: 'Barka da dawowa!',
+        message: 'Welcome Back!',
         user: {
           id: user.id,
           email: user.email,
