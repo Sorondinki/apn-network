@@ -6,26 +6,54 @@ export const dynamic = 'force-dynamic';
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { action, adminId } = body;
+    const { action, adminId, adminEmail } = body;
 
-    // --- SECURITY CHECK: VERIFY ADMIN / FOUNDER PRIVILEGES ---
-    let isAuthorized = adminId === "founder-root";
+    // --- 1. SECURITY CHECK: VERIFY ADMIN / FOUNDER PRIVILEGES ---
+    let isAuthorized = false;
 
+    // Hardcoded safety bypasses for Founder
+    const trustedEmails = [
+      "contact.aprotech@gmail.com",
+      "sorondinkiseeme@gmail.com"
+    ];
+
+    if (
+      adminId === "founder-root" ||
+      (adminEmail && trustedEmails.includes(adminEmail.toLowerCase()))
+    ) {
+      isAuthorized = true;
+    }
+
+    // Dynamic database check if not matched via fallback
     if (!isAuthorized && adminId) {
-      const { data: adminUser } = await supabase
-        .from("users")
+      // Trying capitalized table name 'User' first, fallback to 'users'
+      let { data: adminUser } = await supabase
+        .from("User")
         .select("*")
         .eq("id", adminId)
-        .single();
+        .maybeSingle();
 
-      if (
-        adminUser &&
-        (adminUser.role === "FOUNDER" ||
-          adminUser.role === "ADMIN" ||
-          adminUser.email?.toLowerCase() === "contact.aprotech@gmail.com" ||
-          adminUser.email?.toLowerCase() === "sorondinkiseeme@gmail.com")
-      ) {
-        isAuthorized = true;
+      if (!adminUser) {
+        const { data: fallbackUser } = await supabase
+          .from("users")
+          .select("*")
+          .eq("id", adminId)
+          .maybeSingle();
+        adminUser = fallbackUser;
+      }
+
+      if (adminUser) {
+        const roleUpper = (adminUser.role || "").toUpperCase();
+        const emailLower = (adminUser.email || "").toLowerCase();
+
+        if (
+          roleUpper === "FOUNDER" ||
+          roleUpper === "ADMIN" ||
+          roleUpper.includes("ADMIN") ||
+          trustedEmails.includes(emailLower)
+        ) {
+          isAuthorized = true;
+        }
       }
     }
 
@@ -36,34 +64,56 @@ export async function POST(req: Request) {
       );
     }
 
-    // --- ACTIONS ---
+    // Helper function to query correct table name ('User' vs 'users')
+    const getTableName = async () => {
+      const { error } = await supabase.from("User").select("id").limit(1);
+      return error ? "users" : "User";
+    };
 
-    // A. FETCH ALL USERS WITH VERIFICATION & REFERRAL COUNT
+    const targetTable = await getTableName();
+
+    // --- 2. ACTIONS IMPLEMENTATION ---
+
+    // A. FETCH ALL USERS WITH REFERRAL COUNTS
     if (action === "FETCH_USERS") {
       const { data: rawUsers, error: usersErr } = await supabase
-        .from("users")
+        .from(targetTable)
         .select("*")
         .order("created_at", { ascending: false });
 
-      if (usersErr) throw usersErr;
+      if (usersErr) {
+        // Retry ordering by 'id' if 'created_at' does not exist
+        const { data: retryUsers, error: retryErr } = await supabase
+          .from(targetTable)
+          .select("*");
+        if (retryErr) throw retryErr;
+        
+        return NextResponse.json({ success: true, users: retryUsers });
+      }
 
       const usersWithRefs = await Promise.all(
         (rawUsers || []).map(async (u) => {
-          const { count } = await supabase
-            .from("users")
-            .select("id", { count: "exact", head: true })
-            .eq("referred_by_id", u.id);
+          let refCount = 0;
+          try {
+            const { count } = await supabase
+              .from(targetTable)
+              .select("id", { count: "exact", head: true })
+              .eq("referred_by_id", u.id);
+            refCount = count || 0;
+          } catch (e) {
+            refCount = 0;
+          }
 
           return {
             id: u.id,
             fullName: u.name || u.full_name || u.fullName || "Unnamed User",
-            email: u.email,
+            email: u.email || "No Email",
             balance: u.balance || 0,
             role: u.role || "USER",
             isSuspended: Boolean(u.is_suspended || u.isSuspended),
             isVerified: Boolean(u.is_verified || u.isVerified || u.verified),
-            referralCount: count || 0,
-            createdAt: u.created_at,
+            referralCount: refCount,
+            createdAt: u.created_at || u.createdAt || new Date().toISOString(),
           };
         })
       );
@@ -71,7 +121,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true, users: usersWithRefs });
     }
 
-    // B. TOGGLE / BULK VERIFY USER STATUS (APPROVE / UNAPPROVE)
+    // B. TOGGLE / BULK VERIFY USER STATUS
     if (action === "TOGGLE_VERIFY" || action === "BULK_VERIFY") {
       const { targetUserId, targetUserIds, status } = body;
       const userIdsToProcess: string[] = targetUserIds || (targetUserId ? [targetUserId] : []);
@@ -84,7 +134,7 @@ export async function POST(req: Request) {
       }
 
       const { error } = await supabase
-        .from("users")
+        .from(targetTable)
         .update({ is_verified: Boolean(status) })
         .in("id", userIdsToProcess);
 
@@ -119,27 +169,32 @@ export async function POST(req: Request) {
 
       for (const uid of userIdsToProcess) {
         const { data: targetUser } = await supabase
-          .from("users")
+          .from(targetTable)
           .select("balance")
           .eq("id", uid)
-          .single();
+          .maybeSingle();
 
         const currentBalance = parseFloat(targetUser?.balance || "0");
         const newBalance = currentBalance + tokenAmount;
 
         await supabase
-          .from("users")
+          .from(targetTable)
           .update({ balance: newBalance })
           .eq("id", uid);
 
-        await supabase.from("transactions").insert([
-          {
-            user_id: uid,
-            amount: tokenAmount,
-            type: "FOUNDER_AIRDROP",
-            description: `Founder direct airdrop distribution (+${tokenAmount} APN)`,
-          },
-        ]);
+        // Record Airdrop Transaction log
+        try {
+          await supabase.from("Transaction").insert([
+            {
+              user_id: uid,
+              amount: tokenAmount,
+              type: "FOUNDER_AIRDROP",
+              description: `Founder direct airdrop distribution (+${tokenAmount} APN)`,
+            },
+          ]);
+        } catch (txErr) {
+          console.log("Transaction table logging skipped if not existing.");
+        }
       }
 
       return NextResponse.json({
@@ -148,13 +203,13 @@ export async function POST(req: Request) {
       });
     }
 
-    // D. TOGGLE / BULK SUSPEND
+    // D. TOGGLE / BULK SUSPEND USER ACCOUNTS
     if (action === "TOGGLE_SUSPEND" || action === "BULK_SUSPEND") {
       const { targetUserId, targetUserIds, status } = body;
       const userIdsToProcess: string[] = targetUserIds || (targetUserId ? [targetUserId] : []);
 
       const { error } = await supabase
-        .from("users")
+        .from(targetTable)
         .update({ is_suspended: Boolean(status) })
         .in("id", userIdsToProcess);
 
@@ -169,7 +224,7 @@ export async function POST(req: Request) {
       const userIdsToProcess: string[] = targetUserIds || (targetUserId ? [targetUserId] : []);
 
       const { error } = await supabase
-        .from("users")
+        .from(targetTable)
         .delete()
         .in("id", userIdsToProcess);
 
@@ -178,11 +233,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true, message: "User account(s) deleted successfully." });
     }
 
-    // F. EDIT USER FULL KYC DETAILS, VERIFICATION & ROLE
+    // F. UPDATE SINGLE USER DETAILS
     if (action === "UPDATE_USER") {
       const { targetUserId, name, email, balance, role, isVerified } = body;
       const { data: updated, error } = await supabase
-        .from("users")
+        .from(targetTable)
         .update({
           name: name,
           email: email,
@@ -192,14 +247,14 @@ export async function POST(req: Request) {
         })
         .eq("id", targetUserId)
         .select()
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
 
       return NextResponse.json({ success: true, user: updated });
     }
 
-    // G. CREATE NEW TASK
+    // G. CREATE TASKS
     if (action === "CREATE_TASK") {
       const { title, description, reward, link, category } = body;
 
@@ -223,33 +278,11 @@ export async function POST(req: Request) {
           },
         ])
         .select()
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
 
       return NextResponse.json({ success: true, task: newTask });
-    }
-
-    // H. CREATE ANNOUNCEMENT / SOCIAL BROADCAST
-    if (action === "CREATE_ANNOUNCEMENT") {
-      const { title, content, mediaUrl, platform } = body;
-
-      const { data: newAnnouncement, error } = await supabase
-        .from("announcements")
-        .insert([
-          {
-            title,
-            content,
-            media_url: mediaUrl || "",
-            platform: platform || "ALL",
-            created_at: new Date().toISOString(),
-          },
-        ])
-        .select();
-
-      if (error) throw error;
-
-      return NextResponse.json({ success: true, announcement: newAnnouncement });
     }
 
     return NextResponse.json(
