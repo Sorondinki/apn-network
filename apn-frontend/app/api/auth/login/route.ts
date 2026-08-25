@@ -2,21 +2,14 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import bcrypt from 'bcryptjs';
 
-// Tabbatar an sa Service Role Key ko Anon Key da sauri
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-
-const supabase = createClient(supabaseUrl, supabaseKey, {
-  auth: { persistSession: false },
-});
-
 export async function POST(req: Request) {
   try {
+    // 1. Karɓi payload
     const body = await req.json().catch(() => null);
 
     if (!body?.email || !body?.password) {
       return NextResponse.json(
-        { error: 'Make sure your Email and Password are correct' },
+        { error: 'Tabbatar ka shigar da Email da Password' },
         { status: 400 }
       );
     }
@@ -24,7 +17,22 @@ export async function POST(req: Request) {
     const cleanEmail = String(body.email).trim().toLowerCase();
     const rawPassword = String(body.password).trim();
 
-    // Query guda daya tak mai sauri zuwa Table din User
+    // 2. Ƙirƙiri Supabase Client nan take a cikin handler ɗin (Guje wa Connection Hanging)
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    if (!supabaseUrl || !supabaseKey) {
+      return NextResponse.json(
+        { error: 'Server configuration error' },
+        { status: 500 }
+      );
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey, {
+      auth: { persistSession: false },
+    });
+
+    // 3. Tambayi Database
     const { data: user, error: fetchError } = await supabase
       .from('User')
       .select('id, email, passwordHash, walletAddress, referralCode, balance')
@@ -32,10 +40,10 @@ export async function POST(req: Request) {
       .maybeSingle();
 
     if (fetchError) {
-      console.error('Supabase DB Query Error:', fetchError);
+      console.error('Database query error:', fetchError);
       return NextResponse.json(
-        { error: 'There is problem when fetching data' },
-        { status: 500 }
+        { error: 'Invalid email or password' },
+        { status: 401 }
       );
     }
 
@@ -46,7 +54,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // Duba bcrypt password hash
+    // 4. Kwatanta Hash
     const dbHash = user.passwordHash;
     if (!dbHash) {
       return NextResponse.json(
@@ -64,7 +72,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // Maido da amsar login cikin sauri
+    // 5. Maido da Nasara
     return NextResponse.json(
       {
         message: 'Login successful',
@@ -80,7 +88,7 @@ export async function POST(req: Request) {
     );
 
   } catch (err: any) {
-    console.error('Login Catch Crash:', err);
+    console.error('Server Catch Error:', err);
     return NextResponse.json(
       { error: 'There is a problem with the server' },
       { status: 500 }
