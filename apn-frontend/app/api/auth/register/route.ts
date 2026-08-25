@@ -4,63 +4,44 @@ import bcrypt from 'bcryptjs';
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const { email, password, referralCode } = body;
+    const body = await req.json().catch(() => null);
 
-    if (!email || !password) {
-      return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
+    if (!body?.email || !body?.password) {
+      return NextResponse.json({ error: 'Tabbatar ka shigar da Email da Password' }, { status: 400 });
     }
 
-    const cleanEmail = email.trim().toLowerCase();
+    const cleanEmail = String(body.email).trim().toLowerCase();
+    const rawPassword = String(body.password).trim();
 
-    // 1. Duba idan mutum yana nan
-    const { data: existingUser, error: checkError } = await supabase
+    // 1. Duba ko email din yana cikin tsarin
+    const { data: existingUser } = await supabase
       .from('User')
       .select('id')
       .ilike('email', cleanEmail)
       .maybeSingle();
 
-    if (checkError) {
-      console.error('Supabase fetch error:', checkError);
-      return NextResponse.json({ error: 'Database connection failed' }, { status: 500 });
-    }
-
     if (existingUser) {
-      return NextResponse.json({ error: 'User with this email already exists' }, { status: 400 });
+      return NextResponse.json({ error: 'Wannan Email ɗin an riga an yi amfani da shi' }, { status: 400 });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const walletAddress = "0x" + Array.from(crypto.getRandomValues(new Uint8Array(20)))
-      .map(b => b.toString(16).padStart(2, '0')).join('');
-    const generatedReferralCode = "APN" + Math.random().toString(36).substring(2, 8).toUpperCase();
+    // 2. Hash din password
+    const hashedPassword = await bcrypt.hash(rawPassword, 10);
+    const userId = crypto.randomUUID();
+    const walletAddress = `0x${Array.from(crypto.getRandomValues(new Uint8Array(20)))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('')}`;
+    const referralCode = Math.random().toString(36).substring(2, 8).toUpperCase();
 
-    let referrerId: string | null = null;
-    let referrerBalance = 0;
-
-    if (referralCode && referralCode.trim() !== "") {
-      const { data: referrer } = await supabase
-        .from('User')
-        .select('id, balance')
-        .eq('referralCode', referralCode.trim())
-        .maybeSingle();
-
-      if (referrer) {
-        referrerId = referrer.id;
-        referrerBalance = Number(referrer.balance) || 0;
-      }
-    }
-
-    // 2. Insert sabon user
+    // 3. Saka sabon user a Supabase
     const { data: newUser, error: insertError } = await supabase
       .from('User')
       .insert([
         {
+          id: userId,
           email: cleanEmail,
           passwordHash: hashedPassword,
           walletAddress: walletAddress,
-          referralCode: generatedReferralCode,
-          referredById: referrerId,
-          hasChangedRefCode: false,
+          referralCode: referralCode,
           balance: 0,
         },
       ])
@@ -68,21 +49,25 @@ export async function POST(req: Request) {
       .single();
 
     if (insertError) {
-      console.error('Insert Error:', insertError);
-      return NextResponse.json({ error: insertError.message }, { status: 500 });
+      console.error('Register Insert Error:', insertError);
+      return NextResponse.json({ error: 'Database connection failed: ' + insertError.message }, { status: 500 });
     }
 
-    // 3. Update balance na referrer
-    if (referrerId) {
-      await supabase
-        .from('User')
-        .update({ balance: referrerBalance + 5.0 })
-        .eq('id', referrerId);
-    }
-
-    return NextResponse.json({ message: 'Account created successfully!', user: newUser }, { status: 201 });
-  } catch (error: any) {
-    console.error('Register API Error:', error);
-    return NextResponse.json({ error: error?.message || 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json(
+      {
+        message: 'Registration successful',
+        user: {
+          id: newUser.id,
+          email: newUser.email,
+          walletAddress: newUser.walletAddress,
+          referralCode: newUser.referralCode,
+          balance: 0,
+        },
+      },
+      { status: 201 }
+    );
+  } catch (err: any) {
+    console.error('Register Catch Error:', err);
+    return NextResponse.json({ error: err?.message || 'Server error' }, { status: 500 });
   }
 }
