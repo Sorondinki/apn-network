@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import MaintenanceOverlay from "../components/MaintenanceOverlay";
+import AadsBanner from "../components/AadsBanner";
 
 export default function DashboardPage() {
   // -------------------------------------------------------------
@@ -21,8 +22,24 @@ export default function DashboardPage() {
   const [activeReferrals, setActiveReferrals] = useState(0);
   const [totalReferrals, setTotalReferrals] = useState(0);
 
-  // Announcement Banner Dismiss State
-  const [showNotice, setShowNotice] = useState(true);
+  // Announcement Banner Array State
+const notices = [
+  "APN Core (v1.0.2): PoS Node validation engine active. Maximum base yield: 12 APN / 24 Hours.",
+  "KYC Verification Portal: Complete your identity check to unlock Verified Badge & 50 APN Bonus!",
+  "Mainnet Security: Ensure your Web3 local vault keys are backed up safely.",
+];
+
+const [noticeIndex, setNoticeIndex] = useState(0);
+const [showNotice, setShowNotice] = useState(true);
+
+// Auto-rotate notices every 5 seconds
+useEffect(() => {
+  if (!showNotice) return;
+  const interval = setInterval(() => {
+    setNoticeIndex((prev) => (prev + 1) % notices.length);
+  }, 5000);
+  return () => clearInterval(interval);
+}, [showNotice, notices.length]);
 
   // Strict Internal Refs to Prevent Race Conditions & Stale State Bugs
   const baseBalanceRef = useRef(0);
@@ -64,14 +81,14 @@ export default function DashboardPage() {
   const isFounder = user?.role === "ADMIN" || user?.isFounder === true;
 
   // Exact Rate Setup: Base = 0.5 APN/hr (24h Total = 12 APN max baseline)
-  const baseRate = isFounder ? 2.0 : 0.5; // Founder: 2.0 APN/hr, Regular User: 0.5 APN/hr
+  const baseRate = isFounder ? 5.0 : 0.5; // Founder: 5.0 APN/hr, Regular User: 0.5 APN/hr
   const referralBonusRate = activeReferrals * 0.2;
   const hourlyRate = baseRate + referralBonusRate;
   const hourlyRateRef = useRef(hourlyRate);
   hourlyRateRef.current = hourlyRate;
 
   // Single Source of Truth Fetcher from Server API
-const syncAndLoadUserData = useCallback(async () => {
+  const syncAndLoadUserData = useCallback(async () => {
     try {
       const savedUser = localStorage.getItem("apn_user");
       if (!savedUser) {
@@ -241,30 +258,35 @@ const syncAndLoadUserData = useCallback(async () => {
   return (
     <div className="space-y-6 p-4 max-w-7xl mx-auto selection:bg-blue-500 selection:text-white select-none">
       
-      {/* ANNOUNCEMENT BANNER */}
+            {/* ANNOUNCEMENT BANNER WITH AUTO-SLIDE */}
       {showNotice && (
-        <div className="relative overflow-hidden p-4 rounded-2xl bg-gradient-to-r from-blue-950/80 via-indigo-950/80 to-purple-950/80 border border-blue-500/30 backdrop-blur-md flex items-center justify-between gap-4 shadow-xl">
+        <div className="relative overflow-hidden p-4 rounded-2xl bg-gradient-to-r from-blue-950/80 via-indigo-950/80 to-purple-950/80 border border-blue-500/30 backdrop-blur-md flex items-center justify-between gap-4 shadow-xl transition-all duration-500">
           <div className="flex items-center gap-3">
             <span className="flex h-3 w-3 relative shrink-0">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
               <span className="relative inline-flex rounded-full h-3 w-3 bg-blue-500" />
             </span>
-            <p className="text-xs sm:text-sm text-blue-200 font-medium leading-relaxed">
-              <strong className="text-white font-bold">APN Core (v1.0.2):</strong> PoS Node validation engine active. Maximum base yield: 12 APN / 24 Hours.
+            <p className="text-xs sm:text-sm text-blue-200 font-medium leading-relaxed animate-fade-in">
+              <strong className="text-white font-bold">APN Announcement:</strong> {notices[noticeIndex]}
             </p>
           </div>
-          <button
-            onClick={() => setShowNotice(false)}
-            className="text-gray-400 hover:text-white text-xs bg-gray-800/60 hover:bg-gray-800 px-2.5 py-1 rounded-lg border border-gray-700 transition-all shrink-0"
-          >
-            Dismiss
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-[10px] text-gray-400 font-mono">
+              {noticeIndex + 1}/{notices.length}
+            </span>
+            <button
+              onClick={() => setShowNotice(false)}
+              className="text-gray-400 hover:text-white text-xs bg-gray-800/60 hover:bg-gray-800 px-2.5 py-1 rounded-lg border border-gray-700 transition-all"
+            >
+              Dismiss
+            </button>
+          </div>
         </div>
       )}
 
       {/* MAIN HERO SECTION */}
       <div className="relative overflow-hidden p-8 rounded-3xl bg-gradient-to-br from-gray-900/90 via-gray-900/60 to-gray-950/90 border border-gray-800/80 backdrop-blur-xl flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl">
-        
+
         {/* LEFT INFORMATION */}
         <div className="space-y-3 max-w-xl z-10">
           <div className="flex flex-wrap items-center gap-2">
@@ -297,11 +319,11 @@ const syncAndLoadUserData = useCallback(async () => {
         {/* CENTER APN ANIMATED GRAPHIC */}
         <div className="relative flex items-center justify-center my-2 md:my-0">
           <div className={`absolute w-40 h-40 rounded-full transition-all duration-700 ${
-            isMining ? "bg-blue-500/30 blur-3xl animate-pulse" : "bg-transparent"
+            isMining ? "bg-red-500/30 blur-3xl animate-pulse" : "bg-transparent"
           }`} />
           
           <div className={`relative p-5 rounded-full bg-gradient-to-b from-gray-800/90 to-gray-900/95 border transition-all duration-500 ${
-            isMining ? "border-blue-500/60 shadow-[0_0_35px_rgba(59,130,246,0.4)]" : "border-gray-800"
+            isMining ? "border-red-500/60 shadow-[0_0_35px_rgba(239,68,68,0.4)]" : "border-gray-800"
           }`}>
             <Image
               src="/images/apn-token512x512.png"
@@ -310,21 +332,21 @@ const syncAndLoadUserData = useCallback(async () => {
               height={96}
               priority
               className={`object-contain transition-all duration-700 ${
-                isMining ? "scale-105 filter drop-shadow-[0_0_20px_rgba(59,130,246,0.9)] animate-spin-slow" : "opacity-75 grayscale-[20%]"
+                isMining ? "scale-105 filter drop-shadow-[0_0_20px_rgba(239,68,68,0.9)] animate-spin-slow" : "opacity-75 grayscale-[20%]"
               }`}
             />
           </div>
         </div>
 
-        {/* ACTION BUTTON (NO PAUSE OPTION - ALWAYS ACTIVE) */}
+        {/* ACTION BUTTON (CANJIN LAUNI ZUWA RED IDAN MINING YANA KUNNE) */}
         <div className="z-10 flex flex-col items-center gap-3">
           {isMining ? (
             <div className="flex flex-col items-center space-y-2">
-              <div className="px-8 py-4 rounded-2xl bg-gradient-to-r from-emerald-600/90 to-teal-600/90 border border-emerald-400/30 text-white font-bold text-base shadow-2xl flex items-center gap-3 animate-pulse">
-                <span className="w-3 h-3 rounded-full bg-emerald-400 animate-ping" />
+              <div className="px-8 py-4 rounded-2xl bg-gradient-to-r from-red-600/90 to-rose-600/90 border border-red-400/30 text-white font-bold text-base shadow-2xl flex items-center gap-3 animate-pulse">
+                <span className="w-3 h-3 rounded-full bg-red-400 animate-ping" />
                 <span>Mining Session Active ⚡</span>
               </div>
-              <span className="text-xs font-mono text-blue-300 bg-blue-950/80 border border-blue-800/60 px-4 py-1 rounded-full shadow-inner">
+              <span className="text-xs font-mono text-red-300 bg-red-950/80 border border-red-800/60 px-4 py-1 rounded-full shadow-inner">
                 Time Remaining: {formatCountdown(sessionTime)}
               </span>
             </div>
@@ -389,26 +411,26 @@ const syncAndLoadUserData = useCallback(async () => {
           </div>
         </div>
 
-        {/* Node Execution Status Card */}
-        <div className="p-6 rounded-2xl bg-gray-900/40 border border-gray-800/80 backdrop-blur-md hover:border-purple-500/30 transition-all duration-300">
+        {/* Node Execution Status Card (CANJIN DOT DA RUBUTU ZUWA RED IDAN MINING YANA KUNNE) */}
+        <div className="p-6 rounded-2xl bg-gray-900/40 border border-gray-800/80 backdrop-blur-md hover:border-red-500/30 transition-all duration-300">
           <span className="text-[11px] text-gray-400 font-bold uppercase tracking-wider block">
             NODE EXECUTION STATUS
           </span>
           <div className="flex items-center gap-3 mt-4">
             <span className="relative flex h-4 w-4">
               {isMining && (
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
               )}
               <span
                 className={`relative inline-flex rounded-full h-4 w-4 ${
-                  isMining ? "bg-emerald-500 animate-pulse" : "bg-gray-600"
+                  isMining ? "bg-red-500 animate-pulse" : "bg-gray-600"
                 }`}
               />
             </span>
 
             <span
               className={`text-xl font-bold tracking-tight ${
-                isMining ? "text-emerald-400" : "text-gray-400"
+                isMining ? "text-red-400" : "text-gray-400"
               }`}
             >
               {isMining ? "Mining in Progress" : "Node Standby"}
@@ -421,15 +443,18 @@ const syncAndLoadUserData = useCallback(async () => {
       <div className="p-6 rounded-2xl bg-gray-900/40 border border-gray-800/80 backdrop-blur-md space-y-3">
         <div className="flex justify-between items-center text-xs text-gray-400 font-medium">
           <span>24-Hour Mining Cycle Progress</span>
-          <span className="font-mono text-blue-400">{((sessionTime / 86400) * 100).toFixed(1)}% Completed</span>
+          <span className="font-mono text-red-400">{((sessionTime / 86400) * 100).toFixed(1)}% Completed</span>
         </div>
         <div className="w-full bg-black/60 h-2.5 rounded-full overflow-hidden border border-gray-800 p-0.5">
           <div
-            className="bg-gradient-to-r from-blue-600 to-indigo-500 h-full rounded-full transition-all duration-500 shadow-lg shadow-blue-500/50"
+            className="bg-gradient-to-r from-red-600 to-rose-500 h-full rounded-full transition-all duration-500 shadow-lg shadow-red-500/50"
             style={{ width: `${(sessionTime / 86400) * 100}%` }}
           />
         </div>
       </div>
+
+      {/* AADS MONETIZATION BANNER (A TSENAKAN PROGRESS BAR DA FEATURE) */}
+      <AadsBanner />
 
       {/* FEATURE PROMOTIONAL CARDS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
