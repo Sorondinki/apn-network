@@ -1,4 +1,3 @@
-// app/admin/page.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -10,6 +9,10 @@ export default function FounderAdminDashboard() {
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Search & Selection State
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+
   // Custom Toast State
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
 
@@ -18,12 +21,15 @@ export default function FounderAdminDashboard() {
   const [pendingAction, setPendingAction] = useState<any>(null);
   const [showPinModal, setShowPinModal] = useState(false);
 
-  // Edit User State
+  // Edit User State Modal
   const [editingUser, setEditingUser] = useState<any>(null);
   const [editName, setEditName] = useState("");
   const [editEmail, setEditEmail] = useState("");
+  const [editBalance, setEditBalance] = useState("");
+  const [editRole, setEditRole] = useState("USER");
+  const [editIsVerified, setEditIsVerified] = useState(false);
 
-  // Token Transfer State
+  // Token Transfer / Bulk Airdrop State
   const [transferTargetId, setTransferTargetId] = useState("");
   const [transferAmount, setTransferAmount] = useState("");
 
@@ -45,6 +51,7 @@ export default function FounderAdminDashboard() {
     setTimeout(() => setToast(null), 4000);
   };
 
+  // CHECK AUTHORIZATION (SUPPORTING BOTH EMAILS)
   useEffect(() => {
     const savedUser = localStorage.getItem("apn_user");
     if (!savedUser) {
@@ -54,7 +61,12 @@ export default function FounderAdminDashboard() {
 
     try {
       const userData = JSON.parse(savedUser);
-      const isFounderEmail = userData.email?.toLowerCase() === "contact.aprotech@gmail.com";
+      const email = userData.email?.toLowerCase();
+      
+      const isFounderEmail = 
+        email === "contact.aprotech@gmail.com" || 
+        email === "sorondinkiseeme@gmail.com";
+        
       const hasAdminRole = userData.role === "FOUNDER" || userData.role === "ADMIN";
 
       if (!isFounderEmail && !hasAdminRole) {
@@ -71,7 +83,7 @@ export default function FounderAdminDashboard() {
     }
   }, [router]);
 
-  // Fetch Users Function Fix
+  // Fetch Users Function
   const fetchUsers = async (adminId: string) => {
     setLoading(true);
     try {
@@ -93,6 +105,28 @@ export default function FounderAdminDashboard() {
       showToast("Network error fetching user database.", "error");
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Multi-Select Logic
+  const filteredUsers = users.filter((u) => 
+    (u.fullName || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (u.email || "").toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.checked) {
+      setSelectedUserIds(filteredUsers.map((u) => u.id));
+    } else {
+      setSelectedUserIds([]);
+    }
+  };
+
+  const handleSelectUser = (id: string) => {
+    if (selectedUserIds.includes(id)) {
+      setSelectedUserIds(selectedUserIds.filter((item) => item !== id));
+    } else {
+      setSelectedUserIds([...selectedUserIds, id]);
     }
   };
 
@@ -123,11 +157,12 @@ export default function FounderAdminDashboard() {
       const data = await res.json();
 
       if (data.success) {
-        showToast("Action executed successfully! 🚀", "success");
+        showToast(data.message || "Action executed successfully! 🚀", "success");
         setShowPinModal(false);
         setMasterPin("");
         setPendingAction(null);
         setEditingUser(null);
+        setSelectedUserIds([]);
 
         // Reset forms
         setTaskTitle(""); setTaskDesc(""); setTaskReward(""); setTaskLink("");
@@ -147,6 +182,7 @@ export default function FounderAdminDashboard() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-white p-4 md:p-8 space-y-8 max-w-7xl mx-auto font-sans relative">
+      {/* TOAST NOTIFICATION */}
       {toast && (
         <div className="fixed top-5 right-5 z-50 flex items-center gap-3 px-5 py-3 rounded-2xl bg-gray-900 border border-gray-700 shadow-2xl backdrop-blur-xl animate-bounce">
           <span>{toast.type === "success" ? "✅" : toast.type === "error" ? "⚠️" : "ℹ️"}</span>
@@ -161,7 +197,7 @@ export default function FounderAdminDashboard() {
             🛡️ APN Network Founder Console
           </div>
           <h1 className="text-3xl font-black mt-2 tracking-tight">Founder Executive Portal</h1>
-          <p className="text-gray-400 text-xs mt-1">Manage network users, broadcast announcements, and distribute tokens.</p>
+          <p className="text-gray-400 text-xs mt-1">Manage network users, verification approvals, announcements, and APN tokens.</p>
         </div>
         <div className="bg-black/50 p-4 rounded-2xl border border-gray-800 text-right">
           <span className="text-[10px] text-gray-400 font-bold block uppercase">Primary Admin</span>
@@ -172,10 +208,10 @@ export default function FounderAdminDashboard() {
       {/* MAIN ACTION GRID */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         
-        {/* FORM 1: SOCIAL MEDIA ANNOUNCEMENT */}
+        {/* FORM 1: SOCIAL ANNOUNCEMENT */}
         <div className="p-6 rounded-2xl bg-slate-900/60 border border-gray-800 space-y-4 shadow-xl">
           <h3 className="text-md font-bold text-purple-400 flex items-center gap-2">
-            🌐 Social Broadcast Post
+            🌐 Broadcast Announcement
           </h3>
           <div className="space-y-3 text-xs">
             <input
@@ -225,12 +261,12 @@ export default function FounderAdminDashboard() {
         {/* FORM 2: POST A NEW TASK */}
         <div className="p-6 rounded-2xl bg-slate-900/60 border border-gray-800 space-y-4 shadow-xl">
           <h3 className="text-md font-bold text-emerald-400 flex items-center gap-2">
-            🚀 Post New Network Task
+            🚀 Post Network Task
           </h3>
           <div className="space-y-3 text-xs">
             <input
               type="text"
-              placeholder="Task Title (e.g., Retweet APN Post)"
+              placeholder="Task Title (e.g., Follow APN Twitter)"
               value={taskTitle}
               onChange={(e) => setTaskTitle(e.target.value)}
               className="w-full bg-black/60 border border-gray-800 rounded-xl p-3 text-white focus:border-emerald-500 outline-none"
@@ -261,7 +297,7 @@ export default function FounderAdminDashboard() {
             </div>
             <input
               type="text"
-              placeholder="Task URL"
+              placeholder="Task Link URL"
               value={taskLink}
               onChange={(e) => setTaskLink(e.target.value)}
               className="w-full bg-black/60 border border-gray-800 rounded-xl p-3 text-white focus:border-emerald-500 outline-none"
@@ -282,28 +318,28 @@ export default function FounderAdminDashboard() {
           </div>
         </div>
 
-        {/* FORM 3: DIRECT TOKEN VAULT */}
+        {/* FORM 3: TOKEN DISTRIBUTION & AIRDROP */}
         <div className="p-6 rounded-2xl bg-slate-900/60 border border-gray-800 space-y-4 shadow-xl">
           <h3 className="text-md font-bold text-blue-400 flex items-center gap-2">
-            💎 Direct Token Distribution
+            💎 Direct Token Transfer
           </h3>
-          <p className="text-xs text-gray-400">Transfer native APN directly to member balances.</p>
+          <p className="text-xs text-gray-400">Transfer native APN to single user or selected bulk users.</p>
           <div className="space-y-3 text-xs">
             <select
               value={transferTargetId}
               onChange={(e) => setTransferTargetId(e.target.value)}
               className="w-full bg-black/60 border border-gray-800 rounded-xl p-3 text-white focus:border-blue-500 outline-none"
             >
-              <option value="">-- Select Recipient --</option>
+              <option value="">-- Single Recipient (Optional if Bulk) --</option>
               {users.map((u) => (
                 <option key={u.id} value={u.id}>
-                  {u.fullName || u.email} ({Number(u.balance || 0).toFixed(2)} APN)
+                  {u.fullName} ({Number(u.balance || 0).toFixed(2)} APN)
                 </option>
               ))}
             </select>
             <input
               type="number"
-              placeholder="Amount in APN"
+              placeholder="Amount in APN (e.g. 50)"
               value={transferAmount}
               onChange={(e) => setTransferAmount(e.target.value)}
               className="w-full bg-black/60 border border-gray-800 rounded-xl p-3 text-white focus:border-blue-500 outline-none"
@@ -312,26 +348,101 @@ export default function FounderAdminDashboard() {
               onClick={() => triggerAction({
                 action: "TRANSFER_TOKENS",
                 targetUserId: transferTargetId,
+                targetUserIds: selectedUserIds.length > 0 ? selectedUserIds : undefined,
                 amount: transferAmount,
               })}
               className="w-full py-3 bg-blue-600 hover:bg-blue-500 font-bold text-white rounded-xl transition shadow-lg shadow-blue-900/40"
             >
-              💸 Transfer APN Tokens
+              {selectedUserIds.length > 0 
+                ? `🎁 Send ${transferAmount || 0} APN to (${selectedUserIds.length}) Selected` 
+                : "💸 Transfer APN Tokens"}
             </button>
           </div>
         </div>
 
       </div>
 
-      {/* USER DATABASE TABLE */}
+      {/* USER DATABASE & BULK CONTROL PANEL */}
       <div className="p-6 rounded-3xl bg-slate-900/50 border border-gray-800 backdrop-blur-md space-y-4 shadow-2xl">
-        <div className="flex justify-between items-center">
-          <h3 className="text-xl font-extrabold text-white">📋 Registered Network Users</h3>
-          <span className="text-xs bg-slate-800 px-3 py-1 rounded-full text-gray-300 font-mono">
-            Total Accounts: <b>{users.length}</b>
-          </span>
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div>
+            <h3 className="text-xl font-extrabold text-white">📋 Registered Network Users</h3>
+            <p className="text-xs text-gray-400">Select users for bulk verification approvals, airdrops, or suspensions.</p>
+          </div>
+          
+          <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+            <input
+              type="text"
+              placeholder="🔍 Search name or email..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="bg-black/80 border border-gray-800 rounded-xl px-4 py-2 text-xs text-white focus:border-emerald-500 outline-none w-full md:w-64"
+            />
+            <span className="text-xs bg-slate-800 px-3 py-2 rounded-xl text-gray-300 font-mono border border-gray-700">
+              Total: <b>{users.length}</b>
+            </span>
+          </div>
         </div>
 
+        {/* BULK ACTIONS TOOLBAR */}
+        {selectedUserIds.length > 0 && (
+          <div className="p-4 rounded-2xl bg-emerald-950/40 border border-emerald-500/40 flex flex-wrap justify-between items-center gap-4 animate-fade-in">
+            <div className="text-xs font-bold text-emerald-400">
+              🎯 Selected ({selectedUserIds.length}) Accounts
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => triggerAction({
+                  action: "BULK_VERIFY",
+                  targetUserIds: selectedUserIds,
+                  status: true,
+                })}
+                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg shadow flex items-center gap-1"
+              >
+                ✅ Verify Selected
+              </button>
+
+              <button
+                onClick={() => {
+                  const amt = prompt("Enter APN amount to send to all selected users:", "50");
+                  if (amt) {
+                    triggerAction({
+                      action: "BULK_AIRDROP",
+                      targetUserIds: selectedUserIds,
+                      amount: amt,
+                    });
+                  }
+                }}
+                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-lg shadow"
+              >
+                🎁 Airdrop APN
+              </button>
+
+              <button
+                onClick={() => triggerAction({
+                  action: "BULK_SUSPEND",
+                  targetUserIds: selectedUserIds,
+                  status: true,
+                })}
+                className="px-3 py-1.5 bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs rounded-lg shadow"
+              >
+                🚫 Suspend Selected
+              </button>
+
+              <button
+                onClick={() => triggerAction({
+                  action: "BULK_DELETE",
+                  targetUserIds: selectedUserIds,
+                })}
+                className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white font-bold text-xs rounded-lg shadow"
+              >
+                🗑️ Delete Selected
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* USERS TABLE */}
         {loading ? (
           <p className="text-gray-400 text-xs animate-pulse p-4">Loading user records...</p>
         ) : (
@@ -339,7 +450,17 @@ export default function FounderAdminDashboard() {
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="border-b border-gray-800 text-gray-400 uppercase font-mono">
+                  <th className="p-3">
+                    <input
+                      type="checkbox"
+                      onChange={handleSelectAll}
+                      checked={filteredUsers.length > 0 && selectedUserIds.length === filteredUsers.length}
+                      className="rounded accent-emerald-500 cursor-pointer"
+                    />
+                  </th>
                   <th className="p-3">User / Email</th>
+                  <th className="p-3">Verified</th>
+                  <th className="p-3">Role</th>
                   <th className="p-3">Wallet Balance</th>
                   <th className="p-3">Referrals</th>
                   <th className="p-3">Status</th>
@@ -347,17 +468,47 @@ export default function FounderAdminDashboard() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-800/60">
-                {users.map((u) => (
+                {filteredUsers.map((u) => (
                   <tr key={u.id} className="hover:bg-slate-800/30 transition">
                     <td className="p-3">
-                      <div className="font-bold text-white">{u.fullName || "Unnamed User"}</div>
+                      <input
+                        type="checkbox"
+                        checked={selectedUserIds.includes(u.id)}
+                        onChange={() => handleSelectUser(u.id)}
+                        className="rounded accent-emerald-500 cursor-pointer"
+                      />
+                    </td>
+                    <td className="p-3">
+                      <div className="font-bold text-white flex items-center gap-1.5">
+                        {u.fullName}
+                        {u.isVerified && <span className="text-blue-400 text-sm" title="Verified Account">☑️</span>}
+                      </div>
                       <div className="text-gray-400 text-[11px] font-mono">{u.email}</div>
                     </td>
+                    <td className="p-3">
+                      <button
+                        onClick={() => triggerAction({
+                          action: "TOGGLE_VERIFY",
+                          targetUserId: u.id,
+                          status: !u.isVerified,
+                        })}
+                        className={`px-2 py-1 rounded-md font-bold text-[10px] transition ${
+                          u.isVerified 
+                            ? "bg-blue-500/20 text-blue-400 border border-blue-500/30" 
+                            : "bg-gray-800 text-gray-400 border border-gray-700 hover:bg-emerald-600/20 hover:text-emerald-400"
+                        }`}
+                      >
+                        {u.isVerified ? "☑️ Verified" : "⏳ Approve KYC"}
+                      </button>
+                    </td>
+                    <td className="p-3 font-mono font-bold text-purple-400">
+                      {u.role}
+                    </td>
                     <td className="p-3 font-mono font-semibold text-emerald-400">
-                      {Number(u.balance || 0).toFixed(4)} APN
+                      {Number(u.balance || 0).toFixed(2)} APN
                     </td>
                     <td className="p-3 font-mono text-purple-400 font-bold">
-                      👥 {u.referralCount || u._count?.referrals || 0}
+                      👥 {u.referralCount || 0}
                     </td>
                     <td className="p-3">
                       <span className={`px-2 py-1 rounded-md font-bold text-[10px] ${
@@ -374,10 +525,13 @@ export default function FounderAdminDashboard() {
                           setEditingUser(u);
                           setEditName(u.fullName || "");
                           setEditEmail(u.email);
+                          setEditBalance(String(u.balance || 0));
+                          setEditRole(u.role || "USER");
+                          setEditIsVerified(u.isVerified || false);
                         }}
-                        className="px-2.5 py-1 bg-amber-600/20 text-amber-400 hover:bg-amber-600/40 rounded-lg border border-amber-500/30"
+                        className="px-2.5 py-1 bg-amber-600/20 text-amber-400 hover:bg-amber-600/40 rounded-lg border border-amber-500/30 font-bold"
                       >
-                        ✏️ KYC
+                        ✏️ KYC / Edit
                       </button>
                       <button
                         onClick={() => triggerAction({
@@ -385,7 +539,7 @@ export default function FounderAdminDashboard() {
                           targetUserId: u.id,
                           status: !u.isSuspended,
                         })}
-                        className="px-2.5 py-1 bg-orange-600/20 text-orange-400 hover:bg-orange-600/40 rounded-lg border border-orange-500/30"
+                        className="px-2.5 py-1 bg-orange-600/20 text-orange-400 hover:bg-orange-600/40 rounded-lg border border-orange-500/30 font-bold"
                       >
                         {u.isSuspended ? "Unsuspend" : "Suspend"}
                       </button>
@@ -397,6 +551,90 @@ export default function FounderAdminDashboard() {
           </div>
         )}
       </div>
+
+      {/* EDIT USER KYC & VERIFICATION MODAL */}
+      {editingUser && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-xl flex items-center justify-center p-4 z-50">
+          <div className="bg-slate-900 border border-amber-500/40 p-6 rounded-3xl max-w-md w-full space-y-4 shadow-2xl">
+            <h3 className="text-lg font-black text-amber-400">✏️ Edit KYC & Verification Status</h3>
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="text-gray-400 block mb-1">Full Name:</label>
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full bg-black/80 border border-gray-800 rounded-xl p-3 text-white outline-none"
+                />
+              </div>
+              <div>
+                <label className="text-gray-400 block mb-1">Email Address:</label>
+                <input
+                  type="email"
+                  value={editEmail}
+                  onChange={(e) => setEditEmail(e.target.value)}
+                  className="w-full bg-black/80 border border-gray-800 rounded-xl p-3 text-white outline-none"
+                />
+              </div>
+              <div>
+                <label className="text-gray-400 block mb-1">APN Balance:</label>
+                <input
+                  type="number"
+                  value={editBalance}
+                  onChange={(e) => setEditBalance(e.target.value)}
+                  className="w-full bg-black/80 border border-gray-800 rounded-xl p-3 text-white outline-none"
+                />
+              </div>
+              <div>
+                <label className="text-gray-400 block mb-1">User Role:</label>
+                <select
+                  value={editRole}
+                  onChange={(e) => setEditRole(e.target.value)}
+                  className="w-full bg-black/80 border border-gray-800 rounded-xl p-3 text-white outline-none"
+                >
+                  <option value="USER">USER</option>
+                  <option value="ADMIN">ADMIN</option>
+                  <option value="FOUNDER">FOUNDER</option>
+                </select>
+              </div>
+              <div className="flex items-center gap-2 pt-2">
+                <input
+                  type="checkbox"
+                  id="verifyCheckbox"
+                  checked={editIsVerified}
+                  onChange={(e) => setEditIsVerified(e.target.checked)}
+                  className="rounded accent-blue-500 cursor-pointer w-4 h-4"
+                />
+                <label htmlFor="verifyCheckbox" className="text-blue-400 font-bold cursor-pointer">
+                  Mark User as Verified (KYC Approved ☑️)
+                </label>
+              </div>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button
+                onClick={() => setEditingUser(null)}
+                className="w-1/2 py-2.5 bg-gray-800 text-gray-300 font-bold rounded-xl text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => triggerAction({
+                  action: "UPDATE_USER",
+                  targetUserId: editingUser.id,
+                  name: editName,
+                  email: editEmail,
+                  balance: editBalance,
+                  role: editRole,
+                  isVerified: editIsVerified,
+                })}
+                className="w-1/2 py-2.5 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-xl text-xs shadow-lg shadow-amber-900/50"
+              >
+                Save Changes 🚀
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* MASTER PIN MODAL */}
       {showPinModal && (

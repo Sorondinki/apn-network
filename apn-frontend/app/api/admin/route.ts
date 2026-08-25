@@ -1,4 +1,3 @@
-// app/api/admin/route.ts
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 
@@ -39,7 +38,7 @@ export async function POST(req: Request) {
 
     // --- ACTIONS ---
 
-    // A. FETCH ALL USERS WITH REFERRAL COUNT
+    // A. FETCH ALL USERS WITH VERIFICATION & REFERRAL COUNT
     if (action === "FETCH_USERS") {
       const { data: rawUsers, error: usersErr } = await supabase
         .from("users")
@@ -56,10 +55,15 @@ export async function POST(req: Request) {
             .eq("referred_by_id", u.id);
 
           return {
-            ...u,
-            name: u.name || "",
+            id: u.id,
+            fullName: u.name || u.full_name || u.fullName || "Unnamed User",
+            email: u.email,
+            balance: u.balance || 0,
+            role: u.role || "USER",
+            isSuspended: Boolean(u.is_suspended || u.isSuspended),
+            isVerified: Boolean(u.is_verified || u.isVerified || u.verified),
             referralCount: count || 0,
-            miningStartTime: u.mining_start_time ? Number(u.mining_start_time) : null,
+            createdAt: u.created_at,
           };
         })
       );
@@ -67,46 +71,125 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true, users: usersWithRefs });
     }
 
-    // B. SUSPEND / UNSUSPEND USER ACCOUNT
-    if (action === "TOGGLE_SUSPEND") {
-      const { targetUserId, status } = body;
-      const { data: updated, error } = await supabase
+    // B. TOGGLE / BULK VERIFY USER STATUS (APPROVE / UNAPPROVE)
+    if (action === "TOGGLE_VERIFY" || action === "BULK_VERIFY") {
+      const { targetUserId, targetUserIds, status } = body;
+      const userIdsToProcess: string[] = targetUserIds || (targetUserId ? [targetUserId] : []);
+
+      if (userIdsToProcess.length === 0) {
+        return NextResponse.json(
+          { success: false, error: "No user selected for verification." },
+          { status: 400 }
+        );
+      }
+
+      const { error } = await supabase
         .from("users")
-        .update({ is_suspended: Boolean(status) })
-        .eq("id", targetUserId)
-        .select()
-        .single();
+        .update({ is_verified: Boolean(status) })
+        .in("id", userIdsToProcess);
 
       if (error) throw error;
 
       return NextResponse.json({
         success: true,
-        isSuspended: updated.is_suspended,
+        message: `Successfully updated verification status for ${userIdsToProcess.length} account(s).`,
       });
     }
 
-    // C. DELETE USER ACCOUNT
-    if (action === "DELETE_USER") {
-      const { targetUserId } = body;
+    // C. BULK / SINGLE TOKEN AIRDROP & TRANSFER
+    if (action === "TRANSFER_TOKENS" || action === "BULK_AIRDROP") {
+      const { targetUserId, targetUserIds, amount } = body;
+      const tokenAmount = parseFloat(amount);
+
+      if (isNaN(tokenAmount) || tokenAmount <= 0) {
+        return NextResponse.json(
+          { success: false, error: "Please specify a valid positive token amount." },
+          { status: 400 }
+        );
+      }
+
+      const userIdsToProcess: string[] = targetUserIds || (targetUserId ? [targetUserId] : []);
+
+      if (userIdsToProcess.length === 0) {
+        return NextResponse.json(
+          { success: false, error: "No target users selected for token distribution." },
+          { status: 400 }
+        );
+      }
+
+      for (const uid of userIdsToProcess) {
+        const { data: targetUser } = await supabase
+          .from("users")
+          .select("balance")
+          .eq("id", uid)
+          .single();
+
+        const currentBalance = parseFloat(targetUser?.balance || "0");
+        const newBalance = currentBalance + tokenAmount;
+
+        await supabase
+          .from("users")
+          .update({ balance: newBalance })
+          .eq("id", uid);
+
+        await supabase.from("transactions").insert([
+          {
+            user_id: uid,
+            amount: tokenAmount,
+            type: "FOUNDER_AIRDROP",
+            description: `Founder direct airdrop distribution (+${tokenAmount} APN)`,
+          },
+        ]);
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: `Successfully distributed ${tokenAmount} APN to ${userIdsToProcess.length} user(s).`,
+      });
+    }
+
+    // D. TOGGLE / BULK SUSPEND
+    if (action === "TOGGLE_SUSPEND" || action === "BULK_SUSPEND") {
+      const { targetUserId, targetUserIds, status } = body;
+      const userIdsToProcess: string[] = targetUserIds || (targetUserId ? [targetUserId] : []);
+
+      const { error } = await supabase
+        .from("users")
+        .update({ is_suspended: Boolean(status) })
+        .in("id", userIdsToProcess);
+
+      if (error) throw error;
+
+      return NextResponse.json({ success: true, count: userIdsToProcess.length });
+    }
+
+    // E. BULK / SINGLE DELETE USER ACCOUNT
+    if (action === "DELETE_USER" || action === "BULK_DELETE") {
+      const { targetUserId, targetUserIds } = body;
+      const userIdsToProcess: string[] = targetUserIds || (targetUserId ? [targetUserId] : []);
+
       const { error } = await supabase
         .from("users")
         .delete()
-        .eq("id", targetUserId);
+        .in("id", userIdsToProcess);
 
       if (error) throw error;
 
-      return NextResponse.json({
-        success: true,
-        message: "User account deleted successfully.",
-      });
+      return NextResponse.json({ success: true, message: "User account(s) deleted successfully." });
     }
 
-    // D. EDIT USER DETAILS
+    // F. EDIT USER FULL KYC DETAILS, VERIFICATION & ROLE
     if (action === "UPDATE_USER") {
-      const { targetUserId, name, email } = body;
+      const { targetUserId, name, email, balance, role, isVerified } = body;
       const { data: updated, error } = await supabase
         .from("users")
-        .update({ name, email })
+        .update({
+          name: name,
+          email: email,
+          balance: parseFloat(balance || "0"),
+          role: role || "USER",
+          is_verified: Boolean(isVerified),
+        })
         .eq("id", targetUserId)
         .select()
         .single();
@@ -116,53 +199,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true, user: updated });
     }
 
-    // E. FOUNDER TOKEN TRANSFER / VAULT DISTRIBUTION
-    if (action === "TRANSFER_TOKENS") {
-      const { targetUserId, amount } = body;
-      const tokenAmount = parseFloat(amount);
-
-      if (!targetUserId || isNaN(tokenAmount) || tokenAmount <= 0) {
-        return NextResponse.json(
-          { success: false, error: "Invalid target user or token amount specified." },
-          { status: 400 }
-        );
-      }
-
-      // Fetch existing balance
-      const { data: targetUser, error: fetchErr } = await supabase
-        .from("users")
-        .select("balance")
-        .eq("id", targetUserId)
-        .single();
-
-      if (fetchErr) throw fetchErr;
-
-      const currentBalance = parseFloat(targetUser?.balance || "0");
-      const newBalance = currentBalance + tokenAmount;
-
-      const { data: updated, error: updateErr } = await supabase
-        .from("users")
-        .update({ balance: newBalance })
-        .eq("id", targetUserId)
-        .select()
-        .single();
-
-      if (updateErr) throw updateErr;
-
-      // Log transaction record
-      await supabase.from("transactions").insert([
-        {
-          user_id: targetUserId,
-          amount: tokenAmount,
-          type: "FOUNDER_AIRDROP",
-          description: "Direct token transfer from Founder Vault",
-        },
-      ]);
-
-      return NextResponse.json({ success: true, newBalance: updated.balance });
-    }
-
-    // F. POST TASK TO TASKS PAGE
+    // G. CREATE NEW TASK
     if (action === "CREATE_TASK") {
       const { title, description, reward, link, category } = body;
 
@@ -191,6 +228,28 @@ export async function POST(req: Request) {
       if (error) throw error;
 
       return NextResponse.json({ success: true, task: newTask });
+    }
+
+    // H. CREATE ANNOUNCEMENT / SOCIAL BROADCAST
+    if (action === "CREATE_ANNOUNCEMENT") {
+      const { title, content, mediaUrl, platform } = body;
+
+      const { data: newAnnouncement, error } = await supabase
+        .from("announcements")
+        .insert([
+          {
+            title,
+            content,
+            media_url: mediaUrl || "",
+            platform: platform || "ALL",
+            created_at: new Date().toISOString(),
+          },
+        ])
+        .select();
+
+      if (error) throw error;
+
+      return NextResponse.json({ success: true, announcement: newAnnouncement });
     }
 
     return NextResponse.json(

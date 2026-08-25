@@ -15,17 +15,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
   const isAuthPage = pathname === '/register' || pathname === '/login' || pathname === '/';
 
-  // 🛡️ SECURITY ENGINE: DevTools, Keyboard Shortcuts & Anti-Tamper Protection
+  // Security Engine: Prevent context menu & common dev shortcuts
   useEffect(() => {
-    // Block Right-Click Context Menu
     const handleContextMenu = (e: MouseEvent) => e.preventDefault();
-
-    // Block F12, Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+Shift+C, Ctrl+U
     const handleKeyDown = (e: KeyboardEvent) => {
       if (
         e.key === "F12" ||
-        (e.ctrlKey && e.shiftKey && (e.key === "I" || e.key === "i" || e.key === "J" || e.key === "j" || e.key === "C" || e.key === "c")) ||
-        (e.ctrlKey && (e.key === "U" || e.key === "u"))
+        (e.ctrlKey && e.shiftKey && ["I", "i", "J", "j", "C", "c"].includes(e.key)) ||
+        (e.ctrlKey && ["U", "u"].includes(e.key))
       ) {
         e.preventDefault();
       }
@@ -34,7 +31,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     window.addEventListener("contextmenu", handleContextMenu);
     window.addEventListener("keydown", handleKeyDown);
 
-    // Dynamic Debugger Loop to freeze DevTools if opened
     const devToolsInterval = setInterval(() => {
       const startTime = performance.now();
       debugger;
@@ -51,7 +47,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     };
   }, []);
 
-  // Prevent Hydration Mismatch & Securely Load User Session
+  // Hydration sync & session retrieval
   useEffect(() => {
     setIsMounted(true);
     if (typeof window !== "undefined") {
@@ -78,7 +74,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   ];
 
   const isAdmin = user?.role === "ADMIN" || user?.role === "FOUNDER";
-  
   const navItems = isAdmin
     ? [...baseNavItems, { name: '⚙️ Node Admin', path: '/admin' }]
     : baseNavItems;
@@ -114,7 +109,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
         <title>Alpha Proficiency Network - APN Protocol</title>
 
-        {/* iOS Safari Special PWA Tags */}
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="APN Network" />
@@ -123,14 +117,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="flex flex-col md:flex-row min-h-screen md:h-screen w-full bg-[#080c14] text-white font-sans selection:bg-blue-600 selection:text-white select-none">
         
-        {/* DESKTOP & MOBILE NAVIGATION LAYER */}
         {isMounted && !isAuthPage && (
           <>
-            {/* DESKTOP SIDEBAR */}
+            {/* Desktop Sidebar */}
             <aside className="hidden md:flex w-64 flex-col bg-[#0b0f19]/90 border-r border-gray-800/80 backdrop-blur-xl z-50 justify-between shrink-0 h-full">
               <div className="flex flex-col h-full overflow-hidden">
-                
-                {/* BRAND HEADER WITH LOGO */}
                 <div className="p-5 border-b border-gray-800/80 space-y-4">
                   <Link href="/dashboard" className="flex items-center gap-3">
                     <Image 
@@ -150,7 +141,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     </div>
                   </Link>
 
-                  {/* APN TOKEN BALANCE BADGE */}
                   <div className="flex items-center gap-2 bg-gray-900/80 px-3 py-2 rounded-xl border border-gray-800/80">
                     <Image 
                       src="/images/apn-token512x512.png" 
@@ -162,7 +152,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     <span className="text-xs font-semibold text-amber-400">APN Token</span>
                   </div>
 
-                  {/* USER AVATAR & EDIT PROFILE ACCESS */}
                   <Link
                     href="/profile"
                     className="flex items-center gap-3 p-2 rounded-2xl bg-gray-900/80 border border-gray-800 hover:border-blue-500/50 hover:bg-gray-800/60 transition-all group cursor-pointer"
@@ -193,7 +182,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   </Link>
                 </div>
 
-                {/* NAVIGATION LINKS */}
                 <nav className="p-4 space-y-1.5 overflow-y-auto flex-1 custom-scrollbar">
                   {navItems.map((item) => (
                     <Link
@@ -210,7 +198,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   ))}
                 </nav>
 
-                {/* FOOTER & LOGOUT */}
                 <div className="p-4 border-t border-gray-800/80 space-y-3">
                   <div className="text-center text-[10px] text-gray-500 flex items-center justify-center gap-2">
                     <Link href="/privacy-policy" className="hover:text-blue-400 transition-colors">
@@ -230,7 +217,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </div>
             </aside>
 
-            {/* MOBILE HEADER NAVBAR */}
+            {/* Mobile Header */}
             <header className="md:hidden flex items-center justify-between p-4 bg-[#0b0f19]/95 border-b border-gray-800 z-50 shrink-0 sticky top-0 backdrop-blur-md">
               <Link href="/dashboard" className="flex items-center gap-2">
                 <Image 
@@ -243,7 +230,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <span className="text-base font-black text-blue-500 tracking-wider">APN</span>
               </Link>
 
-              {/* TOKEN BALANCE SHORTCUT */}
               <div className="flex items-center gap-1.5 bg-gray-900 px-3 py-1.5 rounded-lg border border-gray-800">
                 <Image 
                   src="/images/apn-token512x512.png" 
@@ -255,17 +241,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <span className="text-xs font-bold text-amber-400">APN</span>
               </div>
 
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                  className="p-2 text-gray-300 hover:text-white text-xl focus:outline-none"
-                >
-                  {isMobileMenuOpen ? '✕' : '☰'}
-                </button>
-              </div>
+              <button
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                className="p-2 text-gray-300 hover:text-white text-xl focus:outline-none"
+              >
+                {isMobileMenuOpen ? '✕' : '☰'}
+              </button>
             </header>
 
-            {/* MOBILE DROPDOWN MENU */}
+            {/* Mobile Navigation Dropdown */}
             {isMobileMenuOpen && (
               <div className="md:hidden fixed inset-0 top-[60px] bg-[#0b0f19]/98 z-40 p-6 flex flex-col justify-between backdrop-blur-2xl overflow-y-auto">
                 <div className="space-y-2">
@@ -304,28 +288,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 </div>
 
                 <div className="pt-6 space-y-3">
-                  <Link 
-                    href="/privacy-policy" 
-                    onClick={() => setIsMobileMenuOpen(false)} 
-                    className="block text-center text-xs text-gray-400 underline"
-                  >
-                    Privacy Policy
-                  </Link>
-
-                  <footer className="w-full bg-slate-950 border-t border-slate-900 py-6 px-4 text-center text-xs text-slate-500">
-                    <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4 font-mono">
-                      <div>
-                        © {new Date().getFullYear()} APN Network. All rights reserved.
-                      </div>
-                      <div className="flex flex-wrap gap-4 text-slate-400">
-                        <Link href="/whitepaper" className="hover:text-emerald-400 transition">Whitepaper</Link>
-                        <Link href="/roadmap" className="hover:text-emerald-400 transition">Roadmap</Link>
-                        <Link href="/privacy-policy" className="hover:text-emerald-400 transition">Privacy Policy</Link>
-                        <Link href="/terms" className="hover:text-emerald-400 transition">Terms of Service</Link>
-                      </div>
-                    </div>
-                  </footer>
-
                   <button
                     onClick={() => {
                       setIsMobileMenuOpen(false);
@@ -341,7 +303,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </>
         )}
 
-        {/* MAIN CONTENT CONTAINER */}
+        {/* Main Content Viewport */}
         <main className="flex-1 h-full overflow-y-auto p-4 sm:p-6 md:p-10">
           <div className="max-w-6xl mx-auto">{children}</div>
         </main>
