@@ -10,7 +10,7 @@ export async function POST(req: Request) {
 
     if (!body?.email || !body?.password) {
       return NextResponse.json(
-        { error: 'Tabbatar ka shigar da Email da Password' },
+        { error: 'Shigar da Email da Password' },
         { status: 400 }
       );
     }
@@ -18,64 +18,63 @@ export async function POST(req: Request) {
     const cleanEmail = String(body.email).trim().toLowerCase();
     const rawPassword = String(body.password).trim();
 
-    // 1. Samo user daga Supabase
+    // 1. Samo User daga Supabase
     const { data: user, error: fetchError } = await supabase
       .from('User')
-      .select('*')
+      .select('id, email, passwordHash, walletAddress, referralCode, balance')
       .ilike('email', cleanEmail)
       .maybeSingle();
 
-    if (fetchError || !user) {
+    if (fetchError) {
+      console.error('Login Database Error:', fetchError);
       return NextResponse.json(
-        { error: 'Invalid email or password' },
+        { error: 'Matsalar Database: ' + fetchError.message },
+        { status: 500 }
+      );
+    }
+
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Email ko Password ba daidai bane' },
         { status: 401 }
       );
     }
 
-    // 2. Duba inda Password Hash yake
-    const dbHash = user.passwordHash || user.password_hash;
-    if (!dbHash) {
-      return NextResponse.json(
-        { error: 'Invalid email or password' },
-        { status: 401 }
-      );
-    }
-
-    // 3. Kwatanta Password
-    const isPasswordValid = await bcrypt.compare(rawPassword, dbHash);
+    // 2. Kwatanta Password Hash
+    const isPasswordValid = await bcrypt.compare(rawPassword, user.passwordHash);
 
     if (!isPasswordValid) {
       return NextResponse.json(
-        { error: 'Invalid email or password' },
+        { error: 'Email ko Password ba daidai bane' },
         { status: 401 }
       );
     }
 
-    // 4. Update dynamic timestamp (idan ana bukata)
+    // 3. Update updatedAt dake cikin Table ɗinka
     const nowIso = new Date().toISOString();
     await supabase
       .from('User')
       .update({ updatedAt: nowIso })
-      .eq('id', user.id)
-      .catch(() => null);
+      .eq('id', user.id);
 
+    // 4. Mayar da sakamakon nasara
     return NextResponse.json(
       {
         message: 'Login successful',
         user: {
           id: user.id,
           email: user.email,
-          walletAddress: user.walletAddress || user.wallet_address || '',
-          referralCode: user.referralCode || user.referral_code || '',
+          walletAddress: user.walletAddress || '',
+          referralCode: user.referralCode || '',
           balance: Number(user.balance) || 0,
         },
       },
       { status: 200 }
     );
   } catch (err: any) {
-    console.error('Login Catch Error:', err);
+    console.error('Login Error:', err);
     return NextResponse.json(
-      { error: 'There is a problem with the server' },
+      { error: err?.message || 'Server error' },
       { status: 500 }
     );
   }
