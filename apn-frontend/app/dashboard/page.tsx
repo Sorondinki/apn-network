@@ -459,7 +459,7 @@ useEffect(() => {
       {/* FEATURE PROMOTIONAL CARDS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
         <div 
-          onClick={() => router.push('/dashboard/referrals')}
+          onClick={() => router.push('/referral')}
           className="p-5 rounded-2xl bg-gradient-to-br from-gray-900/60 to-gray-950/80 border border-gray-800/80 hover:border-blue-500/50 transition-all cursor-pointer group"
         >
           <div className="text-blue-400 mb-2 group-hover:scale-110 transition-transform w-max">👥</div>

@@ -73,7 +73,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     { name: '🛡️ Identity Verification', path: '/kyc' },
   ];
 
-  const isAdmin = user?.role === "ADMIN" || user?.role === "FOUNDER";
+  // Gyara ta hanyar duba Email din Admin da duk nau'in Admin Roles
+  const adminEmails = ["contact.aprotech@gmail.com"];
+  const userRoleUpper = user?.role ? user.role.toString().toUpperCase() : "";
+
+  const isAdmin =
+    (user?.email && adminEmails.includes(user.email.toLowerCase())) ||
+    userRoleUpper === "ADMIN" ||
+    userRoleUpper === "FOUNDER" ||
+    userRoleUpper === "GLOBAL ADMIN" ||
+    userRoleUpper.includes("ADMIN");
+
   const navItems = isAdmin
     ? [...baseNavItems, { name: '⚙️ Node Admin', path: '/admin' }]
     : baseNavItems;
