@@ -3,6 +3,12 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
+import dynamic from "next/dynamic";
+
+// Dynamic import for client-side rendering only
+const AadsBanner = dynamic(() => import("../components/AadsBanner"), {
+  ssr: false,
+});
 
 function AuthForm() {
   const router = useRouter();
@@ -137,7 +143,7 @@ function AuthForm() {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-[90vh] px-4 py-8 relative overflow-hidden select-none">
+    <div className="flex flex-col items-center justify-center min-h-[90vh] px-4 py-8 relative overflow-hidden select-none">
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
 
       <div className="glass-card p-8 rounded-3xl border border-gray-800/80 w-full max-w-md shadow-2xl relative bg-gray-950/70 backdrop-blur-2xl">
@@ -301,6 +307,11 @@ function AuthForm() {
             {isLogin ? "Create One" : "Sign In"}
           </button>
         </p>
+      </div>
+
+      {/* Embedded A-ADS Banner Section */}
+      <div className="w-full max-w-md mt-6 flex flex-col items-center justify-center">
+        <AadsBanner />
       </div>
     </div>
   );
