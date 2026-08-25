@@ -5,7 +5,7 @@ import Image from "next/image";
 import dynamic from "next/dynamic";
 
 // Dynamic import for A-ADS Banner (Client-side rendering only)
-const AadsBanner = dynamic(() => import("../../components/AadsBanner"), {
+const AadsBanner = dynamic(() => import("../components/AadsBanner"), {
   ssr: false,
 });
 
