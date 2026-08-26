@@ -16,12 +16,12 @@ export default function FounderAdminDashboard() {
   // Custom Toast State
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
 
-  // Form States
+  // Master PIN Authentication Modal State
   const [masterPin, setMasterPin] = useState("");
   const [pendingAction, setPendingAction] = useState<any>(null);
   const [showPinModal, setShowPinModal] = useState(false);
 
-  // Edit User State Modal
+  // Edit User / KYC State Modal
   const [editingUser, setEditingUser] = useState<any>(null);
   const [editName, setEditName] = useState("");
   const [editEmail, setEditEmail] = useState("");
@@ -29,7 +29,7 @@ export default function FounderAdminDashboard() {
   const [editRole, setEditRole] = useState("USER");
   const [editIsVerified, setEditIsVerified] = useState(false);
 
-  // Token Transfer / Bulk Airdrop State
+  // Token Transfer State
   const [transferTargetId, setTransferTargetId] = useState("");
   const [transferAmount, setTransferAmount] = useState("");
 
@@ -40,7 +40,7 @@ export default function FounderAdminDashboard() {
   const [taskLink, setTaskLink] = useState("");
   const [taskCategory, setTaskCategory] = useState("TWITTER");
 
-  // Social Announcement State
+  // Announcement State
   const [postTitle, setPostTitle] = useState("");
   const [postContent, setPostContent] = useState("");
   const [postMediaUrl, setPostMediaUrl] = useState("");
@@ -51,7 +51,7 @@ export default function FounderAdminDashboard() {
     setTimeout(() => setToast(null), 4000);
   };
 
-  // CHECK AUTHORIZATION (SUPPORTING BOTH EMAILS)
+  // CHECK AUTHORIZATION
   useEffect(() => {
     const savedUser = localStorage.getItem("apn_user");
     if (!savedUser) {
@@ -108,9 +108,9 @@ export default function FounderAdminDashboard() {
     }
   };
 
-  // Multi-Select Logic
+  // Multi-Select Logic & Search Filter
   const filteredUsers = users.filter((u) => 
-    (u.fullName || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (u.fullName || u.name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
     (u.email || "").toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -130,11 +130,13 @@ export default function FounderAdminDashboard() {
     }
   };
 
+  // Trigger Master PIN Confirmation
   const triggerAction = (actionData: any) => {
     setPendingAction(actionData);
     setShowPinModal(true);
   };
 
+  // Execute Action After PIN Provided
   const executeActionWithPin = async () => {
     if (!masterPin) {
       showToast("Please enter Master Security PIN!", "error");
@@ -164,10 +166,10 @@ export default function FounderAdminDashboard() {
         setEditingUser(null);
         setSelectedUserIds([]);
 
-        // Reset forms
+        // Reset inputs
         setTaskTitle(""); setTaskDesc(""); setTaskReward(""); setTaskLink("");
         setPostTitle(""); setPostContent(""); setPostMediaUrl("");
-        setTransferAmount("");
+        setTransferAmount(""); setTransferTargetId("");
 
         fetchUsers(admin?.id || "founder-root");
       } else {
@@ -208,12 +210,12 @@ export default function FounderAdminDashboard() {
       {/* MAIN ACTION GRID */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         
-        {/* FORM 1: SOCIAL ANNOUNCEMENT */}
-        <div className="p-6 rounded-2xl bg-slate-900/60 border border-gray-800 space-y-4 shadow-xl">
-          <h3 className="text-md font-bold text-purple-400 flex items-center gap-2">
-            🌐 Broadcast Announcement
-          </h3>
+        {/* FORM 1: ANNOUNCEMENT */}
+        <div className="p-6 rounded-2xl bg-slate-900/60 border border-gray-800 space-y-4 shadow-xl flex flex-col justify-between">
           <div className="space-y-3 text-xs">
+            <h3 className="text-md font-bold text-purple-400 flex items-center gap-2">
+              🌐 Broadcast Announcement
+            </h3>
             <input
               type="text"
               placeholder="Announcement Title"
@@ -243,27 +245,27 @@ export default function FounderAdminDashboard() {
               <option value="TWITTER">Twitter/X Channel</option>
               <option value="TELEGRAM">Telegram Announcement Group</option>
             </select>
-            <button
-              onClick={() => triggerAction({
-                action: "CREATE_ANNOUNCEMENT",
-                title: postTitle,
-                content: postContent,
-                mediaUrl: postMediaUrl,
-                platform: targetPlatform,
-              })}
-              className="w-full py-3 bg-purple-600 hover:bg-purple-500 font-bold text-white rounded-xl transition shadow-lg shadow-purple-900/40"
-            >
-              📢 Broadcast Update
-            </button>
           </div>
+          <button
+            onClick={() => triggerAction({
+              action: "CREATE_ANNOUNCEMENT",
+              title: postTitle,
+              content: postContent,
+              mediaUrl: postMediaUrl,
+              platform: targetPlatform,
+            })}
+            className="w-full py-3 bg-purple-600 hover:bg-purple-500 font-bold text-white rounded-xl transition shadow-lg shadow-purple-900/40 mt-3"
+          >
+            📢 Broadcast Update
+          </button>
         </div>
 
         {/* FORM 2: POST A NEW TASK */}
-        <div className="p-6 rounded-2xl bg-slate-900/60 border border-gray-800 space-y-4 shadow-xl">
-          <h3 className="text-md font-bold text-emerald-400 flex items-center gap-2">
-            🚀 Post Network Task
-          </h3>
+        <div className="p-6 rounded-2xl bg-slate-900/60 border border-gray-800 space-y-4 shadow-xl flex flex-col justify-between">
           <div className="space-y-3 text-xs">
+            <h3 className="text-md font-bold text-emerald-400 flex items-center gap-2">
+              🚀 Post Network Task
+            </h3>
             <input
               type="text"
               placeholder="Task Title (e.g., Follow APN Twitter)"
@@ -302,29 +304,31 @@ export default function FounderAdminDashboard() {
               onChange={(e) => setTaskLink(e.target.value)}
               className="w-full bg-black/60 border border-gray-800 rounded-xl p-3 text-white focus:border-emerald-500 outline-none"
             />
-            <button
-              onClick={() => triggerAction({
-                action: "CREATE_TASK",
-                title: taskTitle,
-                description: taskDesc,
-                reward: taskReward,
-                link: taskLink,
-                category: taskCategory,
-              })}
-              className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 font-bold text-white rounded-xl transition shadow-lg shadow-emerald-900/40"
-            >
-              ⚡ Publish Task
-            </button>
           </div>
+          <button
+            onClick={() => triggerAction({
+              action: "CREATE_TASK",
+              title: taskTitle,
+              description: taskDesc,
+              reward: taskReward,
+              link: taskLink,
+              category: taskCategory,
+            })}
+            className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 font-bold text-white rounded-xl transition shadow-lg shadow-emerald-900/40 mt-3"
+          >
+            ⚡ Publish Task
+          </button>
         </div>
 
-        {/* FORM 3: TOKEN DISTRIBUTION & AIRDROP */}
-        <div className="p-6 rounded-2xl bg-slate-900/60 border border-gray-800 space-y-4 shadow-xl">
-          <h3 className="text-md font-bold text-blue-400 flex items-center gap-2">
-            💎 Direct Token Transfer
-          </h3>
-          <p className="text-xs text-gray-400">Transfer native APN to single user or selected bulk users.</p>
+        {/* FORM 3: TOKEN TRANSFER / BULK AIRDROP */}
+        <div className="p-6 rounded-2xl bg-slate-900/60 border border-gray-800 space-y-4 shadow-xl flex flex-col justify-between">
           <div className="space-y-3 text-xs">
+            <h3 className="text-md font-bold text-blue-400 flex items-center gap-2">
+              💎 Direct Token Transfer
+            </h3>
+            <p className="text-xs text-gray-400">Transfer native APN to single user or selected bulk users.</p>
+            
+            {/* DROPDOWN WITH USER NAME, EMAIL & BALANCE */}
             <select
               value={transferTargetId}
               onChange={(e) => setTransferTargetId(e.target.value)}
@@ -333,10 +337,11 @@ export default function FounderAdminDashboard() {
               <option value="">-- Single Recipient (Optional if Bulk) --</option>
               {users.map((u) => (
                 <option key={u.id} value={u.id}>
-                  {u.fullName} ({Number(u.balance || 0).toFixed(2)} APN)
+                  {u.fullName || u.name || "User"} ({u.email || "No email"}) - Balance: {Number(u.balance || 0).toFixed(2)} APN
                 </option>
               ))}
             </select>
+
             <input
               type="number"
               placeholder="Amount in APN (e.g. 50)"
@@ -344,20 +349,21 @@ export default function FounderAdminDashboard() {
               onChange={(e) => setTransferAmount(e.target.value)}
               className="w-full bg-black/60 border border-gray-800 rounded-xl p-3 text-white focus:border-blue-500 outline-none"
             />
-            <button
-              onClick={() => triggerAction({
-                action: "TRANSFER_TOKENS",
-                targetUserId: transferTargetId,
-                targetUserIds: selectedUserIds.length > 0 ? selectedUserIds : undefined,
-                amount: transferAmount,
-              })}
-              className="w-full py-3 bg-blue-600 hover:bg-blue-500 font-bold text-white rounded-xl transition shadow-lg shadow-blue-900/40"
-            >
-              {selectedUserIds.length > 0 
-                ? `🎁 Send ${transferAmount || 0} APN to (${selectedUserIds.length}) Selected` 
-                : "💸 Transfer APN Tokens"}
-            </button>
           </div>
+
+          <button
+            onClick={() => triggerAction({
+              action: selectedUserIds.length > 0 ? "BULK_AIRDROP" : "TRANSFER_TOKENS",
+              targetUserId: transferTargetId || undefined,
+              targetUserIds: selectedUserIds.length > 0 ? selectedUserIds : undefined,
+              amount: transferAmount,
+            })}
+            className="w-full py-3 bg-blue-600 hover:bg-blue-500 font-bold text-white rounded-xl transition shadow-lg shadow-blue-900/40 mt-3"
+          >
+            {selectedUserIds.length > 0 
+              ? `🎁 Airdrop ${transferAmount || 0} APN to (${selectedUserIds.length}) Selected` 
+              : "💸 Transfer APN Tokens"}
+          </button>
         </div>
 
       </div>
@@ -480,7 +486,7 @@ export default function FounderAdminDashboard() {
                     </td>
                     <td className="p-3">
                       <div className="font-bold text-white flex items-center gap-1.5">
-                        {u.fullName}
+                        {u.fullName || u.name || "N/A"}
                         {u.isVerified && <span className="text-blue-400 text-sm" title="Verified Account">☑️</span>}
                       </div>
                       <div className="text-gray-400 text-[11px] font-mono">{u.email}</div>
@@ -502,7 +508,7 @@ export default function FounderAdminDashboard() {
                       </button>
                     </td>
                     <td className="p-3 font-mono font-bold text-purple-400">
-                      {u.role}
+                      {u.role || "USER"}
                     </td>
                     <td className="p-3 font-mono font-semibold text-emerald-400">
                       {Number(u.balance || 0).toFixed(2)} APN
@@ -523,8 +529,8 @@ export default function FounderAdminDashboard() {
                       <button
                         onClick={() => {
                           setEditingUser(u);
-                          setEditName(u.fullName || "");
-                          setEditEmail(u.email);
+                          setEditName(u.fullName || u.name || "");
+                          setEditEmail(u.email || "");
                           setEditBalance(String(u.balance || 0));
                           setEditRole(u.role || "USER");
                           setEditIsVerified(u.isVerified || false);
@@ -542,6 +548,15 @@ export default function FounderAdminDashboard() {
                         className="px-2.5 py-1 bg-orange-600/20 text-orange-400 hover:bg-orange-600/40 rounded-lg border border-orange-500/30 font-bold"
                       >
                         {u.isSuspended ? "Unsuspend" : "Suspend"}
+                      </button>
+                      <button
+                        onClick={() => triggerAction({
+                          action: "DELETE_USER",
+                          targetUserId: u.id,
+                        })}
+                        className="px-2.5 py-1 bg-red-600/20 text-red-400 hover:bg-red-600/40 rounded-lg border border-red-500/30 font-bold"
+                      >
+                        🗑️ Delete
                       </button>
                     </td>
                   </tr>

@@ -11,7 +11,6 @@ export async function POST(req: Request) {
     // --- 1. SECURITY CHECK: VERIFY ADMIN / FOUNDER PRIVILEGES ---
     let isAuthorized = false;
 
-    // Hardcoded safety bypasses for Founder
     const trustedEmails = [
       "contact.aprotech@gmail.com",
       "sorondinkiseeme@gmail.com"
@@ -24,9 +23,7 @@ export async function POST(req: Request) {
       isAuthorized = true;
     }
 
-    // Dynamic database check if not matched via fallback
     if (!isAuthorized && adminId) {
-      // Trying capitalized table name 'User' first, fallback to 'users'
       let { data: adminUser } = await supabase
         .from("User")
         .select("*")
@@ -64,7 +61,38 @@ export async function POST(req: Request) {
       );
     }
 
-    // Helper function to query correct table name ('User' vs 'users')
+    // --- 2. SECURITY CHECK: MASTER PIN VERIFICATION FOR PROTECTED ACTIONS ---
+    const providedPin = body.masterPin || body.pin;
+
+    const pinProtectedActions = [
+      "TRANSFER_TOKENS",
+      "BULK_AIRDROP",
+      "TOGGLE_VERIFY",
+      "BULK_VERIFY",
+      "TOGGLE_SUSPEND",
+      "BULK_SUSPEND",
+      "DELETE_USER",
+      "BULK_DELETE",
+      "CREATE_TASK",
+      "CREATE_ANNOUNCEMENT",
+      "UPDATE_USER"
+    ];
+
+    if (pinProtectedActions.includes(action)) {
+      const VALID_MASTER_PIN = process.env.MASTER_PIN || "APN-FOUNDER-2026#SECURE";
+
+      if (!providedPin || String(providedPin).trim() !== VALID_MASTER_PIN) {
+        return NextResponse.json(
+          { 
+            success: false, 
+            error: "Invalid or missing Master Security PIN. Action rejected by Server." 
+          },
+          { status: 401 }
+        );
+      }
+    }
+
+    // Table resolver helper
     const getTableName = async () => {
       const { error } = await supabase.from("User").select("id").limit(1);
       return error ? "users" : "User";
@@ -72,9 +100,9 @@ export async function POST(req: Request) {
 
     const targetTable = await getTableName();
 
-    // --- 2. ACTIONS IMPLEMENTATION ---
+    // --- 3. IMPLEMENTATION OF ALL ACTIONS ---
 
-    // A. FETCH ALL USERS WITH REFERRAL COUNTS
+    // A. FETCH ALL USERS
     if (action === "FETCH_USERS") {
       const { data: rawUsers, error: usersErr } = await supabase
         .from(targetTable)
@@ -82,7 +110,6 @@ export async function POST(req: Request) {
         .order("created_at", { ascending: false });
 
       if (usersErr) {
-        // Retry ordering by 'id' if 'created_at' does not exist
         const { data: retryUsers, error: retryErr } = await supabase
           .from(targetTable)
           .select("*");
@@ -121,16 +148,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true, users: usersWithRefs });
     }
 
-    // B. TOGGLE / BULK VERIFY USER STATUS
+    // B. TOGGLE / BULK VERIFY
     if (action === "TOGGLE_VERIFY" || action === "BULK_VERIFY") {
       const { targetUserId, targetUserIds, status } = body;
       const userIdsToProcess: string[] = targetUserIds || (targetUserId ? [targetUserId] : []);
 
       if (userIdsToProcess.length === 0) {
-        return NextResponse.json(
-          { success: false, error: "No user selected for verification." },
-          { status: 400 }
-        );
+        return NextResponse.json({ success: false, error: "No target users selected." }, { status: 400 });
       }
 
       const { error } = await supabase
@@ -142,29 +166,23 @@ export async function POST(req: Request) {
 
       return NextResponse.json({
         success: true,
-        message: `Successfully updated verification status for ${userIdsToProcess.length} account(s).`,
+        message: `Successfully updated verification for ${userIdsToProcess.length} user(s).`,
       });
     }
 
-    // C. BULK / SINGLE TOKEN AIRDROP & TRANSFER
+    // C. TRANSFER_TOKENS & BULK_AIRDROP
     if (action === "TRANSFER_TOKENS" || action === "BULK_AIRDROP") {
       const { targetUserId, targetUserIds, amount } = body;
       const tokenAmount = parseFloat(amount);
 
       if (isNaN(tokenAmount) || tokenAmount <= 0) {
-        return NextResponse.json(
-          { success: false, error: "Please specify a valid positive token amount." },
-          { status: 400 }
-        );
+        return NextResponse.json({ success: false, error: "Please enter a valid positive token amount." }, { status: 400 });
       }
 
       const userIdsToProcess: string[] = targetUserIds || (targetUserId ? [targetUserId] : []);
 
       if (userIdsToProcess.length === 0) {
-        return NextResponse.json(
-          { success: false, error: "No target users selected for token distribution." },
-          { status: 400 }
-        );
+        return NextResponse.json({ success: false, error: "No target users selected." }, { status: 400 });
       }
 
       for (const uid of userIdsToProcess) {
@@ -182,14 +200,13 @@ export async function POST(req: Request) {
           .update({ balance: newBalance })
           .eq("id", uid);
 
-        // Record Airdrop Transaction log
         try {
           await supabase.from("Transaction").insert([
             {
               user_id: uid,
               amount: tokenAmount,
               type: "FOUNDER_AIRDROP",
-              description: `Founder direct airdrop distribution (+${tokenAmount} APN)`,
+              description: `Founder direct distribution (+${tokenAmount} APN)`,
             },
           ]);
         } catch (txErr) {
@@ -203,10 +220,14 @@ export async function POST(req: Request) {
       });
     }
 
-    // D. TOGGLE / BULK SUSPEND USER ACCOUNTS
+    // D. TOGGLE / BULK SUSPEND
     if (action === "TOGGLE_SUSPEND" || action === "BULK_SUSPEND") {
       const { targetUserId, targetUserIds, status } = body;
       const userIdsToProcess: string[] = targetUserIds || (targetUserId ? [targetUserId] : []);
+
+      if (userIdsToProcess.length === 0) {
+        return NextResponse.json({ success: false, error: "No user selected." }, { status: 400 });
+      }
 
       const { error } = await supabase
         .from(targetTable)
@@ -215,13 +236,17 @@ export async function POST(req: Request) {
 
       if (error) throw error;
 
-      return NextResponse.json({ success: true, count: userIdsToProcess.length });
+      return NextResponse.json({ success: true, message: `Updated suspension status for ${userIdsToProcess.length} account(s).` });
     }
 
-    // E. BULK / SINGLE DELETE USER ACCOUNT
+    // E. DELETE / BULK DELETE
     if (action === "DELETE_USER" || action === "BULK_DELETE") {
       const { targetUserId, targetUserIds } = body;
       const userIdsToProcess: string[] = targetUserIds || (targetUserId ? [targetUserId] : []);
+
+      if (userIdsToProcess.length === 0) {
+        return NextResponse.json({ success: false, error: "No user selected for deletion." }, { status: 400 });
+      }
 
       const { error } = await supabase
         .from(targetTable)
@@ -233,7 +258,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true, message: "User account(s) deleted successfully." });
     }
 
-    // F. UPDATE SINGLE USER DETAILS
+    // F. UPDATE USER DETAILS
     if (action === "UPDATE_USER") {
       const { targetUserId, name, email, balance, role, isVerified } = body;
       const { data: updated, error } = await supabase
@@ -251,18 +276,15 @@ export async function POST(req: Request) {
 
       if (error) throw error;
 
-      return NextResponse.json({ success: true, user: updated });
+      return NextResponse.json({ success: true, message: "User details updated successfully.", user: updated });
     }
 
-    // G. CREATE TASKS
+    // G. CREATE TASK
     if (action === "CREATE_TASK") {
       const { title, description, reward, link, category } = body;
 
       if (!title || !reward || !link) {
-        return NextResponse.json(
-          { success: false, error: "Task title, reward, and link URL are required." },
-          { status: 400 }
-        );
+        return NextResponse.json({ success: false, error: "Title, reward, and link URL are required." }, { status: 400 });
       }
 
       const { data: newTask, error } = await supabase
@@ -282,13 +304,33 @@ export async function POST(req: Request) {
 
       if (error) throw error;
 
-      return NextResponse.json({ success: true, task: newTask });
+      return NextResponse.json({ success: true, message: "New task created successfully.", task: newTask });
     }
 
-    return NextResponse.json(
-      { success: false, error: "Invalid action requested." },
-      { status: 400 }
-    );
+    // H. CREATE ANNOUNCEMENT
+    if (action === "CREATE_ANNOUNCEMENT") {
+      const { message: announcementMsg } = body;
+
+      if (!announcementMsg) {
+        return NextResponse.json({ success: false, error: "Announcement message cannot be empty." }, { status: 400 });
+      }
+
+      try {
+        await supabase.from("announcements").insert([
+          {
+            content: announcementMsg,
+            created_at: new Date().toISOString(),
+          },
+        ]);
+      } catch (err) {
+        console.log("Announcement table logging fallback.");
+      }
+
+      return NextResponse.json({ success: true, message: "Announcement broadcasted successfully." });
+    }
+
+    return NextResponse.json({ success: false, error: "Invalid action requested." }, { status: 400 });
+
   } catch (error: any) {
     console.error("Admin API Error:", error);
     return NextResponse.json(
