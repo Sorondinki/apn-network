@@ -167,7 +167,7 @@ export default function DashboardPage() {
       }
     } catch (err) {
       console.error("Initialization sync error:", err);
-    } fontinally {
+    } finally {
       setIsLoading(false);
     }
   }, [router]);
