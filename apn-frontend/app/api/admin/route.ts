@@ -32,7 +32,7 @@ export async function POST(req: Request) {
 
       if (!adminUser) {
         const { data: fallbackUser } = await supabase
-          .from("users")
+          .from("User")
           .select("*")
           .eq("id", adminId)
           .maybeSingle();
@@ -69,6 +69,8 @@ export async function POST(req: Request) {
       "BULK_AIRDROP",
       "TOGGLE_VERIFY",
       "BULK_VERIFY",
+      "TOGGLE_WITHDRAW",
+      "BULK_TOGGLE_WITHDRAW",
       "TOGGLE_SUSPEND",
       "BULK_SUSPEND",
       "DELETE_USER",
@@ -139,6 +141,7 @@ export async function POST(req: Request) {
             role: u.role || "USER",
             isSuspended: Boolean(u.is_suspended || u.isSuspended),
             isVerified: Boolean(u.is_verified || u.isVerified || u.verified),
+            canWithdraw: u.can_withdraw !== undefined ? Boolean(u.can_withdraw) : (u.canWithdraw !== undefined ? Boolean(u.canWithdraw) : true),
             referralCount: refCount,
             createdAt: u.created_at || u.createdAt || new Date().toISOString(),
           };
@@ -167,6 +170,28 @@ export async function POST(req: Request) {
       return NextResponse.json({
         success: true,
         message: `Successfully updated verification for ${userIdsToProcess.length} user(s).`,
+      });
+    }
+
+    // B.2. TOGGLE / BULK WITHDRAWAL PERMISSIONS
+    if (action === "TOGGLE_WITHDRAW" || action === "BULK_TOGGLE_WITHDRAW") {
+      const { targetUserId, targetUserIds, status } = body;
+      const userIdsToProcess: string[] = targetUserIds || (targetUserId ? [targetUserId] : []);
+
+      if (userIdsToProcess.length === 0) {
+        return NextResponse.json({ success: false, error: "No target users selected." }, { status: 400 });
+      }
+
+      const { error } = await supabase
+        .from(targetTable)
+        .update({ can_withdraw: Boolean(status) })
+        .in("id", userIdsToProcess);
+
+      if (error) throw error;
+
+      return NextResponse.json({
+        success: true,
+        message: `Successfully updated withdrawal permission for ${userIdsToProcess.length} user(s).`,
       });
     }
 
@@ -260,16 +285,23 @@ export async function POST(req: Request) {
 
     // F. UPDATE USER DETAILS
     if (action === "UPDATE_USER") {
-      const { targetUserId, name, email, balance, role, isVerified } = body;
+      const { targetUserId, name, email, balance, role, isVerified, canWithdraw } = body;
+      
+      const updatePayload: Record<string, any> = {
+        name: name,
+        email: email,
+        balance: parseFloat(balance || "0"),
+        role: role || "USER",
+        is_verified: Boolean(isVerified),
+      };
+
+      if (canWithdraw !== undefined) {
+        updatePayload.can_withdraw = Boolean(canWithdraw);
+      }
+
       const { data: updated, error } = await supabase
         .from(targetTable)
-        .update({
-          name: name,
-          email: email,
-          balance: parseFloat(balance || "0"),
-          role: role || "USER",
-          is_verified: Boolean(isVerified),
-        })
+        .update(updatePayload)
         .eq("id", targetUserId)
         .select()
         .maybeSingle();
@@ -309,16 +341,20 @@ export async function POST(req: Request) {
 
     // H. CREATE ANNOUNCEMENT
     if (action === "CREATE_ANNOUNCEMENT") {
-      const { message: announcementMsg } = body;
+      const { message: announcementMsg, title, content, mediaUrl, platform } = body;
+      const postText = content || announcementMsg;
 
-      if (!announcementMsg) {
-        return NextResponse.json({ success: false, error: "Announcement message cannot be empty." }, { status: 400 });
+      if (!postText && !title) {
+        return NextResponse.json({ success: false, error: "Announcement content cannot be empty." }, { status: 400 });
       }
 
       try {
         await supabase.from("announcements").insert([
           {
-            content: announcementMsg,
+            title: title || "Network Announcement",
+            content: postText,
+            media_url: mediaUrl || null,
+            platform: platform || "ALL",
             created_at: new Date().toISOString(),
           },
         ]);

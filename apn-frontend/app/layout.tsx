@@ -70,7 +70,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     { name: '🎯 Quests & Ads', path: '/tasks' },
     { name: '🌐 Explorer', path: '/explorer' },
     { name: '🎁 Referrals', path: '/referral' },
-    { name: '🛡️ Identity Verification', path: '/kyc' },
+    { name: '🛡️ KYC', path: '/kyc' },
   ];
 
   // Gyara ta hanyar duba Email din Admin da duk nau'in Admin Roles
@@ -212,6 +212,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   <div className="text-center text-[10px] text-gray-500 flex items-center justify-center gap-2">
                     <Link href="/privacy-policy" className="hover:text-blue-400 transition-colors">
                       Privacy Policy
+                    </Link>
+                    <span>•</span>
+                    <Link href="/roadmap" className="hover:text-blue-400 transition-colors">
+                      Roadmap
+                    </Link>
+                    <span>•</span>
+                    <Link href="/whitepaper" className="hover:text-blue-400 transition-colors">
+                      Whitepaper
                     </Link>
                     <span>•</span>
                     <span>v1.0 Mainnet</span>

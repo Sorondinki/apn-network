@@ -1,90 +1,97 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+
+// Define strict interfaces for better type safety
+interface User {
+  id: string;
+  fullName?: string;
+  name?: string;
+  email: string;
+  balance?: number | string;
+  role?: string;
+  isVerified?: boolean;
+  isSuspended?: boolean;
+  canWithdraw?: boolean; // Added canWithdraw property
+  referralCount?: number;
+}
+
+interface ActionPayload {
+  action: string;
+  adminId?: string;
+  masterPin?: string;
+  targetUserId?: string;
+  targetUserIds?: string[];
+  amount?: string | number;
+  status?: boolean;
+  title?: string;
+  content?: string;
+  mediaUrl?: string;
+  platform?: string;
+  description?: string;
+  reward?: string | number;
+  link?: string;
+  category?: string;
+  name?: string;
+  email?: string;
+  balance?: string | number;
+  role?: string;
+  isVerified?: boolean;
+  canWithdraw?: boolean; // Added canWithdraw property
+}
 
 export default function FounderAdminDashboard() {
   const router = useRouter();
-  const [admin, setAdmin] = useState<any>(null);
-  const [users, setUsers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [admin, setAdmin] = useState<User | null>(null);
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
 
   // Search & Selection State
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useState<string>("");
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
 
   // Custom Toast State
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
 
   // Master PIN Authentication Modal State
-  const [masterPin, setMasterPin] = useState("");
-  const [pendingAction, setPendingAction] = useState<any>(null);
-  const [showPinModal, setShowPinModal] = useState(false);
+  const [masterPin, setMasterPin] = useState<string>("");
+  const [pendingAction, setPendingAction] = useState<ActionPayload | null>(null);
+  const [showPinModal, setShowPinModal] = useState<boolean>(false);
 
   // Edit User / KYC State Modal
-  const [editingUser, setEditingUser] = useState<any>(null);
-  const [editName, setEditName] = useState("");
-  const [editEmail, setEditEmail] = useState("");
-  const [editBalance, setEditBalance] = useState("");
-  const [editRole, setEditRole] = useState("USER");
-  const [editIsVerified, setEditIsVerified] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editName, setEditName] = useState<string>("");
+  const [editEmail, setEditEmail] = useState<string>("");
+  const [editBalance, setEditBalance] = useState<string>("");
+  const [editRole, setEditRole] = useState<string>("USER");
+  const [editIsVerified, setEditIsVerified] = useState<boolean>(false);
+  const [editCanWithdraw, setEditCanWithdraw] = useState<boolean>(true); // Added editCanWithdraw state
 
   // Token Transfer State
-  const [transferTargetId, setTransferTargetId] = useState("");
-  const [transferAmount, setTransferAmount] = useState("");
+  const [transferTargetId, setTransferTargetId] = useState<string>("");
+  const [transferAmount, setTransferAmount] = useState<string>("");
 
   // New Task State
-  const [taskTitle, setTaskTitle] = useState("");
-  const [taskDesc, setTaskDesc] = useState("");
-  const [taskReward, setTaskReward] = useState("");
-  const [taskLink, setTaskLink] = useState("");
-  const [taskCategory, setTaskCategory] = useState("TWITTER");
+  const [taskTitle, setTaskTitle] = useState<string>("");
+  const [taskDesc, setTaskDesc] = useState<string>("");
+  const [taskReward, setTaskReward] = useState<string>("");
+  const [taskLink, setTaskLink] = useState<string>("");
+  const [taskCategory, setTaskCategory] = useState<string>("TWITTER");
 
   // Announcement State
-  const [postTitle, setPostTitle] = useState("");
-  const [postContent, setPostContent] = useState("");
-  const [postMediaUrl, setPostMediaUrl] = useState("");
-  const [targetPlatform, setTargetPlatform] = useState("ALL");
+  const [postTitle, setPostTitle] = useState<string>("");
+  const [postContent, setPostContent] = useState<string>("");
+  const [postMediaUrl, setPostMediaUrl] = useState<string>("");
+  const [targetPlatform, setTargetPlatform] = useState<string>("ALL");
 
-  const showToast = (message: string, type: "success" | "error" | "info" = "info") => {
+  const showToast = useCallback((message: string, type: "success" | "error" | "info" = "info") => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 4000);
-  };
-
-  // CHECK AUTHORIZATION
-  useEffect(() => {
-    const savedUser = localStorage.getItem("apn_user");
-    if (!savedUser) {
-      router.push("/login");
-      return;
-    }
-
-    try {
-      const userData = JSON.parse(savedUser);
-      const email = userData.email?.toLowerCase();
-      
-      const isFounderEmail = 
-        email === "contact.aprotech@gmail.com" || 
-        email === "sorondinkiseeme@gmail.com";
-        
-      const hasAdminRole = userData.role === "FOUNDER" || userData.role === "ADMIN";
-
-      if (!isFounderEmail && !hasAdminRole) {
-        showToast("Access Denied: Founder/Admin credentials required.", "error");
-        setTimeout(() => router.push("/dashboard"), 1500);
-        return;
-      }
-
-      setAdmin(userData);
-      fetchUsers(userData.id || "founder-root");
-    } catch (err) {
-      console.error("Failed to parse user data", err);
-      router.push("/login");
-    }
-  }, [router]);
+  }, []);
 
   // Fetch Users Function
-  const fetchUsers = async (adminId: string) => {
+  const fetchUsers = useCallback(async (adminId: string) => {
     setLoading(true);
     try {
       const res = await fetch("/api/admin", {
@@ -106,10 +113,42 @@ export default function FounderAdminDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [showToast]);
+
+  // CHECK AUTHORIZATION
+  useEffect(() => {
+    const savedUser = localStorage.getItem("apn_user");
+    if (!savedUser) {
+      router.push("/login");
+      return;
+    }
+
+    try {
+      const userData: User = JSON.parse(savedUser);
+      const email = userData.email?.toLowerCase();
+
+      const isFounderEmail =
+        email === "contact.aprotech@gmail.com" ||
+        email === "sorondinkiseeme@gmail.com";
+
+      const hasAdminRole = userData.role === "FOUNDER" || userData.role === "ADMIN";
+
+      if (!isFounderEmail && !hasAdminRole) {
+        showToast("Access Denied: Founder/Admin credentials required.", "error");
+        setTimeout(() => router.push("/dashboard"), 1500);
+        return;
+      }
+
+      setAdmin(userData);
+      fetchUsers(userData.id || "founder-root");
+    } catch (err) {
+      console.error("Failed to parse user data", err);
+      router.push("/login");
+    }
+  }, [router, fetchUsers, showToast]);
 
   // Multi-Select Logic & Search Filter
-  const filteredUsers = users.filter((u) => 
+  const filteredUsers = users.filter((u) =>
     (u.fullName || u.name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
     (u.email || "").toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -131,7 +170,7 @@ export default function FounderAdminDashboard() {
   };
 
   // Trigger Master PIN Confirmation
-  const triggerAction = (actionData: any) => {
+  const triggerAction = (actionData: ActionPayload) => {
     setPendingAction(actionData);
     setShowPinModal(true);
   };
@@ -209,7 +248,7 @@ export default function FounderAdminDashboard() {
 
       {/* MAIN ACTION GRID */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        
+
         {/* FORM 1: ANNOUNCEMENT */}
         <div className="p-6 rounded-2xl bg-slate-900/60 border border-gray-800 space-y-4 shadow-xl flex flex-col justify-between">
           <div className="space-y-3 text-xs">
@@ -327,7 +366,7 @@ export default function FounderAdminDashboard() {
               💎 Direct Token Transfer
             </h3>
             <p className="text-xs text-gray-400">Transfer native APN to single user or selected bulk users.</p>
-            
+
             {/* DROPDOWN WITH USER NAME, EMAIL & BALANCE */}
             <select
               value={transferTargetId}
@@ -373,9 +412,9 @@ export default function FounderAdminDashboard() {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
             <h3 className="text-xl font-extrabold text-white">📋 Registered Network Users</h3>
-            <p className="text-xs text-gray-400">Select users for bulk verification approvals, airdrops, or suspensions.</p>
+            <p className="text-xs text-gray-400">Select users for bulk verification approvals, withdrawal permissions, airdrops, or suspensions.</p>
           </div>
-          
+
           <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
             <input
               type="text"
@@ -406,6 +445,17 @@ export default function FounderAdminDashboard() {
                 className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg shadow flex items-center gap-1"
               >
                 ✅ Verify Selected
+              </button>
+
+              <button
+                onClick={() => triggerAction({
+                  action: "BULK_TOGGLE_WITHDRAW",
+                  targetUserIds: selectedUserIds,
+                  status: true,
+                })}
+                className="px-3 py-1.5 bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs rounded-lg shadow"
+              >
+                💸 Enable Withdrawal
               </button>
 
               <button
@@ -466,6 +516,7 @@ export default function FounderAdminDashboard() {
                   </th>
                   <th className="p-3">User / Email</th>
                   <th className="p-3">Verified</th>
+                  <th className="p-3">Withdrawal</th>
                   <th className="p-3">Role</th>
                   <th className="p-3">Wallet Balance</th>
                   <th className="p-3">Referrals</th>
@@ -507,6 +558,22 @@ export default function FounderAdminDashboard() {
                         {u.isVerified ? "☑️ Verified" : "⏳ Approve KYC"}
                       </button>
                     </td>
+                    <td className="p-3">
+                      <button
+                        onClick={() => triggerAction({
+                          action: "TOGGLE_WITHDRAW",
+                          targetUserId: u.id,
+                          status: !(u.canWithdraw ?? true),
+                        })}
+                        className={`px-2 py-1 rounded-md font-bold text-[10px] transition ${
+                          (u.canWithdraw ?? true)
+                            ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                            : "bg-red-500/20 text-red-400 border border-red-500/30"
+                        }`}
+                      >
+                        {(u.canWithdraw ?? true) ? "🟢 Allowed" : "🔴 Blocked"}
+                      </button>
+                    </td>
                     <td className="p-3 font-mono font-bold text-purple-400">
                       {u.role || "USER"}
                     </td>
@@ -534,6 +601,7 @@ export default function FounderAdminDashboard() {
                           setEditBalance(String(u.balance || 0));
                           setEditRole(u.role || "USER");
                           setEditIsVerified(u.isVerified || false);
+                          setEditCanWithdraw(u.canWithdraw ?? true);
                         }}
                         className="px-2.5 py-1 bg-amber-600/20 text-amber-400 hover:bg-amber-600/40 rounded-lg border border-amber-500/30 font-bold"
                       >
@@ -624,6 +692,18 @@ export default function FounderAdminDashboard() {
                   Mark User as Verified (KYC Approved ☑️)
                 </label>
               </div>
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="canWithdrawCheckbox"
+                  checked={editCanWithdraw}
+                  onChange={(e) => setEditCanWithdraw(e.target.checked)}
+                  className="rounded accent-emerald-500 cursor-pointer w-4 h-4"
+                />
+                <label htmlFor="canWithdrawCheckbox" className="text-emerald-400 font-bold cursor-pointer">
+                  Allow User to Withdraw Funds (canWithdraw)
+                </label>
+              </div>
             </div>
             <div className="flex gap-2 pt-2">
               <button
@@ -641,6 +721,7 @@ export default function FounderAdminDashboard() {
                   balance: editBalance,
                   role: editRole,
                   isVerified: editIsVerified,
+                  canWithdraw: editCanWithdraw,
                 })}
                 className="w-1/2 py-2.5 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-xl text-xs shadow-lg shadow-amber-900/50"
               >

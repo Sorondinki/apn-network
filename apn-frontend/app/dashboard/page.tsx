@@ -8,8 +8,8 @@ import AadsBanner from "../components/AadsBanner";
 
 export default function DashboardPage() {
   // -------------------------------------------------------------
-  // MAINTENANCE SWITCH (KULLA/BUDE DASHBOARD)
-  // An maida shi 'false' domin kowa ya iya Login da Mining yanzu.
+  // MAINTENANCE SWITCH (ENABLE/DISABLE DASHBOARD ACCESS)
+  // Set to 'false' so users can access login and mining.
   // -------------------------------------------------------------
   const isMaintenance = false;
 
@@ -23,23 +23,23 @@ export default function DashboardPage() {
   const [totalReferrals, setTotalReferrals] = useState(0);
 
   // Announcement Banner Array State
-const notices = [
-  "APN Core (v1.0.2): PoS Node validation engine active. Maximum base yield: 12 APN / 24 Hours.",
-  "KYC Verification Portal: Complete your identity check to unlock Verified Badge & 50 APN Bonus!",
-  "Mainnet Security: Ensure your Web3 local vault keys are backed up safely.",
-];
+  const notices = [
+    "APN Core (v1.0.2): PoS Node validation engine active. Maximum base yield: 12 APN / 24 Hours.",
+    "KYC Verification Portal: Complete your identity check to unlock Verified Badge & 50 APN Bonus!",
+    "Mainnet Security: Ensure your Web3 local vault keys are backed up safely.",
+  ];
 
-const [noticeIndex, setNoticeIndex] = useState(0);
-const [showNotice, setShowNotice] = useState(true);
+  const [noticeIndex, setNoticeIndex] = useState(0);
+  const [showNotice, setShowNotice] = useState(true);
 
-// Auto-rotate notices every 5 seconds
-useEffect(() => {
-  if (!showNotice) return;
-  const interval = setInterval(() => {
-    setNoticeIndex((prev) => (prev + 1) % notices.length);
-  }, 5000);
-  return () => clearInterval(interval);
-}, [showNotice, notices.length]);
+  // Auto-rotate notices every 5 seconds
+  useEffect(() => {
+    if (!showNotice) return;
+    const interval = setInterval(() => {
+      setNoticeIndex((prev) => (prev + 1) % notices.length);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [showNotice, notices.length]);
 
   // Strict Internal Refs to Prevent Race Conditions & Stale State Bugs
   const baseBalanceRef = useRef(0);
@@ -87,7 +87,7 @@ useEffect(() => {
   const hourlyRateRef = useRef(hourlyRate);
   hourlyRateRef.current = hourlyRate;
 
-  // Single Source of Truth Fetcher from Server API
+  // Single Source of Truth Fetcher & Persistent Local Offline Calculator
   const syncAndLoadUserData = useCallback(async () => {
     try {
       const savedUser = localStorage.getItem("apn_user");
@@ -97,49 +97,68 @@ useEffect(() => {
       }
 
       const localUserData = JSON.parse(savedUser);
-      setUser(localUserData); // Set local data first so UI renders instantly!
+      setUser(localUserData);
 
-      const dbBalance = parseFloat(localUserData.balance || "0");
+      let dbBalance = parseFloat(localUserData.balance || "0");
 
-      // Optional API sync with Timeout safety
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 4000); // 4 seconds max limit
+        const timeoutId = setTimeout(() => controller.abort(), 4000);
 
         const userRes = await fetch(`/api/user/profile?userId=${localUserData.id}`, { signal: controller.signal });
         clearTimeout(timeoutId);
-        
+
         const userData = await userRes.json();
-        if (userData && userData.success) {
+        if (userData && userData.success && userData.user) {
           setUser(userData.user);
+          dbBalance = parseFloat(userData.user.balance || "0");
           localStorage.setItem("apn_user", JSON.stringify(userData.user));
         }
       } catch (e) {
         console.warn("Profile fetch timed out or failed, using local session:", e);
       }
 
-      // Check mining timer from LocalStorage
       const startTimeStr = localStorage.getItem("apn_mining_start_time");
+      const savedBase = localStorage.getItem("apn_base_balance");
+
       if (startTimeStr) {
         const startTime = parseInt(startTimeStr, 10);
         const elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
+        const currentBase = savedBase ? parseFloat(savedBase) : dbBalance;
 
         if (elapsedSeconds < 86400) {
           setIsMining(true);
           setSessionTime(elapsedSeconds);
-
-          const savedBase = localStorage.getItem("apn_base_balance");
-          const realBase = savedBase ? parseFloat(savedBase) : dbBalance;
-          baseBalanceRef.current = realBase;
+          baseBalanceRef.current = currentBase;
 
           const minedSoFar = elapsedSeconds * (hourlyRateRef.current / 3600);
-          setBalance(realBase + minedSoFar);
+          setBalance(currentBase + minedSoFar);
         } else {
+          // 24 Hours completed: Calculate full yield (12 APN + bonuses) and finalize base balance
           setIsMining(false);
-          baseBalanceRef.current = dbBalance;
-          setBalance(dbBalance);
+          const totalMinedInSession = 86400 * (hourlyRateRef.current / 3600);
+          const finalBalance = currentBase + totalMinedInSession;
+
+          baseBalanceRef.current = finalBalance;
+          setBalance(finalBalance);
+          setSessionTime(86400);
+
           localStorage.removeItem("apn_mining_start_time");
-          localStorage.removeItem("apn_base_balance");
+          localStorage.setItem("apn_base_balance", finalBalance.toString());
+
+          // Trigger persistent API sync to save full 24h progress to database
+          if (localUserData?.id) {
+            fetch("/api/user/sync-balance", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                userId: localUserData.id,
+                balance: finalBalance,
+                isMining: false,
+                miningStartTime: null,
+              }),
+            }).catch((err) => console.error("Final sync error:", err));
+          }
         }
       } else {
         setIsMining(false);
@@ -148,16 +167,16 @@ useEffect(() => {
       }
     } catch (err) {
       console.error("Initialization sync error:", err);
-    } finally {
-      setIsLoading(false); // ALWAYS remove loading spinner no matter what!
+    } fontinally {
+      setIsLoading(false);
     }
   }, [router]);
-  
+
   useEffect(() => {
     syncAndLoadUserData();
   }, [syncAndLoadUserData]);
 
-  // Mining Engine: Precision Per-Second Increment & Background Syncing
+  // Real-time Mining Engine with Dynamic Per-Second Precision and Syncing
   useEffect(() => {
     let interval: NodeJS.Timeout;
     let syncInterval: NodeJS.Timeout;
@@ -172,20 +191,25 @@ useEffect(() => {
 
         if (elapsedSeconds >= 86400) {
           setIsMining(false);
-          localStorage.removeItem("apn_mining_start_time");
-          localStorage.removeItem("apn_base_balance");
           setSessionTime(86400);
+          
+          const totalMinedInSession = 86400 * (hourlyRateRef.current / 3600);
+          const finalCompletedBalance = baseBalanceRef.current + totalMinedInSession;
+
+          setBalance(finalCompletedBalance);
+          localStorage.removeItem("apn_mining_start_time");
+          localStorage.setItem("apn_base_balance", finalCompletedBalance.toString());
           return;
         }
 
         setSessionTime(elapsedSeconds);
-
         const liveMined = elapsedSeconds * (hourlyRateRef.current / 3600);
         const liveTotal = baseBalanceRef.current + liveMined;
 
         setBalance(liveTotal);
       }, 1000);
 
+      // Periodic database synchronization every 15 seconds
       syncInterval = setInterval(() => {
         if (user?.id) {
           const startTimeStr = localStorage.getItem("apn_mining_start_time");
@@ -212,7 +236,7 @@ useEffect(() => {
   }, [isMining, user?.id]);
 
   const startMiningSession = () => {
-    if (isMining) return; // Disallow manual pause/stop while running
+    if (isMining) return;
     const now = Date.now();
     setIsMining(true);
 
@@ -258,7 +282,7 @@ useEffect(() => {
   return (
     <div className="space-y-6 p-4 max-w-7xl mx-auto selection:bg-blue-500 selection:text-white select-none">
       
-            {/* ANNOUNCEMENT BANNER WITH AUTO-SLIDE */}
+      {/* ANNOUNCEMENT BANNER WITH AUTO-SLIDE */}
       {showNotice && (
         <div className="relative overflow-hidden p-4 rounded-2xl bg-gradient-to-r from-blue-950/80 via-indigo-950/80 to-purple-950/80 border border-blue-500/30 backdrop-blur-md flex items-center justify-between gap-4 shadow-xl transition-all duration-500">
           <div className="flex items-center gap-3">
@@ -338,7 +362,7 @@ useEffect(() => {
           </div>
         </div>
 
-        {/* ACTION BUTTON (CANJIN LAUNI ZUWA RED IDAN MINING YANA KUNNE) */}
+        {/* ACTION BUTTON SECTION */}
         <div className="z-10 flex flex-col items-center gap-3">
           {isMining ? (
             <div className="flex flex-col items-center space-y-2">
@@ -411,7 +435,7 @@ useEffect(() => {
           </div>
         </div>
 
-        {/* Node Execution Status Card (CANJIN DOT DA RUBUTU ZUWA RED IDAN MINING YANA KUNNE) */}
+        {/* Node Execution Status Card */}
         <div className="p-6 rounded-2xl bg-gray-900/40 border border-gray-800/80 backdrop-blur-md hover:border-red-500/30 transition-all duration-300">
           <span className="text-[11px] text-gray-400 font-bold uppercase tracking-wider block">
             NODE EXECUTION STATUS
@@ -453,7 +477,7 @@ useEffect(() => {
         </div>
       </div>
 
-      {/* AADS MONETIZATION BANNER (A TSENAKAN PROGRESS BAR DA FEATURE) */}
+      {/* A-ADS MONETIZATION BANNER SECTION */}
       <AadsBanner />
 
       {/* FEATURE PROMOTIONAL CARDS */}

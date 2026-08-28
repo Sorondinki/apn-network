@@ -45,7 +45,7 @@ export default function KYCPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!docImage || !selfieImage) {
-      alert("Tabbatar ka dora hoton katin shaidarka da kuma hoton fuskarka (Selfie) kafin turawa.");
+      alert("Please ensure you upload both your ID card photo and selfie photo before submitting.");
       return;
     }
     setLoading(true);
@@ -72,7 +72,7 @@ export default function KYCPage() {
               🛡️ APN KYC & Verification
             </h1>
             <p className="text-gray-400 text-xs sm:text-sm mt-1">
-              Tabbatar da adadin amintakar asusunka domin kare network dinmu daga fake accounts da bude sabbin damammaki.
+              Verify your account's trust score to protect our network against fake accounts and unlock new platform opportunities.
             </p>
           </div>
 
@@ -107,7 +107,7 @@ export default function KYCPage() {
           <span className="text-2xl">🚫</span>
           <div>
             <h4 className="text-xs font-bold text-white">Anti-Bot & Fake Account</h4>
-            <p className="text-[11px] text-gray-400 mt-0.5">Tabbatar da ainihin mutane kadai ke hakar APN.</p>
+            <p className="text-[11px] text-gray-400 mt-0.5">Ensures that only genuine individuals mine APN.</p>
           </div>
         </div>
 
@@ -115,7 +115,7 @@ export default function KYCPage() {
           <span className="text-2xl">⚡</span>
           <div>
             <h4 className="text-xs font-bold text-white">Unlock P2P Gateway</h4>
-            <p className="text-[11px] text-gray-400 mt-0.5">Yarda ayi musayar tokens tsakanin mambobi P2P.</p>
+            <p className="text-[11px] text-gray-400 mt-0.5">Enables peer-to-peer token transfers between members.</p>
           </div>
         </div>
 
@@ -123,7 +123,7 @@ export default function KYCPage() {
           <span className="text-2xl">🔵</span>
           <div>
             <h4 className="text-xs font-bold text-white">Verified Blue Tick Badge</h4>
-            <p className="text-[11px] text-gray-400 mt-0.5">Samun blue checkmark a profile dinka.</p>
+            <p className="text-[11px] text-gray-400 mt-0.5">Receive a blue verification checkmark on your profile.</p>
           </div>
         </div>
       </div>
@@ -137,24 +137,24 @@ export default function KYCPage() {
             </div>
             <h3 className="text-2xl font-extrabold text-emerald-400">KYC Request Submitted!</h3>
             <p className="text-xs text-gray-300 max-w-md mx-auto leading-relaxed">
-              An tura bayanan shaidarka zuwa tsarin APN Validator System. Za a tabbatar da bayanka kuma a baka ladanka na <span className="text-emerald-400 font-bold">50 APN</span> gami da <span className="text-blue-400 font-bold">Verified Blue Tick Badge</span> 🔵 tsakanin minti 5 zuwa awa 24.
+              Your identity credentials have been submitted to the APN Validator System. Your submission will be verified and your <span className="text-emerald-400 font-bold">50 APN</span> reward along with your <span className="text-blue-400 font-bold">Verified Blue Tick Badge</span> 🔵 will be issued within 5 minutes to 24 hours.
             </p>
             <div className="pt-2">
               <button
                 onClick={() => setSubmitted(false)}
                 className="px-6 py-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-semibold transition"
               >
-                Kalli Bayanan KYC ɗinka
+                View Your KYC Details
               </button>
             </div>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <label className="text-xs font-bold text-gray-300 mb-2 block">Suna Cikakke (Full Legal Name)</label>
+              <label className="text-xs font-bold text-gray-300 mb-2 block">Full Legal Name</label>
               <input
                 type="text"
-                placeholder="misali: Jamilu Abubakar Sadiq"
+                placeholder="e.g. Engr. Jamilu Abubakar Sadiq"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 required
@@ -164,7 +164,7 @@ export default function KYCPage() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="text-xs font-bold text-gray-300 mb-2 block">Irin Katin Shaida (Document Type)</label>
+                <label className="text-xs font-bold text-gray-300 mb-2 block">Document Type</label>
                 <select
                   value={docType}
                   onChange={(e) => setDocType(e.target.value)}
@@ -178,10 +178,10 @@ export default function KYCPage() {
               </div>
 
               <div>
-                <label className="text-xs font-bold text-gray-300 mb-2 block">Lamba Katin (Document ID Number)</label>
+                <label className="text-xs font-bold text-gray-300 mb-2 block">Document ID Number</label>
                 <input
                   type="text"
-                  placeholder="Saka lambar katin nan..."
+                  placeholder="Enter document number here..."
                   value={docNumber}
                   onChange={(e) => setDocNumber(e.target.value)}
                   required
@@ -193,7 +193,7 @@ export default function KYCPage() {
             {/* Document Front Photo Upload */}
             <div>
               <label className="text-xs font-bold text-gray-300 mb-2 block">
-                1. Dora Hoton Katin Shaida (Document Front Photo)
+                1. Upload Identity Document (Front Photo)
               </label>
               <div className="border-2 border-dashed border-gray-800 hover:border-blue-500/50 rounded-2xl p-4 bg-black/40 text-center transition cursor-pointer relative">
                 <input
@@ -210,8 +210,8 @@ export default function KYCPage() {
                 ) : (
                   <div className="py-6 space-y-2">
                     <span className="text-3xl">📄</span>
-                    <p className="text-xs text-gray-400">Danna nan domin dora hoton katin shaidarka (Front)</p>
-                    <p className="text-[10px] text-gray-600">PNG, JPG ko WEBP (Mafi yawa 5MB)</p>
+                    <p className="text-xs text-gray-400">Click here to upload your ID document front photo</p>
+                    <p className="text-[10px] text-gray-600">PNG, JPG or WEBP (Max 5MB)</p>
                   </div>
                 )}
               </div>
@@ -220,7 +220,7 @@ export default function KYCPage() {
             {/* Selfie Verification Upload */}
             <div>
               <label className="text-xs font-bold text-gray-300 mb-2 block">
-                2. Dora Hoton Fuskarka (Live Selfie Verification)
+                2. Live Selfie Photo Verification
               </label>
               <div className="border-2 border-dashed border-gray-800 hover:border-blue-500/50 rounded-2xl p-4 bg-black/40 text-center transition cursor-pointer relative">
                 <input
@@ -237,8 +237,8 @@ export default function KYCPage() {
                 ) : (
                   <div className="py-6 space-y-2">
                     <span className="text-3xl">🤳</span>
-                    <p className="text-xs text-gray-400">Dora hoton fuskarka (Selfie photo)</p>
-                    <p className="text-[10px] text-gray-600">Tabbatar fuskarka tana fito radau babu tabarau mai duhu</p>
+                    <p className="text-xs text-gray-400">Upload your live face photo (Selfie photo)</p>
+                    <p className="text-[10px] text-gray-600">Ensure your face is clearly visible without dark sunglasses</p>
                   </div>
                 )}
               </div>

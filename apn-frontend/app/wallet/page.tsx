@@ -1,22 +1,35 @@
-// app/wallet/page.tsx
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+
+// Define authorized Tester / Mentor email addresses here
+const TESTER_EMAILS = [
+  "maisanaakura@gmail.com", // Replace with your mentor's email address
+  "contact.aprotech@gmail.com",
+  "sorondinkiseeme@gmail.com"
+];
 
 export default function WalletPage() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [balance, setBalance] = useState(0.000000);
+  const [canWithdraw, setCanWithdraw] = useState<boolean>(true);
   const [isMining, setIsMining] = useState(false);
   const [copied, setCopied] = useState(false);
   const [withdrawAddress, setWithdrawAddress] = useState("");
   const [withdrawAmount, setWithdrawAmount] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const balanceRef = useRef(balance);
   balanceRef.current = balance;
 
-  // Set the estimated value: 1 APN = $0.15 USD
+  // Set estimated value: 1 APN = $0.15 USD
   const APN_PRICE_USD = 0.15;
+
+  // Check if current logged-in user is an authorized tester/mentor
+  const isTester = Boolean(
+    user?.email && TESTER_EMAILS.includes(user.email.toLowerCase().trim())
+  );
 
   // 1. INITIAL FETCH & LIVE DATABASE SYNC ON LOAD
   useEffect(() => {
@@ -28,7 +41,12 @@ export default function WalletPage() {
     const userData = JSON.parse(savedUser);
     setUser(userData);
 
-    // Initial balance fetch from LocalStorage as fallback
+    if (userData.canWithdraw !== undefined) {
+      setCanWithdraw(Boolean(userData.canWithdraw));
+    } else if (userData.can_withdraw !== undefined) {
+      setCanWithdraw(Boolean(userData.can_withdraw));
+    }
+
     const savedBal = localStorage.getItem("apn_user_balance");
     if (savedBal) {
       setBalance(parseFloat(savedBal));
@@ -36,18 +54,31 @@ export default function WalletPage() {
       setBalance(parseFloat(userData.balance));
     }
 
-    // REAL-TIME SYNC: Fetch fresh balance directly from Database to catch Admin transfers instantly
+    // REAL-TIME SYNC: Fetch live profile and permissions from Database
     async function syncFreshUserData() {
       try {
         const res = await fetch(`/api/user/profile?id=${userData.id}`);
         const data = await res.json();
         if (data.success && data.user) {
           const freshBalance = parseFloat(data.user.balance || 0);
+          const withdrawPermission =
+            data.user.can_withdraw !== undefined
+              ? Boolean(data.user.can_withdraw)
+              : data.user.canWithdraw !== undefined
+              ? Boolean(data.user.canWithdraw)
+              : true;
+
           setBalance(freshBalance);
+          setCanWithdraw(withdrawPermission);
+
           localStorage.setItem("apn_user_balance", freshBalance.toString());
           
-          // Update full user session in LocalStorage
-          const updatedUser = { ...userData, balance: freshBalance };
+          const updatedUser = { 
+            ...userData, 
+            balance: freshBalance,
+            canWithdraw: withdrawPermission,
+            can_withdraw: withdrawPermission
+          };
           localStorage.setItem("apn_user", JSON.stringify(updatedUser));
           setUser(updatedUser);
         }
@@ -60,7 +91,6 @@ export default function WalletPage() {
       syncFreshUserData();
     }
 
-    // Check if mining session is currently active
     const startTime = localStorage.getItem("apn_mining_start_time");
     if (startTime) {
       const elapsedSeconds = Math.floor((Date.now() - parseInt(startTime, 10)) / 1000);
@@ -76,7 +106,6 @@ export default function WalletPage() {
     let syncInterval: NodeJS.Timeout;
 
     if (isMining) {
-      // Live Increment (0.5 APN/hr => 0.5/3600 per second)
       interval = setInterval(() => {
         setBalance((prevBal) => {
           const nextBal = prevBal + (0.5 / 3600);
@@ -85,7 +114,6 @@ export default function WalletPage() {
         });
       }, 1000);
 
-      // Auto-Sync with database every 10 seconds
       syncInterval = setInterval(() => {
         if (user?.id) {
           fetch("/api/user/sync-balance", {
@@ -106,7 +134,6 @@ export default function WalletPage() {
     };
   }, [isMining, user]);
 
-  // Generate deterministic Web3 Wallet Address
   const walletAddress = user?.id 
     ? `0xAPN${user.id.substring(0, 8)}${user.id.substring(user.id.length - 8)}`
     : "0xAPN8f3A19B204C29e71";
@@ -117,10 +144,52 @@ export default function WalletPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  // Handler for Mentor Testing Transfer Action
+  const handleTestingTransfer = async () => {
+    if (!withdrawAddress.trim()) {
+      alert("Please enter a valid recipient wallet address.");
+      return;
+    }
+    const amountNum = parseFloat(withdrawAmount);
+    if (isNaN(amountNum) || amountNum <= 0) {
+      alert("Please enter a valid positive transfer amount.");
+      return;
+    }
+    if (amountNum > balance) {
+      alert("Insufficient APN balance for this transfer.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      // Deduct locally and sync
+      const nextBalance = balance - amountNum;
+      setBalance(nextBalance);
+      localStorage.setItem("apn_user_balance", nextBalance.toString());
+
+      await fetch("/api/user/sync-balance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user.id,
+          balance: nextBalance,
+        }),
+      });
+
+      alert(`Success! Transferred ${amountNum} APN to ${withdrawAddress}.`);
+      setWithdrawAddress("");
+      setWithdrawAmount("");
+    } catch (err) {
+      alert("Transfer failed. Please check network connectivity.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   if (!user) return null;
 
-  // Calculate live USD value dynamically
   const estimatedUsdValue = (balance * APN_PRICE_USD).toFixed(4);
+  const isWithdrawUnlocked = isTester || canWithdraw;
 
   return (
     <div className="space-y-8 max-w-5xl mx-auto">
@@ -152,7 +221,6 @@ export default function WalletPage() {
             )}
           </div>
 
-          {/* Live APN Balance */}
           <div className="flex items-baseline gap-2 mt-1">
             <span className="text-3xl font-extrabold text-emerald-400 font-mono tracking-tight">
               {balance.toFixed(6)}
@@ -160,7 +228,6 @@ export default function WalletPage() {
             <span className="text-xs font-bold text-gray-300">APN</span>
           </div>
 
-          {/* Live Dynamic USD Valuation */}
           <div className="mt-2 pt-2 border-t border-gray-800/80 flex items-center justify-between gap-4">
             <span className="text-xs font-mono font-semibold text-emerald-300 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20">
               ≈ ${estimatedUsdValue} USD
@@ -186,7 +253,6 @@ export default function WalletPage() {
               </div>
             </div>
 
-            {/* WALLET ADDRESS DISPLAY & COPY */}
             <div className="space-y-2 pt-2">
               <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">
                 Deposit Address
@@ -204,7 +270,6 @@ export default function WalletPage() {
               </div>
             </div>
 
-            {/* QR CODE DISPLAY BOX */}
             <div className="flex flex-col items-center justify-center p-6 bg-black/50 border border-gray-800 rounded-2xl text-center space-y-3">
               <div className="w-32 h-32 bg-white p-2 rounded-xl flex items-center justify-center shadow-lg">
                 <div className="w-full h-full border-4 border-black grid grid-cols-4 gap-1 p-1 bg-black">
@@ -236,43 +301,43 @@ export default function WalletPage() {
             </div>
 
             <div className="space-y-4">
-              {/* Destination Address Input */}
               <div className="space-y-2">
                 <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">
                   Recipient Wallet Address
                 </label>
                 <input
                   type="text"
+                  disabled={!isWithdrawUnlocked}
                   placeholder="Paste 0x... or APN wallet address"
                   value={withdrawAddress}
                   onChange={(e) => setWithdrawAddress(e.target.value)}
-                  className="w-full bg-black/50 border border-gray-800 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-blue-500 font-mono"
+                  className="w-full bg-black/50 border border-gray-800 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-blue-500 font-mono disabled:opacity-50 disabled:cursor-not-allowed"
                 />
               </div>
 
-              {/* Amount Input */}
               <div className="space-y-2">
                 <div className="flex justify-between">
                   <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">
                     Amount (APN)
                   </label>
                   <button
+                    disabled={!isWithdrawUnlocked}
                     onClick={() => setWithdrawAmount(balance.toString())}
-                    className="text-xs text-blue-400 hover:underline font-bold"
+                    className="text-xs text-blue-400 hover:underline font-bold disabled:opacity-50 disabled:no-underline"
                   >
                     Max
                   </button>
                 </div>
                 <input
                   type="number"
+                  disabled={!isWithdrawUnlocked}
                   placeholder="0.000000"
                   value={withdrawAmount}
                   onChange={(e) => setWithdrawAmount(e.target.value)}
-                  className="w-full bg-black/50 border border-gray-800 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-blue-500 font-mono"
+                  className="w-full bg-black/50 border border-gray-800 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-blue-500 font-mono disabled:opacity-50 disabled:cursor-not-allowed"
                 />
               </div>
 
-              {/* Network Fee Info */}
               <div className="p-3 bg-black/40 border border-gray-800/80 rounded-xl flex justify-between text-xs text-gray-400">
                 <span>Estimated Network Gas Fee:</span>
                 <span className="font-mono text-white">0.000000 APN (Free)</span>
@@ -280,17 +345,46 @@ export default function WalletPage() {
             </div>
           </div>
 
-          {/* COMING SOON NOTICE */}
+          {/* WITHDRAWAL ACCESS CONTROL */}
           <div className="space-y-3 pt-4 border-t border-gray-800/80">
-            <button
-              disabled
-              className="w-full py-4 rounded-xl bg-gray-800/80 text-gray-400 font-bold text-xs uppercase tracking-wider cursor-not-allowed border border-gray-700/50 shadow-inner flex items-center justify-center gap-2"
-            >
-              <span>🔒</span> Withdrawals Locked (Mainnet Coming Soon)
-            </button>
-            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[11px] leading-relaxed text-center">
-              ⚠️ <strong>Mainnet Migration Notice:</strong> Direct withdrawals are currently undergoing security audits. Full mainnet distribution and withdrawal channels will open upon reaching Phase 2 node consensus.
-            </div>
+            {isTester ? (
+              <>
+                <button
+                  onClick={handleTestingTransfer}
+                  disabled={isSubmitting}
+                  className="w-full py-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs uppercase tracking-wider transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  <span>🚀</span> {isSubmitting ? "Processing..." : "Transfer APN (Tester Access)"}
+                </button>
+                <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[11px] leading-relaxed text-center">
+                  🧪 <strong>Tester Privilege Active:</strong> You are granted explicit permission to test token transfers across peer node wallets.
+                </div>
+              </>
+            ) : !canWithdraw ? (
+              <>
+                <button
+                  disabled
+                  className="w-full py-4 rounded-xl bg-red-950/40 text-red-400 border border-red-500/30 font-bold text-xs uppercase tracking-wider cursor-not-allowed shadow-inner flex items-center justify-center gap-2"
+                >
+                  <span>🚫</span> Withdrawals Suspended for this Account
+                </button>
+                <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-[11px] leading-relaxed text-center">
+                  ⚠️ <strong>Access Restricted:</strong> Withdrawal privileges for this account are temporarily restricted by the system administrator.
+                </div>
+              </>
+            ) : (
+              <>
+                <button
+                  disabled
+                  className="w-full py-4 rounded-xl bg-gray-800/80 text-gray-400 font-bold text-xs uppercase tracking-wider cursor-not-allowed border border-gray-700/50 shadow-inner flex items-center justify-center gap-2"
+                >
+                  <span>🔒</span> Withdrawals Locked (Mainnet Coming Soon)
+                </button>
+                <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[11px] leading-relaxed text-center">
+                  ⚠️ <strong>Mainnet Migration Notice:</strong> Direct withdrawals are currently undergoing security audits. Full mainnet distribution channels will open upon reaching Phase 2 consensus.
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
