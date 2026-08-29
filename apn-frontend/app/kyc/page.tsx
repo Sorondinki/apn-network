@@ -1,150 +1,245 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
 
-// Dynamic import for A-ADS Banner (Client-side rendering only)
 const AadsBanner = dynamic(() => import("../components/AadsBanner"), {
   ssr: false,
 });
 
 export default function KYCPage() {
+  const router = useRouter();
+  const [user, setUser] = useState<{ id: string; email: string; name?: string } | null>(null);
   const [fullName, setFullName] = useState("");
   const [docType, setDocType] = useState("National Identification Number (NIN)");
   const [docNumber, setDocNumber] = useState("");
   const [docImage, setDocImage] = useState<string | null>(null);
   const [selfieImage, setSelfieImage] = useState<string | null>(null);
+  const [verificationType, setVerificationType] = useState<"FREE" | "FAST_TRACK">("FREE");
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [resultMessage, setResultMessage] = useState("");
 
-  // Handle Document Image Upload
+  useEffect(() => {
+    const savedUser = localStorage.getItem("apn_user");
+    if (savedUser) {
+      try {
+        const parsed = JSON.parse(savedUser);
+        setUser(parsed);
+        if (parsed.name) setFullName(parsed.name);
+      } catch (e) {
+        console.error("User session parse error", e);
+      }
+    }
+  }, []);
+
   const handleDocImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setDocImage(reader.result as string);
-      };
+      reader.onloadend = () => setDocImage(reader.result as string);
       reader.readAsDataURL(file);
     }
   };
 
-  // Handle Selfie Image Upload
   const handleSelfieImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setSelfieImage(reader.result as string);
-      };
+      reader.onloadend = () => setSelfieImage(reader.result as string);
       reader.readAsDataURL(file);
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handlePaystackPayment = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/kyc/paystack-init", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user?.id || "anonymous_user",
+          email: user?.email || "user@apnnetwork.com",
+          amount: 1000,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success && data.authorization_url) {
+        window.location.href = data.authorization_url;
+      } else {
+        alert("Paystack Initialization Failed: " + (data.message || "Try again later"));
+        setLoading(false);
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Payment gateway connection error.");
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!docImage || !selfieImage) {
-      alert("Please ensure you upload both your ID card photo and selfie photo before submitting.");
+      alert("Please upload both your ID document photo and selfie photo before submitting.");
       return;
     }
-    setLoading(true);
 
-    // Simulation of API request submission
-    setTimeout(() => {
+    if (verificationType === "FAST_TRACK") {
+      await handlePaystackPayment();
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch("/api/kyc/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user?.id || "anonymous_user",
+          fullName,
+          docType,
+          docNumber,
+          docImage,
+          selfieImage,
+          verificationType: "FREE",
+        }),
+      });
+
+      const data = await response.json();
       setLoading(false);
-      setSubmitted(true);
-    }, 1500);
+
+      if (data.success) {
+        setResultMessage(data.message);
+        setSubmitted(true);
+      } else {
+        alert(data.message || "KYC submission failed");
+      }
+    } catch (err) {
+      setLoading(false);
+      console.error("KYC Submission error:", err);
+      alert("Network error processing your request.");
+    }
   };
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 p-4 sm:p-6">
-      {/* Header Banner */}
-      <div className="p-6 rounded-3xl bg-gradient-to-r from-blue-950/80 via-gray-900 to-indigo-950/80 border border-blue-800/40 shadow-xl backdrop-blur-md">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <span className="px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-400 text-xs font-mono font-bold uppercase">
-                Identity Validation
-              </span>
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-white flex items-center gap-2">
-              🛡️ APN KYC & Verification
+      {/* HEADER BANNER */}
+      <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-blue-950/90 via-slate-900 to-indigo-950/90 border border-blue-800/40 shadow-2xl backdrop-blur-xl">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+          <div className="space-y-2">
+            <span className="px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-400 text-xs font-mono font-bold uppercase">
+              🛡️ APN Protocol Identity Guard
+            </span>
+            <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+              APN KYC & Verification Hub
             </h1>
-            <p className="text-gray-400 text-xs sm:text-sm mt-1">
-              Verify your account's trust score to protect our network against fake accounts and unlock new platform opportunities.
+            <p className="text-gray-400 text-xs sm:text-sm max-w-lg">
+              Verify your identity to claim your free reward, unlock P2P transfers, and secure your mining allocations.
             </p>
           </div>
 
-          <div className="bg-black/50 p-4 rounded-2xl border border-blue-500/30 flex items-center gap-3 w-full sm:w-auto">
-            <div className="relative">
-              <div className="w-10 h-10 rounded-full bg-blue-600/30 flex items-center justify-center border border-blue-400 text-white font-bold">
-                APN
-              </div>
-              <svg
-                className="w-4 h-4 text-blue-500 absolute -bottom-1 -right-1 bg-black rounded-full"
-                fill="currentColor"
-                viewBox="0 0 20 20"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                  clipRule="evenodd"
-                />
-              </svg>
+          <div className="bg-black/60 p-4 rounded-2xl border border-emerald-500/40 flex items-center gap-3 w-full sm:w-auto">
+            <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center border border-emerald-400 text-emerald-400 font-bold text-lg">
+              🎁
             </div>
             <div>
-              <div className="text-xs text-gray-400">KYC Reward</div>
-              <div className="text-sm font-bold text-emerald-400">+50 APN Tokens 🎁</div>
+              <div className="text-[10px] text-gray-400 font-mono uppercase">Guaranteed Completion Bonus</div>
+              <div className="text-sm font-extrabold text-emerald-400">+50 APN Tokens 🚀</div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* KYC Incentives & Benefits Card */}
+      {/* VERIFICATION OPTIONS SELECTOR */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* FREE OPTION */}
+        <div
+          onClick={() => setVerificationType("FREE")}
+          className={`p-5 rounded-2xl cursor-pointer border transition-all ${
+            verificationType === "FREE"
+              ? "bg-blue-950/50 border-blue-500 ring-2 ring-blue-500/30"
+              : "bg-gray-900/40 border-gray-800 hover:border-gray-700"
+          }`}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-mono font-bold uppercase text-blue-400">Option 1: Standard</span>
+            <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 text-[10px] font-bold">100% FREE</span>
+          </div>
+          <h3 className="text-base font-bold text-white">Free Standard Verification</h3>
+          <p className="text-xs text-gray-400 mt-1">
+            Processed manually within 7 to 14 days. Full access to +50 APN Bonus & Verified Badge upon approval.
+          </p>
+        </div>
+
+        {/* FAST-TRACK OPTION */}
+        <div
+          onClick={() => setVerificationType("FAST_TRACK")}
+          className={`p-5 rounded-2xl cursor-pointer border transition-all ${
+            verificationType === "FAST_TRACK"
+              ? "bg-indigo-950/60 border-indigo-500 ring-2 ring-indigo-500/30"
+              : "bg-gray-900/40 border-gray-800 hover:border-gray-700"
+          }`}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-mono font-bold uppercase text-amber-400">Option 2: Fast-Track VIP</span>
+            <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 text-[10px] font-bold">₦1,000 Paystack</span>
+          </div>
+          <h3 className="text-base font-bold text-white flex items-center gap-1.5">
+            Instant VIP Verification ⚡
+          </h3>
+          <p className="text-xs text-gray-400 mt-1">
+            Automated instant check in 5 seconds via Paystack ID gateway. Grants Tier 1 Priority Status.
+          </p>
+        </div>
+      </div>
+
+      {/* BENEFIT CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="p-4 rounded-2xl bg-gray-900/60 border border-gray-800 flex items-start gap-3">
-          <span className="text-2xl">🚫</span>
+        <div className="p-4 rounded-2xl bg-gray-900/40 border border-gray-800/80 flex items-start gap-3">
+          <span className="text-2xl">🤖</span>
           <div>
-            <h4 className="text-xs font-bold text-white">Anti-Bot & Fake Account</h4>
-            <p className="text-[11px] text-gray-400 mt-0.5">Ensures that only genuine individuals mine APN.</p>
+            <h4 className="text-xs font-bold text-white">Sybil & Bot Protection</h4>
+            <p className="text-[11px] text-gray-400 mt-0.5">Ensures real ecosystem distribution and asset protection.</p>
           </div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-gray-900/60 border border-gray-800 flex items-start gap-3">
-          <span className="text-2xl">⚡</span>
+        <div className="p-4 rounded-2xl bg-gray-900/40 border border-gray-800/80 flex items-start gap-3">
+          <span className="text-2xl">🔄</span>
           <div>
-            <h4 className="text-xs font-bold text-white">Unlock P2P Gateway</h4>
-            <p className="text-[11px] text-gray-400 mt-0.5">Enables peer-to-peer token transfers between members.</p>
+            <h4 className="text-xs font-bold text-white">P2P Gateway Unlocked</h4>
+            <p className="text-[11px] text-gray-400 mt-0.5">Unlocks internal peer-to-peer token transfer abilities.</p>
           </div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-gray-900/60 border border-gray-800 flex items-start gap-3">
+        <div className="p-4 rounded-2xl bg-gray-900/40 border border-gray-800/80 flex items-start gap-3">
           <span className="text-2xl">🔵</span>
           <div>
-            <h4 className="text-xs font-bold text-white">Verified Blue Tick Badge</h4>
-            <p className="text-[11px] text-gray-400 mt-0.5">Receive a blue verification checkmark on your profile.</p>
+            <h4 className="text-xs font-bold text-white">Verified Badge 🔵</h4>
+            <p className="text-[11px] text-gray-400 mt-0.5">Displays verified checkmark on your APN network ID profile.</p>
           </div>
         </div>
       </div>
 
-      {/* Form Container */}
-      <div className="glass-card p-6 sm:p-8 rounded-3xl border border-gray-800 bg-gray-950/70 shadow-2xl">
+      {/* FORM CONTAINER */}
+      <div className="p-6 sm:p-8 rounded-3xl border border-gray-800 bg-gray-950/80 shadow-2xl backdrop-blur-md">
         {submitted ? (
           <div className="p-8 rounded-2xl bg-emerald-950/40 border border-emerald-500/30 text-center space-y-4">
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-emerald-500/20 text-emerald-400 text-3xl animate-bounce">
               🎉
             </div>
-            <h3 className="text-2xl font-extrabold text-emerald-400">KYC Request Submitted!</h3>
+            <h3 className="text-2xl font-extrabold text-emerald-400">KYC Request Logged!</h3>
             <p className="text-xs text-gray-300 max-w-md mx-auto leading-relaxed">
-              Your identity credentials have been submitted to the APN Validator System. Your submission will be verified and your <span className="text-emerald-400 font-bold">50 APN</span> reward along with your <span className="text-blue-400 font-bold">Verified Blue Tick Badge</span> 🔵 will be issued within 5 minutes to 24 hours.
+              {resultMessage || "Your KYC details have been transmitted successfully. Your 50 APN reward will be credited upon system verification."}
             </p>
             <div className="pt-2">
               <button
                 onClick={() => setSubmitted(false)}
                 className="px-6 py-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-semibold transition"
               >
-                View Your KYC Details
+                Return to Form
               </button>
             </div>
           </div>
@@ -190,7 +285,7 @@ export default function KYCPage() {
               </div>
             </div>
 
-            {/* Document Front Photo Upload */}
+            {/* ID UPLOAD */}
             <div>
               <label className="text-xs font-bold text-gray-300 mb-2 block">
                 1. Upload Identity Document (Front Photo)
@@ -210,14 +305,14 @@ export default function KYCPage() {
                 ) : (
                   <div className="py-6 space-y-2">
                     <span className="text-3xl">📄</span>
-                    <p className="text-xs text-gray-400">Click here to upload your ID document front photo</p>
+                    <p className="text-xs text-gray-400">Click to upload your ID document front photo</p>
                     <p className="text-[10px] text-gray-600">PNG, JPG or WEBP (Max 5MB)</p>
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Selfie Verification Upload */}
+            {/* SELFIE UPLOAD */}
             <div>
               <label className="text-xs font-bold text-gray-300 mb-2 block">
                 2. Live Selfie Photo Verification
@@ -237,8 +332,8 @@ export default function KYCPage() {
                 ) : (
                   <div className="py-6 space-y-2">
                     <span className="text-3xl">🤳</span>
-                    <p className="text-xs text-gray-400">Upload your live face photo (Selfie photo)</p>
-                    <p className="text-[10px] text-gray-600">Ensure your face is clearly visible without dark sunglasses</p>
+                    <p className="text-xs text-gray-400">Upload live face selfie photo</p>
+                    <p className="text-[10px] text-gray-600">Ensure clear lighting without dark glasses</p>
                   </div>
                 )}
               </div>
@@ -247,19 +342,24 @@ export default function KYCPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-extrabold rounded-xl transition-all shadow-xl shadow-blue-950/50 disabled:opacity-50 text-sm flex items-center justify-center gap-2"
+              className={`w-full py-4 text-white font-extrabold rounded-xl transition-all shadow-xl disabled:opacity-50 text-sm flex items-center justify-center gap-2 ${
+                verificationType === "FAST_TRACK"
+                  ? "bg-gradient-to-r from-amber-600 to-indigo-600 hover:from-amber-500 hover:to-indigo-500 shadow-amber-950/50"
+                  : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 shadow-blue-950/50"
+              }`}
             >
               {loading ? (
-                <span>Encrypting & Transmitting Data... ⏳</span>
+                <span>Processing Verification Route... ⏳</span>
+              ) : verificationType === "FAST_TRACK" ? (
+                <span>Pay ₦1,000 via Paystack & Fast-Track (Instant 5s Approval) ⚡</span>
               ) : (
-                <span>Submit Verification & Claim 50 APN 🚀</span>
+                <span>Submit Free Verification & Claim 100 APN 🚀</span>
               )}
             </button>
           </form>
         )}
       </div>
 
-      {/* A-ADS Embedded Banner Section */}
       <div className="w-full flex flex-col items-center justify-center pt-4">
         <AadsBanner />
       </div>
