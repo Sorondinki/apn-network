@@ -17,6 +17,7 @@ export async function POST(req: Request) {
 
     const cleanEmail = String(body.email).trim().toLowerCase();
     const rawPassword = String(body.password).trim();
+    const refCode = body.referredBy ? String(body.referredBy).trim().toUpperCase() : null;
 
     // 1. Duba ko email yana cikin tsarin
     const { data: existingUser } = await supabase
@@ -32,7 +33,21 @@ export async function POST(req: Request) {
       );
     }
 
-    // 2. Shirya Hash da Wallet
+    // 2. Nemo mai referral code din idan aka kawo shi domin ɗaukar ID dinsa
+    let referredById = null;
+    if (refCode) {
+      const { data: referrer } = await supabase
+        .from('User')
+        .select('id')
+        .eq('referralCode', refCode)
+        .maybeSingle();
+
+      if (referrer) {
+        referredById = referrer.id;
+      }
+    }
+
+    // 3. Shirya Hash da Wallet
     const hashedPassword = await bcrypt.hash(rawPassword, 10);
     const userId = typeof crypto.randomUUID === 'function' 
       ? crypto.randomUUID() 
@@ -46,7 +61,7 @@ export async function POST(req: Request) {
     const referralCode = Math.random().toString(36).substring(2, 8).toUpperCase();
     const nowIso = new Date().toISOString();
 
-    // 3. Tura bayanan tare da createdAt da updatedAt
+    // 4. Tura bayanan tare da referredById a cikin teburin User
     const { data: newUser, error: insertError } = await supabase
       .from('User')
       .insert([
@@ -56,12 +71,13 @@ export async function POST(req: Request) {
           passwordHash: hashedPassword,
           walletAddress: walletAddress,
           referralCode: referralCode,
+          referredById: referredById, // Wannan ne zai sa mutumin ya shiga karkashin wanda ya gayyace shi
           balance: 0,
           createdAt: nowIso,
           updatedAt: nowIso,
         },
       ])
-      .select('id, email, walletAddress, referralCode, balance')
+      .select('id, email, walletAddress, referralCode, balance, referredById')
       .single();
 
     if (insertError) {

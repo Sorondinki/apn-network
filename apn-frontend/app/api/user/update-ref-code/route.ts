@@ -13,11 +13,13 @@ export async function POST(req: Request) {
       );
     }
 
-    // Check if code is already taken
+    const cleanNewCode = String(newReferralCode).trim().toUpperCase();
+
+    // Check if code is already taken in the correct 'User' table using camelCase column
     const { data: existingCode } = await supabase
-      .from("users")
+      .from("User")
       .select("id")
-      .or(`referralCode.eq.${newReferralCode},referral_code.eq.${newReferralCode}`)
+      .eq("referralCode", cleanNewCode)
       .maybeSingle();
 
     if (existingCode) {
@@ -27,13 +29,11 @@ export async function POST(req: Request) {
       );
     }
 
-    // Update user's referral code
+    // Update user's referral code using correct camelCase columns
     const { error: updateError } = await supabase
-      .from("users")
+      .from("User")
       .update({
-        referral_code: newReferralCode,
-        referralCode: newReferralCode,
-        has_changed_ref_code: true,
+        referralCode: cleanNewCode,
         hasChangedRefCode: true,
       })
       .eq("id", userId);

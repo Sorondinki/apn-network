@@ -67,9 +67,11 @@ function AuthForm() {
     setToast(null);
 
     const endpoint = isLogin ? "/api/auth/login" : "/api/auth/register";
+    
+    // GYARA: An canza referralCode zuwa referredBy domin backend na /api/auth/register ya karba
     const payload = isLogin 
       ? { email: email.trim(), password } 
-      : { email: email.trim(), password, referralCode: referralCode.trim() };
+      : { email: email.trim(), password, referredBy: referralCode.trim() };
 
     try {
       const res = await fetch(endpoint, {
