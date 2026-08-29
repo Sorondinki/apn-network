@@ -249,7 +249,7 @@ export default function KYCPage() {
               <label className="text-xs font-bold text-gray-300 mb-2 block">Full Legal Name</label>
               <input
                 type="text"
-                placeholder="e.g. Engr. Jamilu Abubakar Sadiq"
+                placeholder="e.g. David Johnson"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 required

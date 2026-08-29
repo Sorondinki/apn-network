@@ -10,7 +10,7 @@ export async function POST(req: Request) {
 
     if (!body?.email || !body?.password) {
       return NextResponse.json(
-        { error: 'Tabbatar ka shigar da Email da Password' },
+        { error: 'Make sure you enter both correct Email and Password' },
         { status: 400 }
       );
     }
@@ -27,7 +27,7 @@ export async function POST(req: Request) {
 
     if (existingUser) {
       return NextResponse.json(
-        { error: 'Wannan Email ɗin an riga an yi amfani da shi' },
+        { error: 'Invalid Email or Password' },
         { status: 400 }
       );
     }
@@ -67,14 +67,14 @@ export async function POST(req: Request) {
     if (insertError) {
       console.error('Register Insert Error:', insertError);
       return NextResponse.json(
-        { error: 'An samu matsala wajen yi ma rijista: ' + insertError.message },
+        { error: 'There is error when registration process: ' + insertError.message },
         { status: 500 }
       );
     }
 
     return NextResponse.json(
       {
-        message: 'Rijista ta kammala cikin nasara!',
+        message: 'Registration Successful!',
         user: {
           id: newUser.id,
           email: newUser.email,
