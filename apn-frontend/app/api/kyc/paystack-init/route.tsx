@@ -1,4 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 export async function POST(request: NextRequest) {
   try {
@@ -7,10 +13,29 @@ export async function POST(request: NextRequest) {
     const paystackSecretKey = process.env.PAYSTACK_SECRET_KEY;
     if (!paystackSecretKey) {
       return NextResponse.json(
-        { success: false, message: "Paystack secret key is missing in server environment variables." },
+        {
+          success: false,
+          message:
+            "Paystack secret key is missing in server environment variables.",
+        },
         { status: 500 }
       );
     }
+
+    // Verify user exists in the Supabase 'User' table
+    if (userId && userId !== "anonymous_user") {
+      const { data: userRecord, error: userError } = await supabase
+        .from("User")
+        .select("id, email")
+        .eq("id", userId)
+        .single();
+
+      if (userError) {
+        console.warn("User lookup warning during Paystack init:", userError.message);
+      }
+    }
+
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.apnprotocol.ng";
 
     const response = await fetch("https://api.paystack.co/transaction/initialize", {
       method: "POST",
@@ -21,7 +46,7 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         email: email || "user@apnprotocol.ng",
         amount: (amount || 1000) * 100, // Amount in Kobo (₦1,000 = 100000 kobo)
-        callback_url: `${process.env.NEXT_PUBLIC_APP_URL || "https://apnprotocol.ng"}/kyc?status=success`,
+        callback_url: `${appUrl}/kyc?status=success`,
         metadata: {
           userId,
           custom_fields: [
