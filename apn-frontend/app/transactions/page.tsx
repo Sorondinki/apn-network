@@ -1,6 +1,6 @@
-// app/transactions/page.tsx
 "use client";
-import { useState, useEffect } from "react";
+
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 
 interface Transaction {
@@ -15,100 +15,116 @@ interface Transaction {
 
 export default function TransactionsPage() {
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<{ id: string; name?: string } | null>(null);
   const [filter, setFilter] = useState<string>("ALL");
   const [copiedTx, setCopiedTx] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [mounted, setMounted] = useState<boolean>(false);
+
+  const fetchTransactions = useCallback(async (userId: string) => {
+    try {
+      setLoading(true);
+      const res = await fetch(`/api/user/transactions?userId=${userId}`, {
+        cache: "no-store",
+      });
+      const data = await res.json();
+      
+      if (data.success && Array.isArray(data.transactions) && data.transactions.length > 0) {
+        setTransactions(data.transactions);
+      } else {
+        // Dynamic fallback mock data with fixed timestamps to prevent re-hydration error
+        const now = Date.now();
+        setTransactions([
+          {
+            id: "tx-101",
+            txHash: "0xapn982f...a12c",
+            type: "MINING_REWARD",
+            amount: 24.00,
+            status: "COMPLETED",
+            timestamp: new Date(now - 3600000 * 2).toISOString().replace("T", " ").substring(0, 19),
+            description: "24-Hour Node Mining Cycle Reward",
+          },
+          {
+            id: "tx-102",
+            txHash: "0xapn441b...7e99",
+            type: "REFERRAL_BONUS",
+            amount: 14.50,
+            status: "COMPLETED",
+            timestamp: new Date(now - 3600000 * 18).toISOString().replace("T", " ").substring(0, 19),
+            description: "10% Mining Hash Rate Commission (Ref: APN-8902)",
+          },
+          {
+            id: "tx-103",
+            txHash: "0xapn110c...3b88",
+            type: "STAKING_YIELD",
+            amount: 8.75,
+            status: "COMPLETED",
+            timestamp: new Date(now - 3600000 * 24).toISOString().replace("T", " ").substring(0, 19),
+            description: "+18.5% APY Staking Vault Daily Interest",
+          },
+          {
+            id: "tx-104",
+            txHash: "0xapn773d...11fe",
+            type: "MINING_REWARD",
+            amount: 24.00,
+            status: "COMPLETED",
+            timestamp: new Date(now - 3600000 * 26).toISOString().replace("T", " ").substring(0, 19),
+            description: "24-Hour Node Mining Cycle Reward",
+          },
+          {
+            id: "tx-105",
+            txHash: "0xapn332e...99da",
+            type: "TRANSFER_OUT",
+            amount: 50.00,
+            status: "COMPLETED",
+            timestamp: new Date(now - 3600000 * 48).toISOString().replace("T", " ").substring(0, 19),
+            description: "Mainnet Wallet Transfer to 0x3A...91bB",
+          },
+        ]);
+      }
+    } catch (err) {
+      console.error("Error loading transactions:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
+    setMounted(true);
     const savedUser = localStorage.getItem("apn_user");
     if (!savedUser) {
       router.push("/register");
       return;
     }
-    const userData = JSON.parse(savedUser);
-    setUser(userData);
-
-    // Fetch transactions from API or populate dynamic mock history for active miner
-    async function fetchTransactions() {
-      try {
-        const res = await fetch(`/api/user/transactions?userId=${userData.id}`);
-        const data = await res.json();
-        if (data.success && data.transactions.length > 0) {
-          setTransactions(data.transactions);
-        } else {
-          // Generate default sample ledger history for 24h reward cycles
-          setTransactions([
-            {
-              id: "tx-101",
-              txHash: "0xapn982f...a12c",
-              type: "MINING_REWARD",
-              amount: 24.00,
-              status: "COMPLETED",
-              timestamp: new Date(Date.now() - 3600000 * 2).toLocaleString(),
-              description: "24-Hour Node Mining Cycle Reward",
-            },
-            {
-              id: "tx-102",
-              txHash: "0xapn441b...7e99",
-              type: "REFERRAL_BONUS",
-              amount: 14.50,
-              status: "COMPLETED",
-              timestamp: new Date(Date.now() - 3600000 * 18).toLocaleString(),
-              description: "10% Mining Hash Rate Commission (Ref: APN-8902)",
-            },
-            {
-              id: "tx-103",
-              txHash: "0xapn110c...3b88",
-              type: "STAKING_YIELD",
-              amount: 8.75,
-              status: "COMPLETED",
-              timestamp: new Date(Date.now() - 3600000 * 24).toLocaleString(),
-              description: "+18.5% APY Staking Vault Daily Interest",
-            },
-            {
-              id: "tx-104",
-              txHash: "0xapn773d...11fe",
-              type: "MINING_REWARD",
-              amount: 24.00,
-              status: "COMPLETED",
-              timestamp: new Date(Date.now() - 3600000 * 26).toLocaleString(),
-              description: "24-Hour Node Mining Cycle Reward",
-            },
-            {
-              id: "tx-105",
-              txHash: "0xapn332e...99da",
-              type: "TRANSFER_OUT",
-              amount: 50.00,
-              status: "COMPLETED",
-              timestamp: new Date(Date.now() - 3600000 * 48).toLocaleString(),
-              description: "Mainnet Wallet Transfer to 0x3A...91bB",
-            },
-          ]);
-        }
-      } catch (err) {
-        console.error("Error loading transactions:", err);
-      } finally {
-        setLoading(false);
-      }
+    
+    try {
+      const userData = JSON.parse(savedUser);
+      setUser(userData);
+      fetchTransactions(userData.id || "default_user");
+    } catch (e) {
+      console.error("Failed to parse user session", e);
+      router.push("/register");
     }
-
-    fetchTransactions();
-  }, [router]);
+  }, [router, fetchTransactions]);
 
   const handleCopyHash = (txHash: string) => {
-    navigator.clipboard.writeText(txHash);
-    setCopiedTx(txHash);
-    setTimeout(() => setCopiedTx(null), 2000);
+    if (typeof navigator !== "undefined" && navigator.clipboard) {
+      navigator.clipboard.writeText(txHash);
+      setCopiedTx(txHash);
+      setTimeout(() => setCopiedTx(null), 2000);
+    }
   };
+
+  if (!mounted) {
+    return null;
+  }
 
   const filteredTransactions = transactions.filter((tx) => {
     if (filter === "ALL") return true;
     return tx.type === filter;
   });
 
-  // Calculate quick summary metrics
   const totalEarned24h = transactions
     .filter((t) => t.type !== "TRANSFER_OUT" && t.status === "COMPLETED")
     .reduce((acc, curr) => acc + curr.amount, 0);
