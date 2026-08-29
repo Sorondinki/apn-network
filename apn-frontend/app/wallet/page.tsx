@@ -62,19 +62,20 @@ export default function WalletPage() {
         if (data.success && data.user) {
           const freshBalance = parseFloat(data.user.balance || 0);
           const withdrawPermission =
-            data.user.can_withdraw !== undefined
-              ? Boolean(data.user.can_withdraw)
-              : data.user.canWithdraw !== undefined
+            data.user.canWithdraw !== undefined
               ? Boolean(data.user.canWithdraw)
+              : data.user.can_withdraw !== undefined
+              ? Boolean(data.user.can_withdraw)
               : true;
 
           setBalance(freshBalance);
           setCanWithdraw(withdrawPermission);
 
           localStorage.setItem("apn_user_balance", freshBalance.toString());
-          
+
           const updatedUser = { 
             ...userData, 
+            ...data.user,
             balance: freshBalance,
             canWithdraw: withdrawPermission,
             can_withdraw: withdrawPermission
@@ -122,6 +123,8 @@ export default function WalletPage() {
             body: JSON.stringify({
               userId: user.id,
               balance: balanceRef.current,
+              isMining: true,
+              miningStartTime: localStorage.getItem("apn_mining_start_time")
             }),
           });
         }
@@ -173,6 +176,8 @@ export default function WalletPage() {
         body: JSON.stringify({
           userId: user.id,
           balance: nextBalance,
+          isMining: isMining,
+          miningStartTime: localStorage.getItem("apn_mining_start_time")
         }),
       });
 
@@ -192,14 +197,14 @@ export default function WalletPage() {
   const isWithdrawUnlocked = isTester || canWithdraw;
 
   return (
-    <div className="space-y-8 max-w-5xl mx-auto">
+    <div className="space-y-6 md:space-y-8 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
       {/* HEADER SECTION */}
-      <div className="p-8 rounded-3xl bg-gradient-to-r from-gray-900/60 via-slate-900/50 to-gray-900/60 border border-gray-800/80 backdrop-blur-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-        <div className="space-y-2">
+      <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-gray-900/60 via-slate-900/50 to-gray-900/60 border border-gray-800/80 backdrop-blur-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+        <div className="space-y-2 w-full md:w-auto">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-400 text-xs font-semibold">
             💳 APN Decentralized Vault
           </div>
-          <h1 className="text-3xl font-black text-white tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
             Wallet & Assets Management
           </h1>
           <p className="text-gray-400 text-xs max-w-md">
@@ -208,8 +213,8 @@ export default function WalletPage() {
         </div>
 
         {/* LIVE REAL-TIME BALANCE & USD VALUE BOX */}
-        <div className="w-full md:w-auto p-6 rounded-2xl bg-black/40 border border-emerald-500/30 backdrop-blur-md">
-          <div className="flex justify-between items-center mb-1">
+        <div className="w-full md:w-auto p-5 sm:p-6 rounded-2xl bg-black/40 border border-emerald-500/30 backdrop-blur-md">
+          <div className="flex justify-between items-center mb-1 gap-4">
             <span className="text-[11px] text-gray-400 font-bold uppercase tracking-wider block">
               ESTIMATED TOTAL BALANCE
             </span>
@@ -221,14 +226,14 @@ export default function WalletPage() {
             )}
           </div>
 
-          <div className="flex items-baseline gap-2 mt-1">
-            <span className="text-3xl font-extrabold text-emerald-400 font-mono tracking-tight">
+          <div className="flex items-baseline gap-2 mt-1 flex-wrap">
+            <span className="text-2xl sm:text-3xl font-extrabold text-emerald-400 font-mono tracking-tight break-all">
               {balance.toFixed(6)}
             </span>
             <span className="text-xs font-bold text-gray-300">APN</span>
           </div>
 
-          <div className="mt-2 pt-2 border-t border-gray-800/80 flex items-center justify-between gap-4">
+          <div className="mt-2 pt-2 border-t border-gray-800/80 flex items-center justify-between gap-2 sm:gap-4 flex-wrap">
             <span className="text-xs font-mono font-semibold text-emerald-300 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20">
               ≈ ${estimatedUsdValue} USD
             </span>
@@ -239,12 +244,12 @@ export default function WalletPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
         {/* RECEIVE APN SECTION */}
-        <div className="p-8 rounded-3xl bg-gray-900/40 border border-gray-800/80 backdrop-blur-md flex flex-col justify-between space-y-6">
+        <div className="p-6 sm:p-8 rounded-3xl bg-gray-900/40 border border-gray-800/80 backdrop-blur-md flex flex-col justify-between space-y-6">
           <div className="space-y-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-blue-400 font-bold">
+              <div className="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-blue-400 font-bold shrink-0">
                 📥
               </div>
               <div>
@@ -257,13 +262,13 @@ export default function WalletPage() {
               <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">
                 Deposit Address
               </label>
-              <div className="flex items-center gap-2 bg-black/60 p-3 rounded-xl border border-gray-800">
-                <span className="text-xs font-mono text-emerald-400 truncate flex-1">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 bg-black/60 p-3 rounded-xl border border-gray-800">
+                <span className="text-xs font-mono text-emerald-400 truncate flex-1 break-all py-1 sm:py-0">
                   {walletAddress}
                 </span>
                 <button
                   onClick={handleCopyAddress}
-                  className="px-4 py-2 bg-blue-600/30 hover:bg-blue-600 border border-blue-500/40 text-blue-300 hover:text-white text-xs font-bold rounded-lg transition-all"
+                  className="px-4 py-2 bg-blue-600/30 hover:bg-blue-600 border border-blue-500/40 text-blue-300 hover:text-white text-xs font-bold rounded-lg transition-all shrink-0 text-center"
                 >
                   {copied ? "Copied! ✓" : "Copy"}
                 </button>
@@ -288,10 +293,10 @@ export default function WalletPage() {
         </div>
 
         {/* WITHDRAW APN SECTION */}
-        <div className="p-8 rounded-3xl bg-gray-900/40 border border-gray-800/80 backdrop-blur-md flex flex-col justify-between space-y-6">
+        <div className="p-6 sm:p-8 rounded-3xl bg-gray-900/40 border border-gray-800/80 backdrop-blur-md flex flex-col justify-between space-y-6">
           <div className="space-y-6">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-purple-600/20 border border-purple-500/40 flex items-center justify-center text-purple-400 font-bold">
+              <div className="w-10 h-10 rounded-xl bg-purple-600/20 border border-purple-500/40 flex items-center justify-center text-purple-400 font-bold shrink-0">
                 📤
               </div>
               <div>
@@ -316,7 +321,7 @@ export default function WalletPage() {
               </div>
 
               <div className="space-y-2">
-                <div className="flex justify-between">
+                <div className="flex justify-between items-center">
                   <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">
                     Amount (APN)
                   </label>

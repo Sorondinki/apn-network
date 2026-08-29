@@ -44,23 +44,53 @@ export default function ProfilePage() {
       router.push("/register");
       return;
     }
-    try {
-      const userData = JSON.parse(savedUser);
-      setUser(userData);
-      setAvatar(userData.avatar || userData.avatarUrl || null);
 
-      setFormData({
-        fullName: userData.fullName || userData.name || "",
-        email: userData.email || "",
-        phone: userData.phone || "",
-        country: userData.country || "",
-        city: userData.city || "",
-        walletAddress: userData.walletAddress || (userData.id
+    const userData = JSON.parse(savedUser);
+    setUser(userData);
+    setAvatar(userData.avatarUrl || userData.avatar || null);
+
+    setFormData({
+      fullName: userData.fullName || userData.name || "",
+      email: userData.email || "",
+      phone: userData.phone || "",
+      country: userData.country || "",
+      city: userData.city || "",
+      walletAddress:
+        userData.walletAddress ||
+        (userData.id
           ? `0xAPN${userData.id.substring(0, 8)}${userData.id.substring(userData.id.length - 8)}`
           : "0xAPN8f3A19B204C29e71"),
-      });
-    } catch (e) {
-      console.error("Error loading user data from localStorage", e);
+    });
+
+    // Fetch freshest Profile Data directly from Supabase DB to ensure blue tick and updates sync
+    async function refreshProfileFromDB() {
+      try {
+        const res = await fetch(`/api/user/profile?id=${userData.id}`);
+        const data = await res.json();
+        if (data.success && data.user) {
+          const freshUser = data.user;
+          const mergedUser = { ...userData, ...freshUser };
+          
+          setUser(mergedUser);
+          localStorage.setItem("apn_user", JSON.stringify(mergedUser));
+
+          setAvatar(freshUser.avatarUrl || freshUser.avatar || null);
+          setFormData((prev) => ({
+            ...prev,
+            fullName: freshUser.fullName || freshUser.name || prev.fullName,
+            phone: freshUser.phone || prev.phone,
+            country: freshUser.country || prev.country,
+            city: freshUser.city || prev.city,
+            walletAddress: freshUser.walletAddress || prev.walletAddress,
+          }));
+        }
+      } catch (err) {
+        console.error("Error refreshing profile data:", err);
+      }
+    }
+
+    if (userData.id) {
+      refreshProfileFromDB();
     }
   }, [router]);
 
@@ -85,6 +115,7 @@ export default function ProfilePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId: user.id,
+          fullName: formData.fullName,
           name: formData.fullName,
           phone: formData.phone,
           country: formData.country,
@@ -99,8 +130,9 @@ export default function ProfilePage() {
           ...user,
           ...data.user,
           fullName: formData.fullName,
-          avatar: avatar,
+          name: formData.fullName,
           avatarUrl: avatar,
+          avatar: avatar,
         };
 
         localStorage.setItem("apn_user", JSON.stringify(updatedUser));
@@ -119,8 +151,9 @@ export default function ProfilePage() {
 
   if (!user) return null;
 
-  // Check if current user is the Network Founder / Global Admin
+  // Check Founder Status and Verification Status
   const isFounder = user?.email?.toLowerCase() === "contact.aprotech@gmail.com";
+  const isUserVerified = Boolean(user?.isVerified);
 
   return (
     <div className="space-y-8 max-w-5xl mx-auto px-2 sm:px-4">
@@ -130,7 +163,7 @@ export default function ProfilePage() {
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-400 text-xs font-semibold">
             {isFounder ? "👑 Protocol Founder & Admin" : "⚡ Active Node Validator"}
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight flex items-center gap-2">
             Account Details & Identification
           </h1>
           <p className="text-gray-400 text-xs max-w-md">
@@ -143,7 +176,7 @@ export default function ProfilePage() {
         {/* AVATAR & BASIC BADGE CARD */}
         <div className="p-6 sm:p-8 rounded-3xl bg-gray-900/40 border border-gray-800/80 backdrop-blur-md flex flex-col items-center text-center space-y-6">
           <div className="relative group">
-            <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-full border-4 border-blue-500/30 bg-black overflow-hidden flex items-center justify-center shadow-2xl">
+            <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-full border-4 border-blue-500/30 bg-black overflow-hidden flex items-center justify-center shadow-2xl relative">
               {avatar ? (
                 <img src={avatar} alt="Profile Avatar" className="w-full h-full object-cover" />
               ) : (
@@ -157,7 +190,17 @@ export default function ProfilePage() {
           </div>
 
           <div>
-            <h3 className="text-lg font-bold text-white">{formData.fullName || (isFounder ? "Network Founder" : "APN Validator")}</h3>
+            <div className="flex items-center justify-center gap-1.5 flex-wrap">
+              <h3 className="text-lg font-bold text-white">
+                {formData.fullName || (isFounder ? "Network Founder" : "APN Validator")}
+              </h3>
+              {/* BLUE TICK VERIFIED BADGE */}
+              {isUserVerified && (
+                <span title="Verified User" className="inline-flex items-center justify-center w-5 h-5 bg-blue-500 text-white rounded-full text-[10px] font-bold shadow-md">
+                  ✓
+                </span>
+              )}
+            </div>
             <p className="text-xs text-emerald-400 font-mono mt-1 truncate max-w-[200px] sm:max-w-xs">{formData.email}</p>
           </div>
 
@@ -172,9 +215,16 @@ export default function ProfilePage() {
               <span>Node Status:</span>
               <span className="text-emerald-400 font-bold">Active Sync</span>
             </div>
-            <div className="flex justify-between">
+            <div className="flex justify-between items-center">
               <span>KYC Level:</span>
-              <span className="text-amber-400 font-bold">Unverified</span>
+              {isUserVerified ? (
+                <span className="text-emerald-400 font-bold flex items-center gap-1">
+                  <span>Verified</span>
+                  <span className="inline-block w-4 h-4 bg-blue-500 text-white text-[9px] rounded-full text-center leading-4 font-bold">✓</span>
+                </span>
+              ) : (
+                <span className="text-amber-400 font-bold">Unverified</span>
+              )}
             </div>
           </div>
         </div>
@@ -313,7 +363,7 @@ export default function ProfilePage() {
           href="/kyc"
           className="w-full md:w-auto text-center px-8 py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-emerald-900/40 whitespace-nowrap"
         >
-          Proceed to KYC Portal →
+          {isUserVerified ? "KYC Verified ✓" : "Proceed to KYC Portal →"}
         </Link>
       </div>
     </div>

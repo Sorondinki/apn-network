@@ -1,4 +1,3 @@
-// app/api/user/sync-balance/route.ts
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
@@ -17,15 +16,15 @@ export async function POST(req: Request) {
     const parsedBalance = parseFloat(balance);
     const parsedStartTime = miningStartTime ? Number(miningStartTime) : null;
 
+    // Fixed Table Name: "User" (Capitalized singular)
+    // Fixed Column Names: camelCase matching Supabase schema
     const { data, error } = await supabase
-      .from('users')
+      .from('User')
       .update({
         balance: parsedBalance,
-        is_mining: Boolean(isMining),
         isMining: Boolean(isMining),
-        mining_start_time: parsedStartTime,
         miningStartTime: parsedStartTime,
-        updated_at: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       })
       .eq('id', userId)
       .select()
