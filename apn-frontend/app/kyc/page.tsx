@@ -351,9 +351,9 @@ export default function KYCPage() {
               {loading ? (
                 <span>Processing Verification Route... ⏳</span>
               ) : verificationType === "FAST_TRACK" ? (
-                <span>Pay ₦1,000 via Paystack & Fast-Track (Instant 5s Approval) ⚡</span>
+                <span>Pay ₦1,000 via Paystack & Fast-Track (Instant 5s Approval) and Claim 100 APN⚡</span>
               ) : (
-                <span>Submit Free Verification & Claim 100 APN 🚀</span>
+                <span>Submit Free Verification & Claim 50 APN 🚀</span>
               )}
             </button>
           </form>
