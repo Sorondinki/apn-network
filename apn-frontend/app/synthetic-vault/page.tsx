@@ -21,10 +21,13 @@ export default function ExtendedSyntheticVaultPage() {
   const [user, setUser] = useState<any>(null);
   const [apnBalance, setApnBalance] = useState<number>(0);
   const [swapInput, setSwapInput] = useState<string>("");
-  const [selectedToken, setSelectedToken] = useState<string>("sSIDRA");
+  const [selectedToken, setSelectedToken] = useState<string>("aSIDRA");
   const [isSwapping, setIsSwapping] = useState<boolean>(false);
 
-  // Oracle Pegged Market Prices
+  // DARASIN APN TOKEN: fixed at $0.15 USD per APN
+  const APN_PRICE_USD = 0.15;
+
+  // Oracle Pegged Market Prices (USD)
   const [prices] = useState<LivePrices>({
     BTC: 67450.00,
     ETH: 3520.00,
@@ -57,7 +60,13 @@ export default function ExtendedSyntheticVaultPage() {
     }
     const parsed = JSON.parse(savedUser);
     setUser(parsed);
-    setApnBalance(parseFloat(parsed.balance || "0"));
+
+    const savedBal = localStorage.getItem("apn_user_balance");
+    if (savedBal) {
+      setApnBalance(parseFloat(savedBal));
+    } else {
+      setApnBalance(parseFloat(parsed.balance || "0"));
+    }
   }, [router]);
 
   useEffect(() => {
@@ -75,6 +84,20 @@ export default function ExtendedSyntheticVaultPage() {
     { symbol: "aSOL", name: "Solana Synthetic", key: "SOL", category: "Major Crypto" },
     { symbol: "aUSDT", name: "Tether USD Synthetic", key: "USDT", category: "Stablecoin" },
   ];
+
+  const currentTokenInfo = tokenList.find((t) => t.symbol === selectedToken) || tokenList[0];
+  const targetPriceUsd = prices[currentTokenInfo.key as keyof LivePrices] || 1;
+
+  // DYNAMIC CONVERSION CALCULATOR (@ $0.15 USD per APN)
+  const calculateOutput = (inputAmount: string) => {
+    const amount = parseFloat(inputAmount);
+    if (isNaN(amount) || amount <= 0) return "0.000000";
+    const totalUsdValue = amount * APN_PRICE_USD;
+    const received = totalUsdValue / targetPriceUsd;
+    
+    if (received < 0.001) return received.toFixed(6);
+    return received.toFixed(4);
+  };
 
   const handleSwap = async () => {
     const amount = parseFloat(swapInput);
@@ -112,12 +135,13 @@ export default function ExtendedSyntheticVaultPage() {
           [selectedToken]: data.newSyntheticBalance,
         }));
 
+        localStorage.setItem("apn_user_balance", data.newApnBalance.toString());
         const updatedUser = { ...user, balance: data.newApnBalance };
         setUser(updatedUser);
         localStorage.setItem("apn_user", JSON.stringify(updatedUser));
 
         setSwapInput("");
-        toast.success(`Nasara! An canja ${amount} APN zuwa ${data.receivedAmount.toFixed(4)} ${selectedToken}! 🚀`, { id: toastId });
+        toast.success(`Nasara! An canja ${amount} APN zuwa ${data.receivedAmount} ${selectedToken}! 🚀`, { id: toastId });
       } else {
         toast.error(data.error || "Swap failed", { id: toastId });
       }
@@ -141,13 +165,14 @@ export default function ExtendedSyntheticVaultPage() {
             </span>
             <h1 className="text-3xl font-black text-white mt-2">Multi-Chain Synthetic Ecosystem</h1>
             <p className="text-gray-400 text-xs max-w-xl">
-              Convert APN tokens into popular Web3 Mining Assets (Sidra, Core, Rubi, Ice, Pi) and Major Cryptos.
+              Convert APN tokens (Valued at $0.15 USD) into Web3 Mining Assets and Major Cryptos.
             </p>
           </div>
 
           <div className="p-4 bg-gray-900/80 border border-gray-800 rounded-2xl text-right">
             <span className="text-[10px] text-gray-400 font-bold block uppercase">Available APN Balance</span>
-            <span className="text-2xl font-extrabold text-emerald-400 font-mono">{apnBalance.toLocaleString()} APN</span>
+            <span className="text-2xl font-extrabold text-emerald-400 font-mono">{apnBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} APN</span>
+            <span className="text-[11px] text-indigo-400 font-bold block mt-0.5">≈ ${(apnBalance * APN_PRICE_USD).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD</span>
           </div>
         </div>
       </div>
@@ -206,14 +231,18 @@ export default function ExtendedSyntheticVaultPage() {
               onChange={(e) => setSwapInput(e.target.value)}
               className="w-full bg-black/60 border border-gray-800 rounded-xl px-4 py-3 text-white font-mono focus:outline-none focus:border-indigo-500"
             />
+            <span className="text-[11px] text-emerald-400 font-bold block">
+              1 APN = $0.15 USD ({swapInput && !isNaN(parseFloat(swapInput)) ? `≈ $${(parseFloat(swapInput) * APN_PRICE_USD).toFixed(2)} USD` : "$0.00 USD"})
+            </span>
           </div>
 
           <div className="p-4 rounded-xl bg-black/40 border border-gray-800 flex flex-col justify-center">
             <span className="text-xs text-gray-400 font-medium">You Will Receive ({selectedToken}):</span>
             <span className="text-2xl font-extrabold text-indigo-400 font-mono mt-1">
-              {swapInput && !isNaN(parseFloat(swapInput))
-                ? ((parseFloat(swapInput) / 1000) * 2.5).toFixed(4)
-                : "0.0000"}
+              {calculateOutput(swapInput)}
+            </span>
+            <span className="text-[11px] text-gray-500 block mt-1">
+              Target Asset Market Price: ${targetPriceUsd.toLocaleString()} USD
             </span>
           </div>
         </div>
@@ -221,7 +250,7 @@ export default function ExtendedSyntheticVaultPage() {
         <button
           onClick={handleSwap}
           disabled={isSwapping}
-          className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 font-extrabold text-white rounded-xl transition-all shadow-lg active:scale-95 disabled:opacity-50"
+          className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 font-extrabold text-white rounded-xl transition-all shadow-lg active:scale-95 disabled:opacity-50 cursor-pointer"
         >
           {isSwapping ? "Converting Assets..." : `Swap Now to ${selectedToken} 🚀`}
         </button>

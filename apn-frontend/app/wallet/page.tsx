@@ -2,9 +2,9 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 
-// Define authorized Tester / Mentor email addresses here
+// Authorized Tester / Mentor email addresses
 const TESTER_EMAILS = [
-  "maisanaakura@gmail.com", // Replace with your mentor's email address
+  "maisanaakura@gmail.com",
   "contact.aprotech@gmail.com",
   "sorondinkiseeme@gmail.com",
   "idrissharif30@gmail.com",
@@ -22,13 +22,38 @@ export default function WalletPage() {
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // State don Synthetic Assets na User
+  const [syntheticBalances, setSyntheticBalances] = useState<Record<string, number>>({
+    aETH: 0.0045,
+    aBTC: 0.00015,
+    aUSDT: 12.5,
+    aSOL: 0.125,
+    aSIDRA: 10,
+    aCORE: 15,
+    aRUBI: 35,
+    aICE: 150,
+    aPI: 25,
+  });
+
   const balanceRef = useRef(balance);
   balanceRef.current = balance;
 
-  // Set estimated value: 1 APN = $0.15 USD
+  // FIXED APN LAUNCH PRICE: 1 APN = $0.15 USD
   const APN_PRICE_USD = 0.15;
 
-  // Check if current logged-in user is an authorized tester/mentor
+  // Synthetic Token Prices for Live Portfolio Table
+  const TOKEN_PRICES: Record<string, number> = {
+    aETH: 3520.00,
+    aBTC: 67450.00,
+    aUSDT: 1.00,
+    aSOL: 154.50,
+    aSIDRA: 1.45,
+    aCORE: 1.28,
+    aRUBI: 0.65,
+    aICE: 0.08,
+    aPI: 31.40,
+  };
+
   const isTester = Boolean(
     user?.email && TESTER_EMAILS.includes(user.email.toLowerCase().trim())
   );
@@ -54,6 +79,16 @@ export default function WalletPage() {
       setBalance(parseFloat(savedBal));
     } else if (userData.balance !== undefined) {
       setBalance(parseFloat(userData.balance));
+    }
+
+    // Load Synthetic balances idan akwai a localStorage
+    const savedSyn = localStorage.getItem("apn_synthetic_balances");
+    if (savedSyn) {
+      try {
+        setSyntheticBalances(JSON.parse(savedSyn));
+      } catch (e) {
+        console.error("Error loading synthetic balances", e);
+      }
     }
 
     // REAL-TIME SYNC: Fetch live profile and permissions from Database
@@ -149,7 +184,6 @@ export default function WalletPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Handler for Mentor Testing Transfer Action
   const handleTestingTransfer = async () => {
     if (!withdrawAddress.trim()) {
       alert("Please enter a valid recipient wallet address.");
@@ -167,7 +201,6 @@ export default function WalletPage() {
 
     setIsSubmitting(true);
     try {
-      // Deduct locally and sync
       const nextBalance = balance - amountNum;
       setBalance(nextBalance);
       localStorage.setItem("apn_user_balance", nextBalance.toString());
@@ -195,74 +228,84 @@ export default function WalletPage() {
 
   if (!user) return null;
 
-  const estimatedUsdValue = (balance * APN_PRICE_USD).toFixed(4);
+  // Lissafe-Lissafe na Net Worth (APN + Synthetic Assets)
+  const apnUsdValue = balance * APN_PRICE_USD;
+  const syntheticUsdValue = Object.keys(syntheticBalances).reduce((acc, key) => {
+    return acc + (syntheticBalances[key] || 0) * (TOKEN_PRICES[key] || 0);
+  }, 0);
+
+  const totalPortfolioValueUsd = apnUsdValue + syntheticUsdValue;
   const isWithdrawUnlocked = isTester || canWithdraw;
 
   return (
-    <div className="space-y-6 md:space-y-8 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
-      {/* HEADER SECTION */}
-      <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-gray-900/60 via-slate-900/50 to-gray-900/60 border border-gray-800/80 backdrop-blur-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+    <div className="space-y-6 md:space-y-8 max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6">
+      
+      {/* HEADER SECTION & TOTAL PORTFOLIO OVERVIEW */}
+      <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-gray-900/80 via-slate-900/70 to-gray-900/80 border border-gray-800/80 backdrop-blur-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6 shadow-2xl">
         <div className="space-y-2 w-full md:w-auto">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-400 text-xs font-semibold">
-            💳 APN Decentralized Vault
+            💳 APN Decentralized Multi-Asset Vault
           </div>
           <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-            Wallet & Assets Management
+            Wallet & Portfolio Holdings
           </h1>
-          <p className="text-gray-400 text-xs max-w-md">
-            Manage your native APN crypto holdings, receive tokens from peer nodes, or prepare for mainnet token distribution.
+          <p className="text-gray-400 text-xs max-w-md leading-relaxed">
+            Monitor native APN tokens alongside synthetic cross-chain assets locked in your decentralized vault.
           </p>
         </div>
 
-        {/* LIVE REAL-TIME BALANCE & USD VALUE BOX */}
-        <div className="w-full md:w-auto p-5 sm:p-6 rounded-2xl bg-black/40 border border-emerald-500/30 backdrop-blur-md">
+        {/* PORTFOLIO OVERVIEW CARD */}
+        <div className="w-full md:w-auto p-5 sm:p-6 rounded-2xl bg-black/60 border border-emerald-500/30 backdrop-blur-md shadow-inner">
           <div className="flex justify-between items-center mb-1 gap-4">
-            <span className="text-[11px] text-gray-400 font-bold uppercase tracking-wider block">
-              ESTIMATED TOTAL BALANCE
+            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">
+              TOTAL PORTFOLIO NET WORTH
             </span>
             {isMining && (
               <span className="flex items-center gap-1.5 text-[10px] text-emerald-400 font-mono">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                LIVE
+                LIVE SYNC
               </span>
             )}
           </div>
 
           <div className="flex items-baseline gap-2 mt-1 flex-wrap">
-            <span className="text-2xl sm:text-3xl font-extrabold text-emerald-400 font-mono tracking-tight break-all">
-              {balance.toFixed(6)}
+            <span className="text-2xl sm:text-3xl font-black text-emerald-400 font-mono tracking-tight">
+              ${totalPortfolioValueUsd.toFixed(2)}
             </span>
-            <span className="text-xs font-bold text-gray-300">APN</span>
+            <span className="text-xs font-bold text-gray-400">USD</span>
           </div>
 
-          <div className="mt-2 pt-2 border-t border-gray-800/80 flex items-center justify-between gap-2 sm:gap-4 flex-wrap">
-            <span className="text-xs font-mono font-semibold text-emerald-300 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20">
-              ≈ ${estimatedUsdValue} USD
-            </span>
-            <span className="text-[10px] text-gray-400 font-mono">
-              (1 APN = ${APN_PRICE_USD})
+          <div className="mt-3 pt-2 border-t border-gray-800/80 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-1.5 text-xs font-mono text-gray-300">
+              <span className="text-blue-400 font-bold">{balance.toFixed(4)} APN</span>
+              <span className="text-[10px] text-gray-500">(≈ ${apnUsdValue.toFixed(2)})</span>
+            </div>
+            <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 font-mono">
+              1 APN = ${APN_PRICE_USD.toFixed(2)}
             </span>
           </div>
         </div>
       </div>
 
+      {/* DEPOSIT & WITHDRAWAL GRID */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
+        
         {/* RECEIVE APN SECTION */}
-        <div className="p-6 sm:p-8 rounded-3xl bg-gray-900/40 border border-gray-800/80 backdrop-blur-md flex flex-col justify-between space-y-6">
+        <div className="p-6 sm:p-8 rounded-3xl bg-gray-900/50 border border-gray-800/80 backdrop-blur-md flex flex-col justify-between space-y-6 shadow-lg">
           <div className="space-y-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-blue-400 font-bold shrink-0">
                 📥
               </div>
               <div>
-                <h3 className="text-lg font-bold text-white">Receive APN</h3>
+                <h3 className="text-lg font-bold text-white">Receive Assets & APN</h3>
                 <p className="text-xs text-gray-400">Your unique APN Layer-1 deposit address</p>
               </div>
             </div>
 
             <div className="space-y-2 pt-2">
               <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">
-                Deposit Address
+                Public Wallet Address
               </label>
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 bg-black/60 p-3 rounded-xl border border-gray-800">
                 <span className="text-xs font-mono text-emerald-400 truncate flex-1 break-all py-1 sm:py-0">
@@ -270,7 +313,7 @@ export default function WalletPage() {
                 </span>
                 <button
                   onClick={handleCopyAddress}
-                  className="px-4 py-2 bg-blue-600/30 hover:bg-blue-600 border border-blue-500/40 text-blue-300 hover:text-white text-xs font-bold rounded-lg transition-all shrink-0 text-center"
+                  className="px-4 py-2 bg-blue-600/30 hover:bg-blue-600 border border-blue-500/40 text-blue-300 hover:text-white text-xs font-bold rounded-lg transition-all shrink-0 text-center cursor-pointer"
                 >
                   {copied ? "Copied! ✓" : "Copy"}
                 </button>
@@ -288,14 +331,14 @@ export default function WalletPage() {
                 </div>
               </div>
               <p className="text-[11px] text-gray-400">
-                Scan QR code to transfer APN tokens directly to this account.
+                Scan QR code to transfer APN tokens or synthetic assets directly to this account.
               </p>
             </div>
           </div>
         </div>
 
         {/* WITHDRAW APN SECTION */}
-        <div className="p-6 sm:p-8 rounded-3xl bg-gray-900/40 border border-gray-800/80 backdrop-blur-md flex flex-col justify-between space-y-6">
+        <div className="p-6 sm:p-8 rounded-3xl bg-gray-900/50 border border-gray-800/80 backdrop-blur-md flex flex-col justify-between space-y-6 shadow-lg">
           <div className="space-y-6">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-purple-600/20 border border-purple-500/40 flex items-center justify-center text-purple-400 font-bold shrink-0">
@@ -330,7 +373,7 @@ export default function WalletPage() {
                   <button
                     disabled={!isWithdrawUnlocked}
                     onClick={() => setWithdrawAmount(balance.toString())}
-                    className="text-xs text-blue-400 hover:underline font-bold disabled:opacity-50 disabled:no-underline"
+                    className="text-xs text-blue-400 hover:underline font-bold disabled:opacity-50 disabled:no-underline cursor-pointer"
                   >
                     Max
                   </button>
@@ -395,6 +438,103 @@ export default function WalletPage() {
           </div>
         </div>
       </div>
+
+      {/* FULL WALLET ASSET PORTFOLIO TABLE (APN + SYNTHETICS) */}
+      <div className="p-6 sm:p-8 rounded-3xl bg-gray-900/60 border border-gray-800/80 backdrop-blur-xl space-y-6 shadow-2xl">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-800/80 pb-4">
+          <div>
+            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+              📊 Multi-Asset Portfolio Balance
+            </h2>
+            <p className="text-xs text-gray-400 mt-1">
+              Complete breakdown of native APN coins and synthetic cross-chain tokens stored in your wallet.
+            </p>
+          </div>
+          <div className="text-xs font-mono text-gray-400 bg-black/40 px-3 py-1.5 rounded-lg border border-gray-800 self-start sm:self-auto">
+            Total Assets: <span className="text-emerald-400 font-bold">{1 + Object.keys(syntheticBalances).length} Tokens</span>
+          </div>
+        </div>
+
+        {/* TABLE CONTAINER FOR RESPONSIVE DESKTOP & MOBILE VIEW */}
+        <div className="overflow-x-auto custom-scrollbar">
+          <table className="w-full text-left border-collapse min-w-[600px]">
+            <thead>
+              <tr className="border-b border-gray-800 text-[11px] uppercase tracking-wider text-gray-400 font-mono">
+                <th className="py-3 px-4">Asset Name</th>
+                <th className="py-3 px-4">Type</th>
+                <th className="py-3 px-4">Balance</th>
+                <th className="py-3 px-4">Market Price</th>
+                <th className="py-3 px-4 text-right">Total Value (USD)</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-800/60 text-xs">
+              
+              {/* NATIVE APN TOKEN ROW */}
+              <tr className="hover:bg-blue-600/5 transition-colors group">
+                <td className="py-4 px-4 font-bold text-white flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-blue-500/20 border border-blue-500/40 flex items-center justify-center text-blue-400 font-bold shrink-0">
+                    ⚡
+                  </div>
+                  <div>
+                    <span className="block font-black text-blue-400">APN Token</span>
+                    <span className="text-[10px] text-gray-400 font-normal">Alpha Proficiency Protocol</span>
+                  </div>
+                </td>
+                <td className="py-4 px-4">
+                  <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                    Native Coin
+                  </span>
+                </td>
+                <td className="py-4 px-4 font-mono font-bold text-emerald-400">
+                  {balance.toFixed(6)} APN
+                </td>
+                <td className="py-4 px-4 font-mono text-gray-300">
+                  ${APN_PRICE_USD.toFixed(2)}
+                </td>
+                <td className="py-4 px-4 font-mono font-black text-right text-emerald-400">
+                  ${apnUsdValue.toFixed(2)}
+                </td>
+              </tr>
+
+              {/* SYNTHETIC ASSETS ROWS */}
+              {Object.keys(syntheticBalances).map((symbol) => {
+                const qty = syntheticBalances[symbol] || 0;
+                const price = TOKEN_PRICES[symbol] || 0;
+                const totalUsd = qty * price;
+
+                return (
+                  <tr key={symbol} className="hover:bg-gray-800/40 transition-colors">
+                    <td className="py-4 px-4 font-bold text-white flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-300 font-bold shrink-0">
+                        🏛️
+                      </div>
+                      <div>
+                        <span className="block text-gray-200">{symbol}</span>
+                        <span className="text-[10px] text-gray-500 font-normal">Synthetic Asset</span>
+                      </div>
+                    </td>
+                    <td className="py-4 px-4">
+                      <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                        Pegged Vault
+                      </span>
+                    </td>
+                    <td className="py-4 px-4 font-mono font-bold text-gray-200">
+                      {qty} {symbol}
+                    </td>
+                    <td className="py-4 px-4 font-mono text-gray-400">
+                      ${price.toLocaleString()}
+                    </td>
+                    <td className="py-4 px-4 font-mono font-bold text-right text-gray-200">
+                      ${totalUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
     </div>
   );
 }

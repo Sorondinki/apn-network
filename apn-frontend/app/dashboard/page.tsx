@@ -380,7 +380,7 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        {/* CENTER APN ANIMATED GRAPHIC (JAR KALA KAWARDA CAN) */}
+        {/* CENTER APN ANIMATED GRAPHIC */}
         <div className="relative flex items-center justify-center my-2 md:my-0">
           <div className={`absolute w-40 h-40 rounded-full transition-all duration-700 ${
             isMining ? "bg-red-500/30 blur-3xl animate-pulse" : "bg-transparent"
@@ -402,7 +402,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* ACTION BUTTON SECTION (JAR KALA KAWARDA CAN) */}
+        {/* ACTION BUTTON SECTION */}
         <div className="z-10 flex flex-col items-center gap-3">
           {isMining ? (
             <div className="flex flex-col items-center space-y-2">
@@ -480,7 +480,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Node Execution Status Card (JAR KALA KAWARDA CAN) */}
+        {/* Node Execution Status Card */}
         <div className="p-6 rounded-2xl bg-gray-900/40 border border-gray-800/80 backdrop-blur-md hover:border-red-500/30 transition-all duration-300">
           <span className="text-[11px] text-gray-400 font-bold uppercase tracking-wider block">
             NODE EXECUTION STATUS
@@ -581,7 +581,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* PROGRESS BAR SECTION (JAR KALA KAWARDA CAN) */}
+      {/* PROGRESS BAR SECTION */}
       <div className="p-6 rounded-2xl bg-gray-900/40 border border-gray-800/80 backdrop-blur-md space-y-3">
         <div className="flex justify-between items-center text-xs text-gray-400 font-medium">
           <span>24-Hour Mining Cycle Progress</span>
@@ -599,12 +599,23 @@ export default function DashboardPage() {
       <AadsBanner />
 
       {/* FEATURE PROMOTIONAL CARDS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
+        <div 
+          onClick={() => router.push('/synthetic-vault')}
+          className="p-5 rounded-2xl bg-gradient-to-br from-gray-900/60 to-gray-950/80 border border-amber-500/30 hover:border-amber-500 transition-all cursor-pointer group shadow-lg"
+        >
+          <div className="text-amber-400 mb-2 group-hover:scale-110 transition-transform w-max text-xl">🏛️</div>
+          <h3 className="text-sm font-bold text-white group-hover:text-amber-400 transition-colors">Synthetic Vault</h3>
+          <p className="text-xs text-gray-400 mt-1">
+            Swap APN tokens to synthetic assets (aBTC, aETH, aSIDRA) seamlessly.
+          </p>
+        </div>
+
         <div 
           onClick={() => router.push('/referral')}
           className="p-5 rounded-2xl bg-gradient-to-br from-gray-900/60 to-gray-950/80 border border-gray-800/80 hover:border-blue-500/50 transition-all cursor-pointer group"
         >
-          <div className="text-blue-400 mb-2 group-hover:scale-110 transition-transform w-max">👥</div>
+          <div className="text-blue-400 mb-2 group-hover:scale-110 transition-transform w-max text-xl">👥</div>
           <h3 className="text-sm font-bold text-white">Active Referral Mining</h3>
           <p className="text-xs text-gray-400 mt-1">
             Earn +0.2 APN/hr for each active peer mining right now ({activeReferrals}/{totalReferrals} Active).
@@ -612,13 +623,13 @@ export default function DashboardPage() {
         </div>
 
         <div className="p-5 rounded-2xl bg-gradient-to-br from-gray-900/60 to-gray-950/80 border border-gray-800/80 hover:border-emerald-500/50 transition-all">
-          <div className="text-emerald-400 mb-2 w-max">🛡️</div>
+          <div className="text-emerald-400 mb-2 w-max text-xl">🛡️</div>
           <h3 className="text-sm font-bold text-white">Cryptographic Vault</h3>
           <p className="text-xs text-gray-400 mt-1">Your mined APN token balance is cryptographically secured via PoS mainnet consensus.</p>
         </div>
 
-        <div className="p-5 rounded-2xl bg-gradient-to-br from-gray-900/60 to-gray-950/80 border border-gray-800/80 hover:border-amber-500/50 transition-all sm:col-span-2 lg:col-span-1">
-          <div className="text-amber-400 mb-2 w-max">⚡</div>
+        <div className="p-5 rounded-2xl bg-gradient-to-br from-gray-900/60 to-gray-950/80 border border-gray-800/80 hover:border-amber-500/50 transition-all">
+          <div className="text-amber-400 mb-2 w-max text-xl">⚡</div>
           <h3 className="text-sm font-bold text-white">Deterministic Execution</h3>
           <p className="text-xs text-gray-400 mt-1">Time-locked validation prevents client-side balance tampering and page refresh manipulation.</p>
         </div>

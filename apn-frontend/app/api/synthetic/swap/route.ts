@@ -1,16 +1,20 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 
-const CONVERSION_RATES: Record<string, number> = {
-  aBTC: 0.00005,
-  aETH: 0.0012,
-  aSOL: 0.025,
-  aUSDT: 3.50,
-  aPI: 5.00,
-  aSIDRA: 2.50,
-  aCORE: 4.00,
-  aRUBI: 8.50,
-  aICE: 25.00,
+// APN PRICE: Fixed at $0.15 USD
+const APN_PRICE_USD = 0.15;
+
+// Oracle Market Prices in USD
+const MARKET_PRICES_USD: Record<string, number> = {
+  aBTC: 67450.00,
+  aETH: 3520.00,
+  aSOL: 154.50,
+  aUSDT: 1.00,
+  aPI: 31.40,
+  aSIDRA: 1.45,
+  aCORE: 1.28,
+  aRUBI: 0.65,
+  aICE: 0.08,
 };
 
 export async function POST(req: Request) {
@@ -22,7 +26,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Minimum swap amount is 100 APN." }, { status: 400 });
     }
 
-    if (!CONVERSION_RATES[targetToken]) {
+    const targetPrice = MARKET_PRICES_USD[targetToken];
+    if (!targetPrice) {
       return NextResponse.json({ error: "Invalid target synthetic token." }, { status: 400 });
     }
 
@@ -43,8 +48,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Insufficient APN balance for this swap." }, { status: 400 });
     }
 
-    const rate = CONVERSION_RATES[targetToken];
-    const receivedAmount = (amountToSwap / 1000) * rate;
+    // LISSAFIN GASKIYA BASED ON $0.15 APN VALUE:
+    const totalUsdValue = amountToSwap * APN_PRICE_USD;
+    const rawReceived = totalUsdValue / targetPrice;
+    
+    const receivedAmount = rawReceived < 0.001 
+      ? parseFloat(rawReceived.toFixed(6)) 
+      : parseFloat(rawReceived.toFixed(4));
+
     const newApnBalance = currentBalance - amountToSwap;
 
     await supabase.from("User").update({ balance: newApnBalance }).eq("id", user.id);
@@ -89,7 +100,7 @@ export async function POST(req: Request) {
       to_token: targetToken,
       amount_spent: amountToSwap,
       amount_received: receivedAmount,
-      oracle_rate: rate,
+      oracle_rate: targetPrice,
     });
 
     return NextResponse.json({
@@ -104,4 +115,3 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: err?.message || "Internal server error." }, { status: 500 });
   }
 }
-      
