@@ -6,9 +6,9 @@ import { useRouter } from "next/navigation";
 interface Transaction {
   id: string;
   txHash: string;
-  type: "MINING_REWARD" | "REFERRAL_BONUS" | "STAKING_YIELD" | "TRANSFER_OUT" | "TRANSFER_IN";
+  type: string;
   amount: number;
-  status: "COMPLETED" | "PENDING" | "FAILED";
+  status: string;
   timestamp: string;
   description: string;
 }
@@ -29,62 +29,15 @@ export default function TransactionsPage() {
         cache: "no-store",
       });
       const data = await res.json();
-      
-      if (data.success && Array.isArray(data.transactions) && data.transactions.length > 0) {
+
+      if (data.success && Array.isArray(data.transactions)) {
         setTransactions(data.transactions);
       } else {
-        // Dynamic fallback mock data with fixed timestamps to prevent re-hydration error
-        const now = Date.now();
-        setTransactions([
-          {
-            id: "tx-101",
-            txHash: "0xapn982f...a12c",
-            type: "MINING_REWARD",
-            amount: 24.00,
-            status: "COMPLETED",
-            timestamp: new Date(now - 3600000 * 2).toISOString().replace("T", " ").substring(0, 19),
-            description: "24-Hour Node Mining Cycle Reward",
-          },
-          {
-            id: "tx-102",
-            txHash: "0xapn441b...7e99",
-            type: "REFERRAL_BONUS",
-            amount: 14.50,
-            status: "COMPLETED",
-            timestamp: new Date(now - 3600000 * 18).toISOString().replace("T", " ").substring(0, 19),
-            description: "10% Mining Hash Rate Commission (Ref: APN-8902)",
-          },
-          {
-            id: "tx-103",
-            txHash: "0xapn110c...3b88",
-            type: "STAKING_YIELD",
-            amount: 8.75,
-            status: "COMPLETED",
-            timestamp: new Date(now - 3600000 * 24).toISOString().replace("T", " ").substring(0, 19),
-            description: "+18.5% APY Staking Vault Daily Interest",
-          },
-          {
-            id: "tx-104",
-            txHash: "0xapn773d...11fe",
-            type: "MINING_REWARD",
-            amount: 24.00,
-            status: "COMPLETED",
-            timestamp: new Date(now - 3600000 * 26).toISOString().replace("T", " ").substring(0, 19),
-            description: "24-Hour Node Mining Cycle Reward",
-          },
-          {
-            id: "tx-105",
-            txHash: "0xapn332e...99da",
-            type: "TRANSFER_OUT",
-            amount: 50.00,
-            status: "COMPLETED",
-            timestamp: new Date(now - 3600000 * 48).toISOString().replace("T", " ").substring(0, 19),
-            description: "Mainnet Wallet Transfer to 0x3A...91bB",
-          },
-        ]);
+        setTransactions([]);
       }
     } catch (err) {
-      console.error("Error loading transactions:", err);
+      console.error("Error loading transactions from server:", err);
+      setTransactions([]);
     } finally {
       setLoading(false);
     }
@@ -97,11 +50,11 @@ export default function TransactionsPage() {
       router.push("/register");
       return;
     }
-    
+
     try {
       const userData = JSON.parse(savedUser);
       setUser(userData);
-      fetchTransactions(userData.id || "default_user");
+      fetchTransactions(userData.id);
     } catch (e) {
       console.error("Failed to parse user session", e);
       router.push("/register");
@@ -125,7 +78,7 @@ export default function TransactionsPage() {
     return tx.type === filter;
   });
 
-  const totalEarned24h = transactions
+  const totalEarned = transactions
     .filter((t) => t.type !== "TRANSFER_OUT" && t.status === "COMPLETED")
     .reduce((acc, curr) => acc + curr.amount, 0);
 
@@ -145,7 +98,7 @@ export default function TransactionsPage() {
             Transaction Activity Log
           </h1>
           <p className="text-gray-400 text-xs max-w-md">
-            View real-time records of your 24-hour mining rewards, referral commissions, staking yields, and mainnet token transfers.
+            View real-time database records of your node mining rewards, referral commissions, founder airdrops, and token transfers.
           </p>
         </div>
       </div>
@@ -154,10 +107,10 @@ export default function TransactionsPage() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
         <div className="p-6 rounded-2xl bg-gray-900/40 border border-gray-800/80 backdrop-blur-md">
           <span className="text-xs text-gray-400 uppercase font-bold tracking-wider">
-            Total Cycle Earnings
+            Total Earnings Received
           </span>
           <p className="text-3xl font-black text-emerald-400 mt-2 font-mono">
-            +{totalEarned24h.toFixed(2)} <span className="text-xs font-normal text-gray-400">APN</span>
+            +{totalEarned.toFixed(2)} <span className="text-xs font-normal text-gray-400">APN</span>
           </p>
         </div>
 
@@ -186,6 +139,7 @@ export default function TransactionsPage() {
           { label: "All Transactions", value: "ALL" },
           { label: "⛏️ Mining Rewards", value: "MINING_REWARD" },
           { label: "🎁 Referral Bonus", value: "REFERRAL_BONUS" },
+          { label: "💎 Founder Airdrop", value: "FOUNDER_AIRDROP" },
           { label: "🔒 Staking Yields", value: "STAKING_YIELD" },
           { label: "💸 Transfers Out", value: "TRANSFER_OUT" },
         ].map((item) => (
@@ -203,15 +157,15 @@ export default function TransactionsPage() {
         ))}
       </div>
 
-      {/* TRANSACTIONS TABLE / LIST */}
+      {/* TRANSACTIONS TABLE */}
       <div className="p-6 rounded-3xl bg-gray-900/40 border border-gray-800/80 backdrop-blur-md space-y-4 overflow-hidden">
         {loading ? (
           <div className="text-center py-12 text-gray-500 font-mono text-xs">
-            Loading transaction ledger...
+            Fetching live transactions from database...
           </div>
         ) : filteredTransactions.length === 0 ? (
           <div className="text-center py-12 text-gray-500 font-mono text-xs">
-            No transactions found for this filter.
+            No transaction records found in database for this filter.
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -239,6 +193,8 @@ export default function TransactionsPage() {
                                 ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30"
                                 : tx.type === "REFERRAL_BONUS"
                                 ? "bg-amber-500/10 text-amber-400 border border-amber-500/30"
+                                : tx.type === "FOUNDER_AIRDROP"
+                                ? "bg-blue-500/10 text-blue-400 border border-blue-500/30"
                                 : tx.type === "STAKING_YIELD"
                                 ? "bg-purple-500/10 text-purple-400 border border-purple-500/30"
                                 : "bg-rose-500/10 text-rose-400 border border-rose-500/30"
@@ -248,6 +204,8 @@ export default function TransactionsPage() {
                               ? "⛏️"
                               : tx.type === "REFERRAL_BONUS"
                               ? "🎁"
+                              : tx.type === "FOUNDER_AIRDROP"
+                              ? "💎"
                               : tx.type === "STAKING_YIELD"
                               ? "🔒"
                               : "💸"}
@@ -255,7 +213,7 @@ export default function TransactionsPage() {
                           <div>
                             <p className="font-bold text-white">{tx.description}</p>
                             <span className="text-[10px] text-gray-500 uppercase font-mono">
-                              {tx.type.replace("_", " ")}
+                              {tx.type.replace(/_/g, " ")}
                             </span>
                           </div>
                         </div>
