@@ -73,8 +73,18 @@ export default function TransactionsPage() {
     return null;
   }
 
-  const filteredTransactions = transactions.filter((tx) => {
+    const filteredTransactions = transactions.filter((tx) => {
     if (filter === "ALL") return true;
+
+    // Direct filter logic for Founder Airdrop
+    if (filter === "FOUNDER_AIRDROP") {
+      return (
+        tx.type === "FOUNDER_AIRDROP" ||
+        tx.type.includes("AIRDROP") ||
+        tx.type.includes("FOUNDER")
+      );
+    }
+
     return tx.type === filter;
   });
 
