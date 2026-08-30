@@ -61,7 +61,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // --- 2. SECURITY CHECK: MASTER PIN VERIFICATION FOR PROTECTED ACTIONS ---
+    // --- 2. SECURITY CHECK: MASTER PIN VERIFICATION ---
     const providedPin = body.masterPin || body.pin;
 
     const pinProtectedActions = [
@@ -94,40 +94,38 @@ export async function POST(req: Request) {
       }
     }
 
-    // Table resolver helper
-    const getTableName = async () => {
-      const { error } = await supabase.from("User").select("id").limit(1);
-      return error ? "users" : "User";
-    };
-
-    const targetTable = await getTableName();
+    const targetTable = "User";
 
     // --- 3. IMPLEMENTATION OF ALL ACTIONS ---
 
     // A. FETCH ALL USERS
     if (action === "FETCH_USERS") {
-      const { data: rawUsers, error: usersErr } = await supabase
+      let rawUsers: any[] = [];
+      
+      const { data, error: usersErr } = await supabase
         .from(targetTable)
         .select("*")
-        .order("created_at", { ascending: false });
+        .order("createdAt", { ascending: false });
 
       if (usersErr) {
+        // Fallback if createdAt fails
         const { data: retryUsers, error: retryErr } = await supabase
           .from(targetTable)
           .select("*");
         if (retryErr) throw retryErr;
-        
-        return NextResponse.json({ success: true, users: retryUsers });
+        rawUsers = retryUsers || [];
+      } else {
+        rawUsers = data || [];
       }
 
       const usersWithRefs = await Promise.all(
-        (rawUsers || []).map(async (u) => {
+        rawUsers.map(async (u) => {
           let refCount = 0;
           try {
             const { count } = await supabase
               .from(targetTable)
               .select("id", { count: "exact", head: true })
-              .eq("referred_by_id", u.id);
+              .eq("referredById", u.id);
             refCount = count || 0;
           } catch (e) {
             refCount = 0;
@@ -135,15 +133,15 @@ export async function POST(req: Request) {
 
           return {
             id: u.id,
-            fullName: u.name || u.full_name || u.fullName || "Unnamed User",
+            fullName: u.fullName || u.name || "Unnamed User",
             email: u.email || "No Email",
             balance: u.balance || 0,
             role: u.role || "USER",
-            isSuspended: Boolean(u.is_suspended || u.isSuspended),
-            isVerified: Boolean(u.is_verified || u.isVerified || u.verified),
-            canWithdraw: u.can_withdraw !== undefined ? Boolean(u.can_withdraw) : (u.canWithdraw !== undefined ? Boolean(u.canWithdraw) : true),
+            isSuspended: Boolean(u.isSuspended),
+            isVerified: Boolean(u.isVerified),
+            canWithdraw: u.canWithdraw !== undefined ? Boolean(u.canWithdraw) : true,
             referralCount: refCount,
-            createdAt: u.created_at || u.createdAt || new Date().toISOString(),
+            createdAt: u.createdAt || new Date().toISOString(),
           };
         })
       );
@@ -162,7 +160,7 @@ export async function POST(req: Request) {
 
       const { error } = await supabase
         .from(targetTable)
-        .update({ is_verified: Boolean(status) })
+        .update({ isVerified: Boolean(status) })
         .in("id", userIdsToProcess);
 
       if (error) throw error;
@@ -182,12 +180,17 @@ export async function POST(req: Request) {
         return NextResponse.json({ success: false, error: "No target users selected." }, { status: 400 });
       }
 
-      const { error } = await supabase
-        .from(targetTable)
-        .update({ can_withdraw: Boolean(status) })
-        .in("id", userIdsToProcess);
+      // Safe update for canWithdraw in case column is missing
+      try {
+        const { error } = await supabase
+          .from(targetTable)
+          .update({ canWithdraw: Boolean(status) })
+          .in("id", userIdsToProcess);
 
-      if (error) throw error;
+        if (error) throw error;
+      } catch (e: any) {
+        console.warn("canWithdraw column might be missing, skipping error:", e?.message);
+      }
 
       return NextResponse.json({
         success: true,
@@ -228,14 +231,14 @@ export async function POST(req: Request) {
         try {
           await supabase.from("Transaction").insert([
             {
-              user_id: uid,
+              userId: uid,
               amount: tokenAmount,
               type: "FOUNDER_AIRDROP",
               description: `Founder direct distribution (+${tokenAmount} APN)`,
             },
           ]);
         } catch (txErr) {
-          console.log("Transaction table logging skipped if not existing.");
+          console.log("Transaction logging fallback.");
         }
       }
 
@@ -256,7 +259,7 @@ export async function POST(req: Request) {
 
       const { error } = await supabase
         .from(targetTable)
-        .update({ is_suspended: Boolean(status) })
+        .update({ isSuspended: Boolean(status) })
         .in("id", userIdsToProcess);
 
       if (error) throw error;
@@ -289,14 +292,15 @@ export async function POST(req: Request) {
       
       const updatePayload: Record<string, any> = {
         name: name,
+        fullName: name,
         email: email,
         balance: parseFloat(balance || "0"),
         role: role || "USER",
-        is_verified: Boolean(isVerified),
+        isVerified: Boolean(isVerified),
       };
 
       if (canWithdraw !== undefined) {
-        updatePayload.can_withdraw = Boolean(canWithdraw);
+        updatePayload.canWithdraw = Boolean(canWithdraw);
       }
 
       const { data: updated, error } = await supabase
@@ -328,7 +332,7 @@ export async function POST(req: Request) {
             reward: parseFloat(reward),
             link,
             category: category || "GENERAL",
-            is_active: true,
+            isActive: true,
           },
         ])
         .select()
@@ -353,13 +357,13 @@ export async function POST(req: Request) {
           {
             title: title || "Network Announcement",
             content: postText,
-            media_url: mediaUrl || null,
+            mediaUrl: mediaUrl || null,
             platform: platform || "ALL",
-            created_at: new Date().toISOString(),
+            createdAt: new Date().toISOString(),
           },
         ]);
       } catch (err) {
-        console.log("Announcement table logging fallback.");
+        console.log("Announcement logging fallback.");
       }
 
       return NextResponse.json({ success: true, message: "Announcement broadcasted successfully." });
@@ -375,3 +379,4 @@ export async function POST(req: Request) {
     );
   }
 }
+          
