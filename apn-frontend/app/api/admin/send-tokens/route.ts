@@ -6,15 +6,25 @@ export const dynamic = 'force-dynamic';
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { mentorUserId, amount, masterPin } = body;
 
-    // 1. Tabbatar da Master PIN
+    // 1. Karbi ID din mutum ta ko wacce kalma aka aiko ta (mentorUserId ko targetUserId)
+    const targetId = body.mentorUserId || body.targetUserId;
+    const { amount, masterPin } = body;
+
+    // 2. Tabbatar da Master PIN
     const VALID_MASTER_PIN = process.env.MASTER_PIN || "APN-FOUNDER-2026#SECURE";
 
     if (!masterPin || String(masterPin).trim() !== VALID_MASTER_PIN) {
       return NextResponse.json(
         { success: false, error: "Master Security PIN din da ka shigar ba daidai ba ne!" },
         { status: 401 }
+      );
+    }
+
+    if (!targetId) {
+      return NextResponse.json(
+        { success: false, error: "Zaɓi memba ko mentor da kake son tura mawa tokens." },
+        { status: 400 }
       );
     }
 
@@ -26,11 +36,11 @@ export async function POST(req: Request) {
       );
     }
 
-    // 2. Samo asalin balance din User din daga Supabase
+    // 3. Samo asalin balance din User din daga Supabase
     const { data: user, error: fetchErr } = await supabase
       .from("User")
-      .select("balance")
-      .eq("id", mentorUserId)
+      .select("id, balance")
+      .eq("id", targetId)
       .maybeSingle();
 
     if (fetchErr || !user) {
@@ -43,33 +53,39 @@ export async function POST(req: Request) {
     const currentBalance = parseFloat(user.balance || "0");
     const newBalance = currentBalance + tokenAmount;
 
-    // 3. Aiwatar da Real Database Transaction Update
+    // 4. Update a teburin User
     const { error: updateErr } = await supabase
       .from("User")
       .update({ balance: newBalance })
-      .eq("id", mentorUserId);
+      .eq("id", targetId);
 
     if (updateErr) {
-      throw updateErr;
+      console.error("User balance update error:", updateErr);
+      return NextResponse.json(
+        { success: false, error: "An samu kuskure wajen sabunta balance din mutum." },
+        { status: 500 }
+      );
     }
 
-    // 4. Yi rikodin a saman Teburin Transaction (Optional)
-    try {
-      await supabase.from("Transaction").insert([
+    // 5. Rikodin Transaction a cikin teburin Transaction
+    const { error: txErr } = await supabase
+      .from("Transaction")
+      .insert([
         {
-          userId: mentorUserId,
+          userId: targetId,
           amount: tokenAmount,
-          type: "MENTOR_BONUS",
+          type: "FOUNDER_AIRDROP",
           description: `Founder direct bonus transfer (+${tokenAmount} APN)`,
         },
       ]);
-    } catch (txErr) {
-      console.log("Transaction log skipped.");
+
+    if (txErr) {
+      console.error("Transaction insert log failed:", txErr);
     }
 
     return NextResponse.json({
       success: true,
-      message: `Cikakkiyar nasara! An tura ${tokenAmount} APN zuwa asusun mentor/user ɗin.`,
+      message: `Cikakkiyar nasara! An tura ${tokenAmount} APN zuwa asusun amfani/mentor ɗin.`,
       newBalance: newBalance,
     });
 
