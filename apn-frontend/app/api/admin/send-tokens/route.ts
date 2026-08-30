@@ -7,23 +7,23 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
 
-    // 1. Karbi ID din mutum ta ko wacce kalma aka aiko ta (mentorUserId ko targetUserId)
+    // Support both parameter names for flexible invocation
     const targetId = body.mentorUserId || body.targetUserId;
     const { amount, masterPin } = body;
 
-    // 2. Tabbatar da Master PIN
+    // Validate Master Security PIN
     const VALID_MASTER_PIN = process.env.MASTER_PIN || "APN-FOUNDER-2026#SECURE";
 
     if (!masterPin || String(masterPin).trim() !== VALID_MASTER_PIN) {
       return NextResponse.json(
-        { success: false, error: "Master Security PIN din da ka shigar ba daidai ba ne!" },
+        { success: false, error: "Invalid Master Security PIN!" },
         { status: 401 }
       );
     }
 
     if (!targetId) {
       return NextResponse.json(
-        { success: false, error: "Zaɓi memba ko mentor da kake son tura mawa tokens." },
+        { success: false, error: "Please select a valid user or mentor." },
         { status: 400 }
       );
     }
@@ -31,12 +31,12 @@ export async function POST(req: Request) {
     const tokenAmount = parseFloat(amount);
     if (isNaN(tokenAmount) || tokenAmount <= 0) {
       return NextResponse.json(
-        { success: false, error: "Shigar da adadin tokens daidai." },
+        { success: false, error: "Please enter a valid token amount." },
         { status: 400 }
       );
     }
 
-    // 3. Samo asalin balance din User din daga Supabase
+    // Fetch user balance
     const { data: user, error: fetchErr } = await supabase
       .from("User")
       .select("id, balance")
@@ -45,7 +45,7 @@ export async function POST(req: Request) {
 
     if (fetchErr || !user) {
       return NextResponse.json(
-        { success: false, error: "Babu wannan amfani/mentor a cikin Database." },
+        { success: false, error: "Target user or mentor not found in database." },
         { status: 404 }
       );
     }
@@ -53,7 +53,7 @@ export async function POST(req: Request) {
     const currentBalance = parseFloat(user.balance || "0");
     const newBalance = currentBalance + tokenAmount;
 
-    // 4. Update a teburin User
+    // Update user balance
     const { error: updateErr } = await supabase
       .from("User")
       .update({ balance: newBalance })
@@ -62,12 +62,12 @@ export async function POST(req: Request) {
     if (updateErr) {
       console.error("User balance update error:", updateErr);
       return NextResponse.json(
-        { success: false, error: "An samu kuskure wajen sabunta balance din mutum." },
+        { success: false, error: "Failed to update user token balance." },
         { status: 500 }
       );
     }
 
-    // 5. Rikodin Transaction a cikin teburin Transaction
+    // Log transaction record
     const { error: txErr } = await supabase
       .from("Transaction")
       .insert([
@@ -85,7 +85,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: true,
-      message: `Cikakkiyar nasara! An tura ${tokenAmount} APN zuwa asusun amfani/mentor ɗin.`,
+      message: `Successfully transferred ${tokenAmount} APN to the recipient.`,
       newBalance: newBalance,
     });
 
@@ -97,3 +97,4 @@ export async function POST(req: Request) {
     );
   }
 }
+  
