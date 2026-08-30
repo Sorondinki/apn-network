@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { supabase } from "@/lib/supabase";
+
+export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   try {
@@ -7,80 +10,56 @@ export async function GET(request: NextRequest) {
 
     if (!userId) {
       return NextResponse.json(
-        { success: false, message: "User ID missing" },
+        { success: false, message: "User ID parameter is missing." },
         { status: 400 }
       );
     }
 
-    // -------------------------------------------------------------
-    // IDA SHAFIN YA HAƊA DA DATABASE (Prisma / Supabase / Direct SQL):
-    // -------------------------------------------------------------
-    // const userTransactions = await db.transaction.findMany({
-    //   where: { userId: userId },
-    //   orderBy: { createdAt: "desc" },
-    // });
-    // return NextResponse.json({ success: true, transactions: userTransactions });
+    // Query live transaction records for the given user from Supabase
+    const { data: dbTransactions, error } = await supabase
+      .from("Transaction")
+      .select("*")
+      .eq("userId", userId)
+      .order("createdAt", { ascending: false });
 
-    // -------------------------------------------------------------
-    // DYNAMIC BACKEND FALLBACK LEDGER (Idan ana kan offline/mock state):
-    // -------------------------------------------------------------
-    const now = Date.now();
-    const dynamicTransactions = [
-      {
-        id: `tx-${userId}-101`,
-        txHash: "0xapn982f...a12c",
-        type: "MINING_REWARD",
-        amount: 24.0,
-        status: "COMPLETED",
-        timestamp: new Date(now - 3600000 * 2).toISOString().replace("T", " ").substring(0, 19),
-        description: "24-Hour Node Mining Cycle Reward",
-      },
-      {
-        id: `tx-${userId}-102`,
-        txHash: "0xapn441b...7e99",
-        type: "REFERRAL_BONUS",
-        amount: 14.5,
-        status: "COMPLETED",
-        timestamp: new Date(now - 3600000 * 18).toISOString().replace("T", " ").substring(0, 19),
-        description: "10% Mining Hash Rate Commission (Ref: APN-8902)",
-      },
-      {
-        id: `tx-${userId}-103`,
-        txHash: "0xapn110c...3b88",
-        type: "STAKING_YIELD",
-        amount: 8.75,
-        status: "COMPLETED",
-        timestamp: new Date(now - 3600000 * 24).toISOString().replace("T", " ").substring(0, 19),
-        description: "+18.5% APY Staking Vault Daily Interest",
-      },
-      {
-        id: `tx-${userId}-104`,
-        txHash: "0xapn773d...11fe",
-        type: "MINING_REWARD",
-        amount: 24.0,
-        status: "COMPLETED",
-        timestamp: new Date(now - 3600000 * 26).toISOString().replace("T", " ").substring(0, 19),
-        description: "24-Hour Node Mining Cycle Reward",
-      },
-      {
-        id: `tx-${userId}-105`,
-        txHash: "0xapn332e...99da",
-        type: "TRANSFER_OUT",
-        amount: 50.0,
-        status: "COMPLETED",
-        timestamp: new Date(now - 3600000 * 48).toISOString().replace("T", " ").substring(0, 19),
-        description: "Mainnet Wallet Transfer to 0x3A...91bB",
-      },
-    ];
+    if (error) {
+      console.error("Supabase Query Error:", error);
+      return NextResponse.json(
+        { success: false, message: "Failed to fetch transaction records from database." },
+        { status: 500 }
+      );
+    }
+
+    // Map database column schema to frontend format
+    const formattedTransactions = (dbTransactions || []).map((tx) => {
+      // Generate a mock hash format if no on-chain txHash column exists
+      const shortId = tx.id ? String(tx.id).substring(0, 8) : "0x00";
+      const txHash = tx.txHash || `0xapn${shortId}`;
+
+      // Convert timestamp into standard string format
+      const formattedTimestamp = tx.createdAt
+        ? new Date(tx.createdAt).toISOString().replace("T", " ").substring(0, 19)
+        : new Date().toISOString().replace("T", " ").substring(0, 19);
+
+      return {
+        id: tx.id,
+        txHash: txHash,
+        type: tx.type || "TRANSFER_IN",
+        amount: parseFloat(tx.amount || 0),
+        status: tx.status || "COMPLETED",
+        timestamp: formattedTimestamp,
+        description: tx.description || "APN Network Transaction",
+      };
+    });
 
     return NextResponse.json({
       success: true,
-      transactions: dynamicTransactions,
+      transactions: formattedTransactions,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Transactions API Error:", error);
     return NextResponse.json(
-      { success: false, message: "Internal Server Error" },
+      { success: false, message: error?.message || "Internal Server Error" },
       { status: 500 }
     );
   }
