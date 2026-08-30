@@ -19,14 +19,13 @@ export async function POST(req: Request) {
     const amountToSwap = parseFloat(apnAmount);
 
     if ((!userId && !email) || isNaN(amountToSwap) || amountToSwap < 100) {
-      return NextResponse.json({ error: "Mafi karancin swap shine 100 APN" }, { status: 400 });
+      return NextResponse.json({ error: "Minimum swap amount is 100 APN." }, { status: 400 });
     }
 
     if (!CONVERSION_RATES[targetToken]) {
-      return NextResponse.json({ error: "Token daka zaba babu shi" }, { status: 400 });
+      return NextResponse.json({ error: "Invalid target synthetic token." }, { status: 400 });
     }
 
-    // Muna amfani da "User" tebur kamar yadda yake a hoton database dinka
     let userQuery = supabase.from("User").select("id, balance");
     if (userId) userQuery = userQuery.eq("id", userId);
     else if (email) userQuery = userQuery.eq("email", email);
@@ -34,25 +33,22 @@ export async function POST(req: Request) {
     const { data: users, error: userError } = await userQuery;
 
     if (userError || !users || users.length === 0) {
-      return NextResponse.json({ error: "Bamu sami asusun mai amfani ba" }, { status: 404 });
+      return NextResponse.json({ error: "User account not found." }, { status: 404 });
     }
 
     const user = users[0];
     const currentBalance = parseFloat(user.balance || "0");
 
     if (currentBalance < amountToSwap) {
-      return NextResponse.json({ error: "Baka da isasshen APN balance" }, { status: 400 });
+      return NextResponse.json({ error: "Insufficient APN balance for this swap." }, { status: 400 });
     }
 
-    // Lissafin kashe APN da samun Synthetic coin
     const rate = CONVERSION_RATES[targetToken];
     const receivedAmount = (amountToSwap / 1000) * rate;
     const newApnBalance = currentBalance - amountToSwap;
 
-    // Sabunta balance a teburin User
     await supabase.from("User").update({ balance: newApnBalance }).eq("id", user.id);
 
-    // Duba synthetic balances
     const { data: synthData } = await supabase
       .from("synthetic_balances")
       .select("*")
@@ -87,7 +83,6 @@ export async function POST(req: Request) {
       });
     }
 
-    // Log transaction
     await supabase.from("synthetic_swap_logs").insert({
       user_id: user.id,
       from_token: "APN",
@@ -106,6 +101,7 @@ export async function POST(req: Request) {
     });
   } catch (err: any) {
     console.error("Synthetic Swap Error:", err);
-    return NextResponse.json({ error: err?.message || "Internal server error" }, { status: 500 });
+    return NextResponse.json({ error: err?.message || "Internal server error." }, { status: 500 });
   }
 }
+      
