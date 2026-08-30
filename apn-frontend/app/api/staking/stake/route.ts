@@ -3,23 +3,32 @@ import { supabase } from "@/lib/supabase";
 
 export async function POST(req: Request) {
   try {
-    const { userId, amount, action = "STAKE" } = await req.json();
+    const { userId, email, amount, action = "STAKE" } = await req.json();
     const stakeAmount = parseFloat(amount);
 
-    if (!userId || isNaN(stakeAmount) || stakeAmount <= 0) {
-      return NextResponse.json({ error: "Invalid user or amount provided" }, { status: 400 });
+    if ((!userId && !email) || isNaN(stakeAmount) || stakeAmount <= 0) {
+      return NextResponse.json({ error: "Invalid user identifier or amount provided" }, { status: 400 });
     }
 
-    // 1. Fetch current user balance from database
-    const { data: user, error: fetchError } = await supabase
+    // 1. Fetch current user balance from database (by ID or Email fallback)
+    let userQuery = supabase
       .from("users")
-      .select("balance, staked_balance, stakedBalance")
-      .eq("id", userId)
-      .single();
+      .select("id, email, balance, staked_balance, stakedBalance");
 
-    if (fetchError || !user) {
-      return NextResponse.json({ error: "User profile not found" }, { status: 404 });
+    if (userId) {
+      userQuery = userQuery.eq("id", userId);
+    } else if (email) {
+      userQuery = userQuery.eq("email", email);
     }
+
+    const { data: userList, error: fetchError } = await userQuery;
+
+    if (fetchError || !userList || userList.length === 0) {
+      return NextResponse.json({ error: "User profile not found in database" }, { status: 404 });
+    }
+
+    const user = userList[0];
+    const targetUserId = user.id;
 
     const currentBalance = parseFloat(user.balance || "0");
     const currentStaked = parseFloat(user.staked_balance || user.stakedBalance || "0");
@@ -43,7 +52,7 @@ export async function POST(req: Request) {
       newStakedBalance = currentStaked - stakeAmount;
     }
 
-    // 2. Prepare payload compatible with your schema
+    // 2. Prepare payload compatible with database schema
     const updateData: any = {
       balance: newBalance,
     };
@@ -62,7 +71,7 @@ export async function POST(req: Request) {
     const { data: updatedUser, error: updateError } = await supabase
       .from("users")
       .update(updateData)
-      .eq("id", userId)
+      .eq("id", targetUserId)
       .select()
       .single();
 
