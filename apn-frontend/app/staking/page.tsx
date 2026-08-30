@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import toast, { Toaster } from "react-hot-toast";
 
 export default function StakingPage() {
   const router = useRouter();
@@ -14,7 +15,6 @@ export default function StakingPage() {
   const [stakeInput, setStakeInput] = useState("");
   const [unstakeInput, setUnstakeInput] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [lastStakeTime, setLastStakeTime] = useState<number | null>(null);
 
   // Annual Percentage Yield (APY = 18.5%)
   const APY_RATE = 0.185; 
@@ -30,7 +30,10 @@ export default function StakingPage() {
       const localUserData = JSON.parse(savedUser);
       setUser(localUserData);
 
-      const res = await fetch(`/api/user/profile?userId=${localUserData.id}`);
+      const userIdParam = localUserData.id || localUserData._id || "";
+      const emailParam = localUserData.email || "";
+
+      const res = await fetch(`/api/user/profile?userId=${userIdParam}&email=${emailParam}`);
       const data = await res.json();
 
       if (data && data.success && data.user) {
@@ -59,7 +62,7 @@ export default function StakingPage() {
     fetchUserData();
   }, [fetchUserData]);
 
-  // Real-time Reward Counter Engine (Calculates Staking Interest Per Second)
+  // Real-time Reward Counter Engine
   useEffect(() => {
     if (stakedAmount <= 0) {
       setClaimableReward(0);
@@ -67,7 +70,6 @@ export default function StakingPage() {
     }
 
     const interval = setInterval(() => {
-      // Per Second APY Rate Formula
       const rewardPerSecond = (stakedAmount * APY_RATE) / (365 * 24 * 3600);
       setClaimableReward((prev) => prev + rewardPerSecond);
     }, 1000);
@@ -78,34 +80,51 @@ export default function StakingPage() {
   const handleStake = async () => {
     const amount = parseFloat(stakeInput);
     if (isNaN(amount) || amount <= 0 || amount > balance) {
-      alert("Please enter a valid APN amount within your available balance.");
+      toast.error("Please enter a valid APN amount within your available balance.");
+      return;
+    }
+
+    if (!user || (!user.id && !user.email)) {
+      toast.error("User session invalid. Please log in again.");
+      router.push("/login");
       return;
     }
 
     setIsSubmitting(true);
+    const toastId = toast.loading("Processing staking transaction...");
+
     try {
       const res = await fetch("/api/staking/stake", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: user.id, amount, action: "STAKE" }),
+        body: JSON.stringify({ 
+          userId: user.id || user._id, 
+          email: user.email,
+          amount, 
+          action: "STAKE" 
+        }),
       });
 
       const data = await res.json();
       if (data.success) {
-        setBalance(data.balance);
-        setStakedAmount(data.stakedBalance);
-        localStorage.setItem("apn_user_balance", data.balance.toString());
+        const newBal = parseFloat(data.balance);
+        const newStaked = parseFloat(data.stakedBalance);
 
-        const updatedUser = { ...user, balance: data.balance, stakedBalance: data.stakedBalance };
+        setBalance(newBal);
+        setStakedAmount(newStaked);
+        localStorage.setItem("apn_user_balance", newBal.toString());
+
+        const updatedUser = { ...user, balance: newBal, stakedBalance: newStaked, staked_balance: newStaked };
+        setUser(updatedUser);
         localStorage.setItem("apn_user", JSON.stringify(updatedUser));
 
         setStakeInput("");
-        alert("Tokens successfully locked in APN Staking Vault!");
+        toast.success("Tokens successfully locked in APN Vault! 🚀", { id: toastId });
       } else {
-        alert(data.error || "Staking failed");
+        toast.error(data.error || "Staking failed", { id: toastId });
       }
     } catch (e) {
-      alert("Network error, please try again.");
+      toast.error("Network error, please try again.", { id: toastId });
     } finally {
       setIsSubmitting(false);
     }
@@ -114,34 +133,51 @@ export default function StakingPage() {
   const handleUnstake = async () => {
     const amount = parseFloat(unstakeInput);
     if (isNaN(amount) || amount <= 0 || amount > stakedAmount) {
-      alert("Please enter a valid amount within your current staked balance.");
+      toast.error("Please enter a valid amount within your current staked balance.");
+      return;
+    }
+
+    if (!user || (!user.id && !user.email)) {
+      toast.error("User session invalid. Please log in again.");
+      router.push("/login");
       return;
     }
 
     setIsSubmitting(true);
+    const toastId = toast.loading("Processing unstaking transaction...");
+
     try {
       const res = await fetch("/api/staking/stake", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: user.id, amount, action: "UNSTAKE" }),
+        body: JSON.stringify({ 
+          userId: user.id || user._id, 
+          email: user.email,
+          amount, 
+          action: "UNSTAKE" 
+        }),
       });
 
       const data = await res.json();
       if (data.success) {
-        setBalance(data.balance);
-        setStakedAmount(data.stakedBalance);
-        localStorage.setItem("apn_user_balance", data.balance.toString());
+        const newBal = parseFloat(data.balance);
+        const newStaked = parseFloat(data.stakedBalance);
 
-        const updatedUser = { ...user, balance: data.balance, stakedBalance: data.stakedBalance };
+        setBalance(newBal);
+        setStakedAmount(newStaked);
+        localStorage.setItem("apn_user_balance", newBal.toString());
+
+        const updatedUser = { ...user, balance: newBal, stakedBalance: newStaked, staked_balance: newStaked };
+        setUser(updatedUser);
         localStorage.setItem("apn_user", JSON.stringify(updatedUser));
 
         setUnstakeInput("");
-        alert("Tokens successfully unstaked and returned to your balance!");
+        toast.success("Tokens successfully unstaked! 🔓", { id: toastId });
       } else {
-        alert(data.error || "Unstaking failed");
+        toast.error(data.error || "Unstaking failed", { id: toastId });
       }
     } catch (e) {
-      alert("Network error, please try again.");
+      toast.error("Network error, please try again.", { id: toastId });
     } finally {
       setIsSubmitting(false);
     }
@@ -158,7 +194,20 @@ export default function StakingPage() {
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto p-4 select-none">
-      
+      {/* Toast Notification Provider for dark theme */}
+      <Toaster 
+        position="top-right" 
+        toastOptions={{
+          style: {
+            background: "#111827",
+            color: "#fff",
+            border: "1px solid #1f2937",
+            fontSize: "14px",
+            borderRadius: "12px",
+          },
+        }} 
+      />
+
       {/* HEADER SECTION */}
       <div className="relative overflow-hidden p-8 rounded-3xl bg-gradient-to-br from-gray-900/90 via-gray-900/60 to-gray-950/90 border border-gray-800/80 backdrop-blur-xl flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl">
         <div className="space-y-3 max-w-xl z-10">
@@ -188,20 +237,16 @@ export default function StakingPage() {
 
       {/* METRIC CARDS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        
-        {/* Available Balance */}
         <div className="p-6 rounded-2xl bg-gray-900/40 border border-gray-800/80 backdrop-blur-md hover:border-emerald-500/30 transition-all">
           <span className="text-[11px] text-gray-400 font-bold uppercase tracking-wider block">AVAILABLE BALANCE</span>
           <p className="text-2xl font-extrabold text-emerald-400 font-mono mt-3">{balance.toFixed(6)} <span className="text-xs text-gray-400">APN</span></p>
         </div>
 
-        {/* Staked Vault Balance */}
         <div className="p-6 rounded-2xl bg-gray-900/40 border border-gray-800/80 backdrop-blur-md hover:border-blue-500/30 transition-all">
           <span className="text-[11px] text-gray-400 font-bold uppercase tracking-wider block">STAKED IN VAULT</span>
           <p className="text-2xl font-extrabold text-blue-400 font-mono mt-3">{stakedAmount.toFixed(6)} <span className="text-xs text-gray-400">APN</span></p>
         </div>
 
-        {/* Live Claimable Yield */}
         <div className="p-6 rounded-2xl bg-gray-900/40 border border-gray-800/80 backdrop-blur-md hover:border-amber-500/30 transition-all">
           <span className="text-[11px] text-gray-400 font-bold uppercase tracking-wider block">LIVE CLAIMABLE YIELD</span>
           <p className="text-2xl font-extrabold text-amber-400 font-mono mt-3 animate-pulse">
@@ -209,7 +254,6 @@ export default function StakingPage() {
           </p>
         </div>
 
-        {/* Annual Rate */}
         <div className="p-6 rounded-2xl bg-gray-900/40 border border-gray-800/80 backdrop-blur-md hover:border-purple-500/30 transition-all">
           <span className="text-[11px] text-gray-400 font-bold uppercase tracking-wider block">ESTIMATED APY</span>
           <p className="text-2xl font-extrabold text-purple-400 font-mono mt-3">+18.5%</p>
@@ -272,4 +316,5 @@ export default function StakingPage() {
       </div>
     </div>
   );
-}
+ }
+      
