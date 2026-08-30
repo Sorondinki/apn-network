@@ -6,7 +6,9 @@ import { useRouter } from "next/navigation";
 const TESTER_EMAILS = [
   "maisanaakura@gmail.com", // Replace with your mentor's email address
   "contact.aprotech@gmail.com",
-  "sorondinkiseeme@gmail.com"
+  "sorondinkiseeme@gmail.com",
+  "idrissharif30@gmail.com",
+  "kingibrahimsharif@gmail.com"
 ];
 
 export default function WalletPage() {
