@@ -64,6 +64,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
   const baseNavItems = [
     { name: '⛏️ Web Mining', path: '/dashboard' },
+    { name: '🏛️ Synthetic Vault', path: '/synthetic-vault' },
     { name: '💳 Wallet & Withdraw', path: '/wallet' },
     { name: '📜 Transactions', path: '/transactions' },
     { name: '🔒 Staking Vault', path: '/staking' },
@@ -305,7 +306,32 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   ))}
                 </div>
 
-                <div className="pt-6 space-y-3">
+                {/* Additional Pages for Mobile (Roadmap, Whitepaper, Privacy Policy) */}
+                <div className="pt-6 space-y-3 border-t border-gray-800/80 mt-4">
+                  <div className="grid grid-cols-3 gap-2 text-center text-xs font-medium text-gray-400">
+                    <Link 
+                      href="/roadmap" 
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className="p-2 bg-gray-900/80 rounded-lg border border-gray-800 hover:text-blue-400"
+                    >
+                      🗺️ Roadmap
+                    </Link>
+                    <Link 
+                      href="/whitepaper" 
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className="p-2 bg-gray-900/80 rounded-lg border border-gray-800 hover:text-blue-400"
+                    >
+                      📄 Whitepaper
+                    </Link>
+                    <Link 
+                      href="/privacy-policy" 
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className="p-2 bg-gray-900/80 rounded-lg border border-gray-800 hover:text-blue-400"
+                    >
+                      🛡️ Privacy
+                    </Link>
+                  </div>
+
                   <button
                     onClick={() => {
                       setIsMobileMenuOpen(false);
