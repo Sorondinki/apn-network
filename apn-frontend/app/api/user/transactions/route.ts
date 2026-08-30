@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Query live transaction records for the given user from Supabase
+    // Query transaction records matching user ID from Supabase
     const { data: dbTransactions, error } = await supabase
       .from("Transaction")
       .select("*")
@@ -32,21 +32,33 @@ export async function GET(request: NextRequest) {
 
     // Map database column schema to frontend format
     const formattedTransactions = (dbTransactions || []).map((tx) => {
-      // Generate a mock hash format if no on-chain txHash column exists
       const shortId = tx.id ? String(tx.id).substring(0, 8) : "0x00";
-      const txHash = tx.txHash || `0xapn${shortId}`;
+      const txHash = `0xapn${shortId}`;
 
-      // Convert timestamp into standard string format
       const formattedTimestamp = tx.createdAt
         ? new Date(tx.createdAt).toISOString().replace("T", " ").substring(0, 19)
         : new Date().toISOString().replace("T", " ").substring(0, 19);
 
+      let rawType = String(tx.type || "TRANSFER_IN").toUpperCase();
+
+      // Normalize all variations of founder transfers to FOUNDER_AIRDROP
+      if (
+        rawType.includes("FOUNDER") ||
+        rawType.includes("AIRDROP") ||
+        rawType.includes("BONUS") ||
+        rawType === "ADMIN_TRANSFER"
+      ) {
+        if (rawType !== "REFERRAL_BONUS") {
+          rawType = "FOUNDER_AIRDROP";
+        }
+      }
+
       return {
-        id: tx.id,
+        id: String(tx.id),
         txHash: txHash,
-        type: tx.type || "TRANSFER_IN",
+        type: rawType,
         amount: parseFloat(tx.amount || 0),
-        status: tx.status || "COMPLETED",
+        status: "COMPLETED",
         timestamp: formattedTimestamp,
         description: tx.description || "APN Network Transaction",
       };
