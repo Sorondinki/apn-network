@@ -4,14 +4,14 @@ import { supabase } from "@/lib/supabase";
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const id = searchParams.get("id");
+    const id = searchParams.get("userId") || searchParams.get("id");
 
-    if (!id) {
-      return NextResponse.json(
-        { success: false, message: "User ID parameter is required." },
-        { status: 400 }
-      );
-    }
+if (!id) {
+  return NextResponse.json(
+    { success: false, message: "User ID parameter is required." },
+    { status: 400 }
+  );
+}
 
     // Query the 'User' table (capitalized singular) matching Supabase schema
     const { data: user, error } = await supabase
