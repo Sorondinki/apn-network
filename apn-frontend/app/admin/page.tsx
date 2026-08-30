@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 
-// Define strict interfaces for better type safety
+// Strict TypeScript Interfaces
 interface User {
   id: string;
   fullName?: string;
@@ -13,7 +13,7 @@ interface User {
   role?: string;
   isVerified?: boolean;
   isSuspended?: boolean;
-  canWithdraw?: boolean; // Added canWithdraw property
+  canWithdraw?: boolean;
   referralCount?: number;
 }
 
@@ -38,7 +38,7 @@ interface ActionPayload {
   balance?: string | number;
   role?: string;
   isVerified?: boolean;
-  canWithdraw?: boolean; // Added canWithdraw property
+  canWithdraw?: boolean;
 }
 
 export default function FounderAdminDashboard() {
@@ -59,14 +59,14 @@ export default function FounderAdminDashboard() {
   const [pendingAction, setPendingAction] = useState<ActionPayload | null>(null);
   const [showPinModal, setShowPinModal] = useState<boolean>(false);
 
-  // Edit User / KYC State Modal
+  // Edit User / KYC Modal State
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [editName, setEditName] = useState<string>("");
   const [editEmail, setEditEmail] = useState<string>("");
   const [editBalance, setEditBalance] = useState<string>("");
   const [editRole, setEditRole] = useState<string>("USER");
   const [editIsVerified, setEditIsVerified] = useState<boolean>(false);
-  const [editCanWithdraw, setEditCanWithdraw] = useState<boolean>(true); // Added editCanWithdraw state
+  const [editCanWithdraw, setEditCanWithdraw] = useState<boolean>(true);
 
   // Token Transfer State
   const [transferTargetId, setTransferTargetId] = useState<string>("");
@@ -183,13 +183,25 @@ export default function FounderAdminDashboard() {
     }
 
     try {
-      const payload = {
+      // Direct routing depending on action
+      let endpoint = "/api/admin";
+      let payload: any = {
         ...pendingAction,
         adminId: admin?.id || "founder-root",
         masterPin: masterPin,
       };
 
-      const res = await fetch("/api/admin", {
+      // Handling direct mentor/user transfer route fallback if needed
+      if (pendingAction?.action === "TRANSFER_MENTOR_TOKENS") {
+        endpoint = "/api/admin/send-tokens";
+        payload = {
+          mentorUserId: pendingAction.targetUserId,
+          amount: pendingAction.amount,
+          masterPin: masterPin,
+        };
+      }
+
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -712,6 +724,7 @@ export default function FounderAdminDashboard() {
               >
                 Cancel
               </button>
+
               <button
                 onClick={() => triggerAction({
                   action: "UPDATE_USER",
@@ -765,3 +778,4 @@ export default function FounderAdminDashboard() {
     </div>
   );
 }
+        
