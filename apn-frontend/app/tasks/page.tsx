@@ -6,17 +6,68 @@ import AadsBanner from "../components/AadsBanner";
 export default function TasksPage() {
   const [tasks, setTasks] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [submittingId, setSubmittingId] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    // Fetching Active Tasks directly from our Supabase API Route
-    fetch("/api/tasks")
+    // Samo current user ID daga local storage ko kiran session
+    const storedUserId = localStorage.getItem("userId"); 
+    if (storedUserId) {
+      setUserId(storedUserId);
+    }
+
+    loadTasks(storedUserId);
+  }, []);
+
+  const loadTasks = (uid: string | null) => {
+    setIsLoading(true);
+    const url = uid ? `/api/tasks?userId=${uid}` : "/api/tasks";
+    fetch(url)
       .then((res) => res.json())
       .then((data) => {
         if (data.tasks) setTasks(data.tasks);
       })
       .catch((err) => console.error("Error loading tasks:", err))
       .finally(() => setIsLoading(false));
-  }, []);
+  };
+
+  const handleTaskClick = async (task: any) => {
+    // Buɗe shafin link ɗin aikin a sabon tab
+    window.open(task.link, "_blank");
+
+    if (!userId) {
+      alert("Don Allah ka shiga asusunka (Login) domin karɓar ladan APN.");
+      return;
+    }
+
+    if (task.isCompleted) return;
+
+    try {
+      setSubmittingId(task.id);
+      const res = await fetch("/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, taskId: task.id }),
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        alert(data.message);
+        // Sabunta jerin ayyuka
+        setTasks((prev) =>
+          prev.map((t) => (t.id === task.id ? { ...t, isCompleted: true } : t))
+        );
+      } else {
+        alert(data.error || "Akwai matsala wajen yi amsa ladan.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Akwai matsala wajen haɗawa da server.");
+    } finally {
+      setSubmittingId(null);
+    }
+  };
 
   return (
     <div className="max-w-5xl mx-auto p-4 space-y-6 selection:bg-emerald-500 selection:text-white select-none">
@@ -76,14 +127,21 @@ export default function TasksPage() {
                 <p className="text-xs text-gray-400 leading-relaxed">{task.description}</p>
               </div>
 
-              <a
-                href={task.link}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block text-center py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 font-bold text-white rounded-xl text-xs transition-all duration-200 shadow-lg shadow-emerald-950/50 active:scale-[0.98]"
+              <button
+                onClick={() => handleTaskClick(task)}
+                disabled={task.isCompleted || submittingId === task.id}
+                className={`w-full text-center py-3 font-bold rounded-xl text-xs transition-all duration-200 shadow-lg ${
+                  task.isCompleted
+                    ? "bg-gray-800 text-gray-500 cursor-not-allowed border border-gray-700"
+                    : "bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white active:scale-[0.98]"
+                }`}
               >
-                Perform Task & Earn 🚀
-              </a>
+                {submittingId === task.id
+                  ? "Processing..."
+                  : task.isCompleted
+                  ? "Completed ✅"
+                  : "Perform Task & Earn 🚀"}
+              </button>
             </div>
           ))}
         </div>
