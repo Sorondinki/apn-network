@@ -80,7 +80,9 @@ export async function POST(req: Request) {
       "BULK_DELETE",
       "CREATE_TASK",
       "CREATE_ANNOUNCEMENT",
-      "UPDATE_USER"
+      "UPDATE_USER",
+      "APPLY_MINING_BOOST",
+      "BULK_APPLY_BOOST"
     ];
 
     if (pinProtectedActions.includes(action)) {
@@ -152,11 +154,17 @@ export async function POST(req: Request) {
             refCount = 0;
           }
 
+          const baseSpeed = 0.50;
+          const boostVal = parseFloat(u.miningBoost || u.boostMultiplier || 0);
+          const finalMiningSpeed = u.miningSpeed ? parseFloat(u.miningSpeed) : (baseSpeed + boostVal);
+
           return {
             id: u.id,
             fullName: u.fullName || u.name || "Unnamed User",
             email: u.email || "No Email",
             balance: u.balance || 0,
+            miningSpeed: finalMiningSpeed,
+            miningBoost: boostVal,
             role: u.role || "USER",
             isSuspended: Boolean(u.isSuspended),
             isVerified: Boolean(u.isVerified),
@@ -176,7 +184,45 @@ export async function POST(req: Request) {
       });
     }
 
-    // B. TOGGLE / BULK VERIFY
+    // B. APPLY PAYSTACK MINING SPEED BOOST (SINGLE OR BULK)
+    if (action === "APPLY_MINING_BOOST" || action === "BULK_APPLY_BOOST") {
+      const { targetUserId, targetUserIds, boostMultiplier } = body;
+      const boostVal = parseFloat(boostMultiplier || "2.5");
+      const BASE_SPEED = 0.50;
+      const calculatedSpeed = BASE_SPEED + boostVal; // E.g., 0.50 + 2.50 = 3.00x or 0.50 + 5.00 = 5.50x
+
+      const userIdsToProcess: string[] = targetUserIds || (targetUserId ? [targetUserId] : []);
+
+      if (userIdsToProcess.length === 0) {
+        return NextResponse.json({ success: false, error: "No target users selected for boost." }, { status: 400 });
+      }
+
+      // Safe update across potential DB column names
+      const updateData: Record<string, any> = {
+        miningSpeed: calculatedSpeed,
+        miningBoost: boostVal,
+      };
+
+      const { error } = await supabase
+        .from(targetTable)
+        .update(updateData)
+        .in("id", userIdsToProcess);
+
+      if (error) {
+        // Fallback for custom columns
+        await supabase
+          .from(targetTable)
+          .update({ miningSpeed: calculatedSpeed })
+          .in("id", userIdsToProcess);
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: `Successfully set Mining Speed to ${calculatedSpeed.toFixed(2)}x (+${boostVal.toFixed(1)}x boost) for ${userIdsToProcess.length} user(s).`,
+      });
+    }
+
+    // C. TOGGLE / BULK VERIFY
     if (action === "TOGGLE_VERIFY" || action === "BULK_VERIFY") {
       const { targetUserId, targetUserIds, status } = body;
       const userIdsToProcess: string[] = targetUserIds || (targetUserId ? [targetUserId] : []);
@@ -198,7 +244,7 @@ export async function POST(req: Request) {
       });
     }
 
-    // B.2. TOGGLE / BULK WITHDRAWAL PERMISSIONS
+    // C.2. TOGGLE / BULK WITHDRAWAL PERMISSIONS
     if (action === "TOGGLE_WITHDRAW" || action === "BULK_TOGGLE_WITHDRAW") {
       const { targetUserId, targetUserIds, status } = body;
       const userIdsToProcess: string[] = targetUserIds || (targetUserId ? [targetUserId] : []);
@@ -224,7 +270,7 @@ export async function POST(req: Request) {
       });
     }
 
-    // C. TRANSFER_TOKENS & BULK_AIRDROP (WANDA YAKE RAGE APN DAGA FOUNDER TREASURY)
+    // D. TRANSFER_TOKENS & BULK_AIRDROP
     if (action === "TRANSFER_TOKENS" || action === "BULK_AIRDROP") {
       const { targetUserId, targetUserIds, amount } = body;
       const tokenAmount = parseFloat(amount);
@@ -239,7 +285,6 @@ export async function POST(req: Request) {
         return NextResponse.json({ success: false, error: "No target users selected." }, { status: 400 });
       }
 
-      // Tabbatar Founder yana da isasshen Balance da zai raba
       const totalRequired = tokenAmount * userIdsToProcess.length;
       const founderStats = await getFounderBalanceStats();
 
@@ -289,7 +334,7 @@ export async function POST(req: Request) {
       });
     }
 
-    // D. TOGGLE / BULK SUSPEND
+    // E. TOGGLE / BULK SUSPEND
     if (action === "TOGGLE_SUSPEND" || action === "BULK_SUSPEND") {
       const { targetUserId, targetUserIds, status } = body;
       const userIdsToProcess: string[] = targetUserIds || (targetUserId ? [targetUserId] : []);
@@ -308,7 +353,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true, message: `Updated suspension status for ${userIdsToProcess.length} account(s).` });
     }
 
-    // E. DELETE / BULK DELETE
+    // F. DELETE / BULK DELETE
     if (action === "DELETE_USER" || action === "BULK_DELETE") {
       const { targetUserId, targetUserIds } = body;
       const userIdsToProcess: string[] = targetUserIds || (targetUserId ? [targetUserId] : []);
@@ -327,15 +372,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true, message: "User account(s) deleted successfully." });
     }
 
-    // F. UPDATE USER DETAILS
+    // G. UPDATE USER DETAILS & MINING SPEED
     if (action === "UPDATE_USER") {
-      const { targetUserId, name, email, balance, role, isVerified, canWithdraw } = body;
+      const { targetUserId, name, email, balance, miningSpeed, role, isVerified, canWithdraw } = body;
       
       const updatePayload: Record<string, any> = {
         name: name,
         fullName: name,
         email: email,
         balance: parseFloat(balance || "0"),
+        miningSpeed: parseFloat(miningSpeed || "0.50"),
         role: role || "USER",
         isVerified: Boolean(isVerified),
       };
@@ -353,10 +399,10 @@ export async function POST(req: Request) {
 
       if (error) throw error;
 
-      return NextResponse.json({ success: true, message: "User details updated successfully.", user: updated });
+      return NextResponse.json({ success: true, message: "User details & Mining speed updated successfully.", user: updated });
     }
 
-    // G. CREATE TASK
+    // H. CREATE TASK
     if (action === "CREATE_TASK") {
       const { title, description, reward, link, category } = body;
 
@@ -384,7 +430,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true, message: "New task created successfully.", task: newTask });
     }
 
-    // H. CREATE ANNOUNCEMENT
+    // I. CREATE ANNOUNCEMENT
     if (action === "CREATE_ANNOUNCEMENT") {
       const { message: announcementMsg, title, content, mediaUrl, platform } = body;
       const postText = content || announcementMsg;
@@ -420,4 +466,4 @@ export async function POST(req: Request) {
     );
   }
 }
-      
+        
