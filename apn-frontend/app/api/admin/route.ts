@@ -63,8 +63,11 @@ export async function POST(req: Request) {
 
     // --- 2. SECURITY CHECK: MASTER PIN VERIFICATION ---
     const providedPin = body.masterPin || body.pin;
+    const VALID_MASTER_PIN = process.env.MASTER_PIN || "APN-FOUNDER-2026#SECURE";
 
     const pinProtectedActions = [
+      "FETCH_USERS",
+      "GET_FOUNDER_STATS",
       "TRANSFER_TOKENS",
       "BULK_AIRDROP",
       "TOGGLE_VERIFY",
@@ -81,8 +84,6 @@ export async function POST(req: Request) {
     ];
 
     if (pinProtectedActions.includes(action)) {
-      const VALID_MASTER_PIN = process.env.MASTER_PIN || "APN-FOUNDER-2026#SECURE";
-
       if (!providedPin || String(providedPin).trim() !== VALID_MASTER_PIN) {
         return NextResponse.json(
           { 
@@ -96,10 +97,31 @@ export async function POST(req: Request) {
 
     const targetTable = "User";
 
+    // --- HELPER FUNCTION: CALCULATE FOUNDER TREASURY BALANCE ---
+    async function getFounderBalanceStats() {
+      const TOTAL_FOUNDER_SUPPLY = 250000000; // 250 Million APN
+      
+      const { data: txData } = await supabase
+        .from("Transaction")
+        .select("amount")
+        .in("type", ["FOUNDER_AIRDROP", "ADMIN_TRANSFER", "FOUNDER_BONUS"]);
+
+      const totalDistributed = (txData || []).reduce(
+        (acc, tx) => acc + parseFloat(tx.amount || 0),
+        0
+      );
+
+      return {
+        initialSupply: TOTAL_FOUNDER_SUPPLY,
+        totalDistributed: totalDistributed,
+        remainingBalance: Math.max(0, TOTAL_FOUNDER_SUPPLY - totalDistributed)
+      };
+    }
+
     // --- 3. IMPLEMENTATION OF ALL ACTIONS ---
 
-    // A. FETCH ALL USERS
-    if (action === "FETCH_USERS") {
+    // A. FETCH ALL USERS & FOUNDER TREASURY METRICS
+    if (action === "FETCH_USERS" || action === "GET_FOUNDER_STATS") {
       let rawUsers: any[] = [];
       
       const { data, error: usersErr } = await supabase
@@ -108,7 +130,6 @@ export async function POST(req: Request) {
         .order("createdAt", { ascending: false });
 
       if (usersErr) {
-        // Fallback if createdAt fails
         const { data: retryUsers, error: retryErr } = await supabase
           .from(targetTable)
           .select("*");
@@ -146,7 +167,13 @@ export async function POST(req: Request) {
         })
       );
 
-      return NextResponse.json({ success: true, users: usersWithRefs });
+      const founderStats = await getFounderBalanceStats();
+
+      return NextResponse.json({ 
+        success: true, 
+        users: usersWithRefs,
+        founderTreasury: founderStats
+      });
     }
 
     // B. TOGGLE / BULK VERIFY
@@ -180,7 +207,6 @@ export async function POST(req: Request) {
         return NextResponse.json({ success: false, error: "No target users selected." }, { status: 400 });
       }
 
-      // Safe update for canWithdraw in case column is missing
       try {
         const { error } = await supabase
           .from(targetTable)
@@ -198,7 +224,7 @@ export async function POST(req: Request) {
       });
     }
 
-    // C. TRANSFER_TOKENS & BULK_AIRDROP
+    // C. TRANSFER_TOKENS & BULK_AIRDROP (WANDA YAKE RAGE APN DAGA FOUNDER TREASURY)
     if (action === "TRANSFER_TOKENS" || action === "BULK_AIRDROP") {
       const { targetUserId, targetUserIds, amount } = body;
       const tokenAmount = parseFloat(amount);
@@ -211,6 +237,17 @@ export async function POST(req: Request) {
 
       if (userIdsToProcess.length === 0) {
         return NextResponse.json({ success: false, error: "No target users selected." }, { status: 400 });
+      }
+
+      // Tabbatar Founder yana da isasshen Balance da zai raba
+      const totalRequired = tokenAmount * userIdsToProcess.length;
+      const founderStats = await getFounderBalanceStats();
+
+      if (founderStats.remainingBalance < totalRequired) {
+        return NextResponse.json({
+          success: false,
+          error: `Insufficient Founder Treasury Balance. Available: ${founderStats.remainingBalance} APN, Required: ${totalRequired} APN`
+        }, { status: 400 });
       }
 
       for (const uid of userIdsToProcess) {
@@ -235,6 +272,7 @@ export async function POST(req: Request) {
               amount: tokenAmount,
               type: "FOUNDER_AIRDROP",
               description: `Founder direct distribution (+${tokenAmount} APN)`,
+              createdAt: new Date().toISOString()
             },
           ]);
         } catch (txErr) {
@@ -242,9 +280,12 @@ export async function POST(req: Request) {
         }
       }
 
+      const updatedStats = await getFounderBalanceStats();
+
       return NextResponse.json({
         success: true,
         message: `Successfully distributed ${tokenAmount} APN to ${userIdsToProcess.length} user(s).`,
+        founderTreasury: updatedStats
       });
     }
 
@@ -379,4 +420,4 @@ export async function POST(req: Request) {
     );
   }
 }
-          
+      
