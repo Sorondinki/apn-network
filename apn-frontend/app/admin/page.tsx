@@ -10,6 +10,8 @@ interface User {
   name?: string;
   email: string;
   balance?: number | string;
+  miningSpeed?: number | string;
+  miningBoost?: number | string;
   role?: string;
   isVerified?: boolean;
   isSuspended?: boolean;
@@ -24,6 +26,7 @@ interface ActionPayload {
   targetUserId?: string;
   targetUserIds?: string[];
   amount?: string | number;
+  boostMultiplier?: number;
   status?: boolean;
   title?: string;
   content?: string;
@@ -36,6 +39,7 @@ interface ActionPayload {
   name?: string;
   email?: string;
   balance?: string | number;
+  miningSpeed?: string | number;
   role?: string;
   isVerified?: boolean;
   canWithdraw?: boolean;
@@ -59,14 +63,18 @@ export default function FounderAdminDashboard() {
   const [pendingAction, setPendingAction] = useState<ActionPayload | null>(null);
   const [showPinModal, setShowPinModal] = useState<boolean>(false);
 
-  // Edit User / KYC Modal State
+  // Edit User / KYC & Boost Modal State
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [editName, setEditName] = useState<string>("");
   const [editEmail, setEditEmail] = useState<string>("");
   const [editBalance, setEditBalance] = useState<string>("");
+  const [editSpeed, setEditSpeed] = useState<string>("0.50");
   const [editRole, setEditRole] = useState<string>("USER");
   const [editIsVerified, setEditIsVerified] = useState<boolean>(false);
   const [editCanWithdraw, setEditCanWithdraw] = useState<boolean>(true);
+
+  // Mining Speed Quick Select Modal State
+  const [boostingUser, setBoostingUser] = useState<User | null>(null);
 
   // Token Transfer State
   const [transferTargetId, setTransferTargetId] = useState<string>("");
@@ -190,7 +198,6 @@ export default function FounderAdminDashboard() {
         masterPin: masterPin,
       };
 
-      // Support for direct Send Tokens API fallback
       if (pendingAction?.action === "TRANSFER_MENTOR_TOKENS") {
         endpoint = "/api/admin/send-tokens";
         payload = {
@@ -216,6 +223,7 @@ export default function FounderAdminDashboard() {
         setMasterPin("");
         setPendingAction(null);
         setEditingUser(null);
+        setBoostingUser(null);
         setSelectedUserIds([]);
 
         // Reset inputs
@@ -251,7 +259,7 @@ export default function FounderAdminDashboard() {
             🛡️ APN Network Founder Console
           </div>
           <h1 className="text-3xl font-black mt-2 tracking-tight">Founder Executive Portal</h1>
-          <p className="text-gray-400 text-xs mt-1">Manage network users, verification approvals, announcements, and APN tokens.</p>
+          <p className="text-gray-400 text-xs mt-1">Manage network users, mining speed boosts, verification approvals, and APN tokens.</p>
         </div>
         <div className="bg-black/50 p-4 rounded-2xl border border-gray-800 text-right">
           <span className="text-[10px] text-gray-400 font-bold block uppercase">Primary Admin</span>
@@ -380,7 +388,6 @@ export default function FounderAdminDashboard() {
             </h3>
             <p className="text-xs text-gray-400">Transfer native APN to single user or selected bulk users.</p>
 
-            {/* DROPDOWN WITH USER NAME, EMAIL & BALANCE */}
             <select
               value={transferTargetId}
               onChange={(e) => setTransferTargetId(e.target.value)}
@@ -389,7 +396,7 @@ export default function FounderAdminDashboard() {
               <option value="">-- Single Recipient (Optional if Bulk) --</option>
               {users.map((u) => (
                 <option key={u.id} value={u.id}>
-                  {u.fullName || u.name || "User"} ({u.email || "No email"}) - Balance: {Number(u.balance || 0).toFixed(2)} APN
+                  {u.fullName || u.name || "User"} ({u.email || "No email"}) - Speed: {Number(u.miningSpeed || 0.5).toFixed(2)}x
                 </option>
               ))}
             </select>
@@ -425,7 +432,7 @@ export default function FounderAdminDashboard() {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
             <h3 className="text-xl font-extrabold text-white">📋 Registered Network Users</h3>
-            <p className="text-xs text-gray-400">Select users for bulk verification approvals, withdrawal permissions, airdrops, or suspensions.</p>
+            <p className="text-xs text-gray-400">Select users for mining speed boosting, verification approvals, airdrops, or suspensions.</p>
           </div>
 
           <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
@@ -451,6 +458,28 @@ export default function FounderAdminDashboard() {
             <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={() => triggerAction({
+                  action: "BULK_APPLY_BOOST",
+                  targetUserIds: selectedUserIds,
+                  boostMultiplier: 2.5,
+                })}
+                className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs rounded-lg shadow flex items-center gap-1"
+              >
+                ⚡ Boost 2.5x (3.0x Total)
+              </button>
+
+              <button
+                onClick={() => triggerAction({
+                  action: "BULK_APPLY_BOOST",
+                  targetUserIds: selectedUserIds,
+                  boostMultiplier: 5.0,
+                })}
+                className="px-3 py-1.5 bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs rounded-lg shadow flex items-center gap-1"
+              >
+                🔥 Boost 5.0x (5.5x Total)
+              </button>
+
+              <button
+                onClick={() => triggerAction({
                   action: "BULK_VERIFY",
                   targetUserIds: selectedUserIds,
                   status: true,
@@ -472,40 +501,14 @@ export default function FounderAdminDashboard() {
               </button>
 
               <button
-                onClick={() => {
-                  const amt = prompt("Enter APN amount to send to all selected users:", "50");
-                  if (amt) {
-                    triggerAction({
-                      action: "BULK_AIRDROP",
-                      targetUserIds: selectedUserIds,
-                      amount: amt,
-                    });
-                  }
-                }}
-                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-lg shadow"
-              >
-                🎁 Airdrop APN
-              </button>
-
-              <button
                 onClick={() => triggerAction({
                   action: "BULK_SUSPEND",
                   targetUserIds: selectedUserIds,
                   status: true,
                 })}
-                className="px-3 py-1.5 bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs rounded-lg shadow"
-              >
-                🚫 Suspend Selected
-              </button>
-
-              <button
-                onClick={() => triggerAction({
-                  action: "BULK_DELETE",
-                  targetUserIds: selectedUserIds,
-                })}
                 className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white font-bold text-xs rounded-lg shadow"
               >
-                🗑️ Delete Selected
+                🚫 Suspend Selected
               </button>
             </div>
           </div>
@@ -528,131 +531,182 @@ export default function FounderAdminDashboard() {
                     />
                   </th>
                   <th className="p-3">User / Email</th>
+                  <th className="p-3">Mining Speed</th>
                   <th className="p-3">Verified</th>
                   <th className="p-3">Withdrawal</th>
-                  <th className="p-3">Role</th>
                   <th className="p-3">Wallet Balance</th>
-                  <th className="p-3">Referrals</th>
                   <th className="p-3">Status</th>
                   <th className="p-3 text-center">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-800/60">
-                {filteredUsers.map((u) => (
-                  <tr key={u.id} className="hover:bg-slate-800/30 transition">
-                    <td className="p-3">
-                      <input
-                        type="checkbox"
-                        checked={selectedUserIds.includes(u.id)}
-                        onChange={() => handleSelectUser(u.id)}
-                        className="rounded accent-emerald-500 cursor-pointer"
-                      />
-                    </td>
-                    <td className="p-3">
-                      <div className="font-bold text-white flex items-center gap-1.5">
-                        {u.fullName || u.name || "N/A"}
-                        {u.isVerified && <span className="text-blue-400 text-sm" title="Verified Account">☑️</span>}
-                      </div>
-                      <div className="text-gray-400 text-[11px] font-mono">{u.email}</div>
-                    </td>
-                    <td className="p-3">
-                      <button
-                        onClick={() => triggerAction({
-                          action: "TOGGLE_VERIFY",
-                          targetUserId: u.id,
-                          status: !u.isVerified,
-                        })}
-                        className={`px-2 py-1 rounded-md font-bold text-[10px] transition ${
-                          u.isVerified 
-                            ? "bg-blue-500/20 text-blue-400 border border-blue-500/30" 
-                            : "bg-gray-800 text-gray-400 border border-gray-700 hover:bg-emerald-600/20 hover:text-emerald-400"
-                        }`}
-                      >
-                        {u.isVerified ? "☑️ Verified" : "⏳ Approve KYC"}
-                      </button>
-                    </td>
-                    <td className="p-3">
-                      <button
-                        onClick={() => triggerAction({
-                          action: "TOGGLE_WITHDRAW",
-                          targetUserId: u.id,
-                          status: !(u.canWithdraw ?? true),
-                        })}
-                        className={`px-2 py-1 rounded-md font-bold text-[10px] transition ${
-                          (u.canWithdraw ?? true)
-                            ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                            : "bg-red-500/20 text-red-400 border border-red-500/30"
-                        }`}
-                      >
-                        {(u.canWithdraw ?? true) ? "🟢 Allowed" : "🔴 Blocked"}
-                      </button>
-                    </td>
-                    <td className="p-3 font-mono font-bold text-purple-400">
-                      {u.role || "USER"}
-                    </td>
-                    <td className="p-3 font-mono font-semibold text-emerald-400">
-                      {Number(u.balance || 0).toFixed(2)} APN
-                    </td>
-                    <td className="p-3 font-mono text-purple-400 font-bold">
-                      👥 {u.referralCount || 0}
-                    </td>
-                    <td className="p-3">
-                      <span className={`px-2 py-1 rounded-md font-bold text-[10px] ${
-                        u.isSuspended 
-                          ? "bg-red-500/20 text-red-400 border border-red-500/30" 
-                          : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                      }`}>
-                        {u.isSuspended ? "🚫 Suspended" : "✅ Active"}
-                      </span>
-                    </td>
-                    <td className="p-3 flex items-center justify-center gap-2">
-                      <button
-                        onClick={() => {
-                          setEditingUser(u);
-                          setEditName(u.fullName || u.name || "");
-                          setEditEmail(u.email || "");
-                          setEditBalance(String(u.balance || 0));
-                          setEditRole(u.role || "USER");
-                          setEditIsVerified(u.isVerified || false);
-                          setEditCanWithdraw(u.canWithdraw ?? true);
-                        }}
-                        className="px-2.5 py-1 bg-amber-600/20 text-amber-400 hover:bg-amber-600/40 rounded-lg border border-amber-500/30 font-bold"
-                      >
-                        ✏️ KYC / Edit
-                      </button>
-                      <button
-                        onClick={() => triggerAction({
-                          action: "TOGGLE_SUSPEND",
-                          targetUserId: u.id,
-                          status: !u.isSuspended,
-                        })}
-                        className="px-2.5 py-1 bg-orange-600/20 text-orange-400 hover:bg-orange-600/40 rounded-lg border border-orange-500/30 font-bold"
-                      >
-                        {u.isSuspended ? "Unsuspend" : "Suspend"}
-                      </button>
-                      <button
-                        onClick={() => triggerAction({
-                          action: "DELETE_USER",
-                          targetUserId: u.id,
-                        })}
-                        className="px-2.5 py-1 bg-red-600/20 text-red-400 hover:bg-red-600/40 rounded-lg border border-red-500/30 font-bold"
-                      >
-                        🗑️ Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {filteredUsers.map((u) => {
+                  const currentSpeed = Number(u.miningSpeed || 0.50);
+                  return (
+                    <tr key={u.id} className="hover:bg-slate-800/30 transition">
+                      <td className="p-3">
+                        <input
+                          type="checkbox"
+                          checked={selectedUserIds.includes(u.id)}
+                          onChange={() => handleSelectUser(u.id)}
+                          className="rounded accent-emerald-500 cursor-pointer"
+                        />
+                      </td>
+                      <td className="p-3">
+                        <div className="font-bold text-white flex items-center gap-1.5">
+                          {u.fullName || u.name || "N/A"}
+                          {u.isVerified && <span className="text-blue-400 text-sm" title="Verified Account">☑️</span>}
+                        </div>
+                        <div className="text-gray-400 text-[11px] font-mono">{u.email}</div>
+                      </td>
+
+                      {/* MINING SPEED COLUMN */}
+                      <td className="p-3">
+                        <span className={`px-2 py-1 rounded-md font-mono font-bold text-[11px] ${
+                          currentSpeed >= 5.0 
+                            ? "bg-amber-500/20 text-amber-400 border border-amber-500/40" 
+                            : currentSpeed >= 3.0 
+                            ? "bg-purple-500/20 text-purple-400 border border-purple-500/40"
+                            : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                        }`}>
+                          ⚡ {currentSpeed.toFixed(2)}x / hr
+                        </span>
+                      </td>
+
+                      <td className="p-3">
+                        <button
+                          onClick={() => triggerAction({
+                            action: "TOGGLE_VERIFY",
+                            targetUserId: u.id,
+                            status: !u.isVerified,
+                          })}
+                          className={`px-2 py-1 rounded-md font-bold text-[10px] transition ${
+                            u.isVerified 
+                              ? "bg-blue-500/20 text-blue-400 border border-blue-500/30" 
+                              : "bg-gray-800 text-gray-400 border border-gray-700 hover:bg-emerald-600/20 hover:text-emerald-400"
+                          }`}
+                        >
+                          {u.isVerified ? "☑️ Verified" : "⏳ Approve KYC"}
+                        </button>
+                      </td>
+                      <td className="p-3">
+                        <button
+                          onClick={() => triggerAction({
+                            action: "TOGGLE_WITHDRAW",
+                            targetUserId: u.id,
+                            status: !(u.canWithdraw ?? true),
+                          })}
+                          className={`px-2 py-1 rounded-md font-bold text-[10px] transition ${
+                            (u.canWithdraw ?? true)
+                              ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                              : "bg-red-500/20 text-red-400 border border-red-500/30"
+                          }`}
+                        >
+                          {(u.canWithdraw ?? true) ? "🟢 Allowed" : "🔴 Blocked"}
+                        </button>
+                      </td>
+                      <td className="p-3 font-mono font-semibold text-emerald-400">
+                        {Number(u.balance || 0).toFixed(2)} APN
+                      </td>
+                      <td className="p-3">
+                        <span className={`px-2 py-1 rounded-md font-bold text-[10px] ${
+                          u.isSuspended 
+                            ? "bg-red-500/20 text-red-400 border border-red-500/30" 
+                            : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                        }`}>
+                          {u.isSuspended ? "🚫 Suspended" : "✅ Active"}
+                        </span>
+                      </td>
+                      <td className="p-3 flex items-center justify-center gap-2">
+                        <button
+                          onClick={() => setBoostingUser(u)}
+                          className="px-2.5 py-1 bg-purple-600/20 text-purple-400 hover:bg-purple-600/40 rounded-lg border border-purple-500/30 font-bold"
+                        >
+                          ⚡ Boost Speed
+                        </button>
+                        <button
+                          onClick={() => {
+                            setEditingUser(u);
+                            setEditName(u.fullName || u.name || "");
+                            setEditEmail(u.email || "");
+                            setEditBalance(String(u.balance || 0));
+                            setEditSpeed(String(u.miningSpeed || 0.50));
+                            setEditRole(u.role || "USER");
+                            setEditIsVerified(u.isVerified || false);
+                            setEditCanWithdraw(u.canWithdraw ?? true);
+                          }}
+                          className="px-2.5 py-1 bg-amber-600/20 text-amber-400 hover:bg-amber-600/40 rounded-lg border border-amber-500/30 font-bold"
+                        >
+                          ✏️ KYC / Edit
+                        </button>
+                        <button
+                          onClick={() => triggerAction({
+                            action: "TOGGLE_SUSPEND",
+                            targetUserId: u.id,
+                            status: !u.isSuspended,
+                          })}
+                          className="px-2.5 py-1 bg-orange-600/20 text-orange-400 hover:bg-orange-600/40 rounded-lg border border-orange-500/30 font-bold"
+                        >
+                          {u.isSuspended ? "Unsuspend" : "Suspend"}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
       </div>
 
+      {/* QUICK SPEED BOOST MODAL */}
+      {boostingUser && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-xl flex items-center justify-center p-4 z-50">
+          <div className="bg-slate-900 border border-purple-500/40 p-6 rounded-3xl max-w-sm w-full space-y-4 text-center shadow-2xl">
+            <h3 className="text-lg font-black text-purple-400">⚡ Apply Paystack Speed Boost</h3>
+            <p className="text-xs text-gray-300">
+              Select boost package for <b>{boostingUser.fullName || boostingUser.name}</b> ({boostingUser.email}):
+            </p>
+            <div className="space-y-2 pt-2">
+              <button
+                onClick={() => triggerAction({
+                  action: "APPLY_MINING_BOOST",
+                  targetUserId: boostingUser.id,
+                  boostMultiplier: 2.5,
+                })}
+                className="w-full py-3 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-xl text-xs shadow-lg flex justify-between px-4 items-center"
+              >
+                <span>⚡ 2.5x Boost Package</span>
+                <span className="font-mono bg-black/40 px-2 py-0.5 rounded">Total: 3.00x Speed</span>
+              </button>
+
+              <button
+                onClick={() => triggerAction({
+                  action: "APPLY_MINING_BOOST",
+                  targetUserId: boostingUser.id,
+                  boostMultiplier: 5.0,
+                })}
+                className="w-full py-3 bg-orange-600 hover:bg-orange-500 text-white font-bold rounded-xl text-xs shadow-lg flex justify-between px-4 items-center"
+              >
+                <span>🔥 5.0x Boost Package</span>
+                <span className="font-mono bg-black/40 px-2 py-0.5 rounded">Total: 5.50x Speed</span>
+              </button>
+            </div>
+            <button
+              onClick={() => setBoostingUser(null)}
+              className="w-full py-2.5 bg-gray-800 text-gray-300 font-bold rounded-xl text-xs mt-2"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* EDIT USER KYC & VERIFICATION MODAL */}
       {editingUser && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-xl flex items-center justify-center p-4 z-50">
           <div className="bg-slate-900 border border-amber-500/40 p-6 rounded-3xl max-w-md w-full space-y-4 shadow-2xl">
-            <h3 className="text-lg font-black text-amber-400">✏️ Edit KYC & Verification Status</h3>
+            <h3 className="text-lg font-black text-amber-400">✏️ Edit KYC & Custom Mining Speed</h3>
             <div className="space-y-3 text-xs">
               <div>
                 <label className="text-gray-400 block mb-1">Full Name:</label>
@@ -672,14 +726,26 @@ export default function FounderAdminDashboard() {
                   className="w-full bg-black/80 border border-gray-800 rounded-xl p-3 text-white outline-none"
                 />
               </div>
-              <div>
-                <label className="text-gray-400 block mb-1">APN Balance:</label>
-                <input
-                  type="number"
-                  value={editBalance}
-                  onChange={(e) => setEditBalance(e.target.value)}
-                  className="w-full bg-black/80 border border-gray-800 rounded-xl p-3 text-white outline-none"
-                />
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-gray-400 block mb-1">APN Balance:</label>
+                  <input
+                    type="number"
+                    value={editBalance}
+                    onChange={(e) => setEditBalance(e.target.value)}
+                    className="w-full bg-black/80 border border-gray-800 rounded-xl p-3 text-white outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-gray-400 block mb-1">Mining Speed (x):</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={editSpeed}
+                    onChange={(e) => setEditSpeed(e.target.value)}
+                    className="w-full bg-black/80 border border-gray-800 rounded-xl p-3 text-white outline-none"
+                  />
+                </div>
               </div>
               <div>
                 <label className="text-gray-400 block mb-1">User Role:</label>
@@ -733,6 +799,7 @@ export default function FounderAdminDashboard() {
                   name: editName,
                   email: editEmail,
                   balance: editBalance,
+                  miningSpeed: editSpeed,
                   role: editRole,
                   isVerified: editIsVerified,
                   canWithdraw: editCanWithdraw,
