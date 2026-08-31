@@ -183,7 +183,6 @@ export default function FounderAdminDashboard() {
     }
 
     try {
-      // Direct routing depending on action
       let endpoint = "/api/admin";
       let payload: any = {
         ...pendingAction,
@@ -191,11 +190,13 @@ export default function FounderAdminDashboard() {
         masterPin: masterPin,
       };
 
-      // Handling direct mentor/user transfer route fallback if needed
+      // Support for direct Send Tokens API fallback
       if (pendingAction?.action === "TRANSFER_MENTOR_TOKENS") {
         endpoint = "/api/admin/send-tokens";
         payload = {
+          adminId: admin?.id || "founder-root",
           mentorUserId: pendingAction.targetUserId,
+          targetUserId: pendingAction.targetUserId,
           amount: pendingAction.amount,
           masterPin: masterPin,
         };
@@ -778,4 +779,3 @@ export default function FounderAdminDashboard() {
     </div>
   );
 }
-        
