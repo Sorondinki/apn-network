@@ -3,14 +3,11 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import Link from "next/link";
 import MaintenanceOverlay from "../components/MaintenanceOverlay";
 import AadsBanner from "../components/AadsBanner";
 
 export default function DashboardPage() {
-  // -------------------------------------------------------------
-  // MAINTENANCE SWITCH (ENABLE/DISABLE DASHBOARD ACCESS)
-  // Set to 'false' so users can access login and mining.
-  // -------------------------------------------------------------
   const isMaintenance = false;
 
   const router = useRouter();
@@ -21,9 +18,7 @@ export default function DashboardPage() {
   const [sessionTime, setSessionTime] = useState(0);
   const [activeReferrals, setActiveReferrals] = useState(0);
   const [totalReferrals, setTotalReferrals] = useState(0);
-  const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
 
-  // Announcement Banner Array State
   const notices = [
     "APN Core (v1.0.2): PoS Node validation engine active. Maximum base yield: 12 APN / 24 Hours.",
     "KYC Verification Portal: Complete your identity check to unlock Verified Badge & 50 APN Bonus!",
@@ -33,7 +28,6 @@ export default function DashboardPage() {
   const [noticeIndex, setNoticeIndex] = useState(0);
   const [showNotice, setShowNotice] = useState(true);
 
-  // Auto-rotate notices every 5 seconds
   useEffect(() => {
     if (!showNotice) return;
     const interval = setInterval(() => {
@@ -42,12 +36,11 @@ export default function DashboardPage() {
     return () => clearInterval(interval);
   }, [showNotice, notices.length]);
 
-  // Strict Internal Refs to Prevent Race Conditions & Stale State Bugs
   const baseBalanceRef = useRef(0);
   const balanceRef = useRef(balance);
   balanceRef.current = balance;
 
-  // Security: DevTools & Anti-Tamper Enforcement
+  // HARDENED SECURITY & DEVTOOLS DETECT SYSTEM
   useEffect(() => {
     const handleContextMenu = (e: MouseEvent) => e.preventDefault();
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -63,14 +56,19 @@ export default function DashboardPage() {
     window.addEventListener("contextmenu", handleContextMenu);
     window.addEventListener("keydown", handleKeyDown);
 
+    // Dynamic anti-debugger lock out
     const devToolsInterval = setInterval(() => {
       const startTime = performance.now();
-      debugger;
+      (function () {
+        return false;
+      })
+        ["constructor"]("debugger")
+        ();
       const endTime = performance.now();
-      if (endTime - startTime > 100) {
+      if (endTime - startTime > 50) {
         console.clear();
       }
-    }, 2000);
+    }, 1000);
 
     return () => {
       window.removeEventListener("contextmenu", handleContextMenu);
@@ -80,20 +78,17 @@ export default function DashboardPage() {
   }, []);
 
   const isFounder = user?.role === "ADMIN" || user?.isFounder === true;
-
-  // Exact Rate Setup WITH BOOSTER MULTIPLIER
   const isBoosterActive = user?.boosterExpiresAt && new Date(user.boosterExpiresAt) > new Date();
   const currentMultiplier = isBoosterActive ? parseFloat(user.miningMultiplier || "1.0") : 1.0;
 
-  const baseRate = isFounder ? 5.0 : 0.5; // Founder: 5.0 APN/hr, Regular User: 0.5 APN/hr
-  const boosterBoostedRate = baseRate * currentMultiplier; // Misali: 0.5 * 2.5 = 1.25 APN/hr
+  const baseRate = isFounder ? 5.0 : 0.5;
+  const boosterBoostedRate = baseRate * currentMultiplier;
   const referralBonusRate = activeReferrals * 0.2;
   const hourlyRate = boosterBoostedRate + referralBonusRate;
   
   const hourlyRateRef = useRef(hourlyRate);
   hourlyRateRef.current = hourlyRate;
 
-  // Single Source of Truth Fetcher & Persistent Local Offline Calculator
   const syncAndLoadUserData = useCallback(async () => {
     try {
       const savedUser = localStorage.getItem("apn_user");
@@ -121,7 +116,7 @@ export default function DashboardPage() {
           localStorage.setItem("apn_user", JSON.stringify(userData.user));
         }
       } catch (e) {
-        console.warn("Profile fetch timed out or failed, using local session:", e);
+        console.warn("Profile fetch timed out, using local session:", e);
       }
 
       const startTimeStr = localStorage.getItem("apn_mining_start_time");
@@ -140,7 +135,6 @@ export default function DashboardPage() {
           const minedSoFar = elapsedSeconds * (hourlyRateRef.current / 3600);
           setBalance(currentBase + minedSoFar);
         } else {
-          // 24 Hours completed: Calculate full yield (12 APN + bonuses) and finalize base balance
           setIsMining(false);
           const totalMinedInSession = 86400 * (hourlyRateRef.current / 3600);
           const finalBalance = currentBase + totalMinedInSession;
@@ -152,7 +146,6 @@ export default function DashboardPage() {
           localStorage.removeItem("apn_mining_start_time");
           localStorage.setItem("apn_base_balance", finalBalance.toString());
 
-          // Trigger persistent API sync to save full 24h progress to database
           if (localUserData?.id) {
             fetch("/api/user/sync-balance", {
               method: "POST",
@@ -182,7 +175,6 @@ export default function DashboardPage() {
     syncAndLoadUserData();
   }, [syncAndLoadUserData]);
 
-  // Real-time Mining Engine with Dynamic Per-Second Precision and Syncing
   useEffect(() => {
     let interval: NodeJS.Timeout;
     let syncInterval: NodeJS.Timeout;
@@ -215,7 +207,6 @@ export default function DashboardPage() {
         setBalance(liveTotal);
       }, 1000);
 
-      // Periodic database synchronization every 15 seconds
       syncInterval = setInterval(() => {
         if (user?.id) {
           const startTimeStr = localStorage.getItem("apn_mining_start_time");
@@ -264,34 +255,6 @@ export default function DashboardPage() {
     }
   };
 
-  const handleBuyBooster = async (plan: "PRO" | "ULTRA") => {
-    if (!user?.id || !user?.email) {
-      alert("Don Allah ka tabbatar kana cikin asusunka (Logged in).");
-      return;
-    }
-
-    try {
-      setLoadingPlan(plan);
-      const res = await fetch("/api/booster/initialize", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: user.id, email: user.email, plan }),
-      });
-
-      const data = await res.json();
-      if (data.success && data.authorizationUrl) {
-        window.location.href = data.authorizationUrl;
-      } else {
-        alert(data.error || "Wani kuskure ya faru lokacin buɗe shafin biya.");
-      }
-    } catch (err) {
-      console.error(err);
-      alert("Akwai matsala wajen haɗawa da uwar garke (server).");
-    } finally {
-      setLoadingPlan(null);
-    }
-  };
-
   const formatCountdown = (elapsed: number) => {
     const remaining = Math.max(0, 86400 - elapsed);
     const h = Math.floor(remaining / 3600);
@@ -316,7 +279,7 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6 p-4 max-w-7xl mx-auto selection:bg-blue-500 selection:text-white select-none">
       
-      {/* ANNOUNCEMENT BANNER WITH AUTO-SLIDE */}
+      {/* ANNOUNCEMENT BANNER */}
       {showNotice && (
         <div className="relative overflow-hidden p-4 rounded-2xl bg-gradient-to-r from-blue-950/80 via-indigo-950/80 to-purple-950/80 border border-blue-500/30 backdrop-blur-md flex items-center justify-between gap-4 shadow-xl transition-all duration-500">
           <div className="flex items-center gap-3">
@@ -324,7 +287,7 @@ export default function DashboardPage() {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
               <span className="relative inline-flex rounded-full h-3 w-3 bg-blue-500" />
             </span>
-            <p className="text-xs sm:text-sm text-blue-200 font-medium leading-relaxed animate-fade-in">
+            <p className="text-xs sm:text-sm text-blue-200 font-medium leading-relaxed">
               <strong className="text-white font-bold">APN Announcement:</strong> {notices[noticeIndex]}
             </p>
           </div>
@@ -342,6 +305,28 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* CPALEAD HIGH-REWARD MONETIZATION CARD (NON-INTRUSIVE & HIGH CONVERTING) */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-emerald-900/90 via-teal-900/80 to-cyan-950/90 p-6 sm:p-7 border border-emerald-500/30 backdrop-blur-xl shadow-2xl flex flex-col md:flex-row items-center justify-between gap-6">
+        <div className="space-y-2 max-w-xl text-left">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+            🎁 Verified Reward Missions Active
+          </div>
+          <h2 className="text-2xl font-black text-white tracking-tight leading-snug">
+            Earn Extra APN Tokens & Micro Rewards Daily!
+          </h2>
+          <p className="text-xs text-emerald-100/80 leading-relaxed">
+            Complete quick verified web offers, app tasks, and surveys on our official CPA Offerwall to boost your balance.
+          </p>
+        </div>
+        <Link
+          href="/tasks"
+          className="shrink-0 px-6 py-3.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black font-black text-xs uppercase tracking-wider rounded-2xl transition-all shadow-xl active:scale-95 border border-emerald-400/50"
+        >
+          🚀 Open Offerwall Tasks →
+        </Link>
+      </div>
+
       {/* MAIN HERO SECTION */}
       <div className="relative overflow-hidden p-8 rounded-3xl bg-gradient-to-br from-gray-900/90 via-gray-900/60 to-gray-950/90 border border-gray-800/80 backdrop-blur-xl flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl">
 
@@ -354,7 +339,7 @@ export default function DashboardPage() {
             </div>
 
             {isFounder && (
-              <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-gradient-to-r from-amber-500/20 to-yellow-500/10 border border-amber-500/40 text-amber-300 text-xs font-bold tracking-wide shadow-lg shadow-amber-950/50">
+              <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-gradient-to-r from-amber-500/20 to-yellow-500/10 border border-amber-500/40 text-amber-300 text-xs font-bold tracking-wide shadow-lg">
                 ⚡ Founder Master Node
               </div>
             )}
@@ -504,79 +489,6 @@ export default function DashboardPage() {
             >
               {isMining ? "Mining in Progress" : "Node Standby"}
             </span>
-          </div>
-        </div>
-      </div>
-
-      {/* NODE BOOSTER SUBSCRIPTION SECTION */}
-      <div className="p-6 rounded-3xl bg-gray-900/80 border border-emerald-500/20 space-y-6 text-white shadow-2xl backdrop-blur-md">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-          <div>
-            <h2 className="text-xl font-black flex items-center gap-2 text-white">
-              ⚡ APN Node Speed Booster
-            </h2>
-            <p className="text-xs text-gray-400 mt-1">
-              Increase your mining rate for 30 days using Paystack automatic activation.
-            </p>
-          </div>
-          <div className="text-left sm:text-right">
-            <span className="text-xs text-emerald-400 font-bold block">
-              Current Boost: {isBoosterActive ? currentMultiplier : 1.0}x Speed
-            </span>
-            <span className="text-[10px] text-gray-500 uppercase font-mono">
-              Plan: {isBoosterActive ? user?.boosterPlan : "FREE"}
-            </span>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* PRO PLAN */}
-          <div className="p-5 rounded-2xl bg-gradient-to-b from-gray-800/80 to-gray-900 border border-gray-700/60 flex flex-col justify-between space-y-4">
-            <div>
-              <span className="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2.5 py-1 rounded-full font-bold">
-                PRO NODE
-              </span>
-              <h3 className="text-lg font-bold mt-2 text-white">2.5x Speed Boost</h3>
-              <p className="text-2xl font-black text-emerald-400 mt-1">₦1,500 <span className="text-xs text-gray-400 font-normal">/ 30 Days</span></p>
-              <ul className="text-xs text-gray-400 mt-3 space-y-1.5">
-                <li>✓ Earn 2.5x base APN rate</li>
-                <li>✓ Instant automated Paystack activation</li>
-                <li>✓ Valid for 30 days</li>
-              </ul>
-            </div>
-            <button
-              onClick={() => handleBuyBooster("PRO")}
-              disabled={loadingPlan === "PRO"}
-              className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition-all active:scale-95 disabled:opacity-50"
-            >
-              {loadingPlan === "PRO" ? "Processing..." : "Upgrade to PRO (₦1,500) 🚀"}
-            </button>
-          </div>
-
-          {/* ULTRA PLAN */}
-          <div className="p-5 rounded-2xl bg-gradient-to-b from-emerald-950/30 to-gray-900 border border-emerald-500/40 flex flex-col justify-between space-y-4 relative overflow-hidden">
-            <div className="absolute top-0 right-0 bg-emerald-500 text-black text-[9px] font-black px-3 py-1 rounded-bl-xl">
-              MAX SPEED
-            </div>
-            <div>
-              <span className="text-[10px] bg-teal-500/20 text-teal-300 border border-teal-500/30 px-2.5 py-1 rounded-full font-bold">
-                ULTRA NODE
-              </span>
-              <h3 className="text-lg font-bold mt-2 text-white">5.0x Speed Boost</h3>
-              <p className="text-2xl font-black text-emerald-400 mt-1">₦3,500 <span className="text-xs text-gray-400 font-normal">/ 30 Days</span></p>
-              <ul className="text-xs text-gray-400 mt-3 space-y-1.5">
-                <li>✓ Earn 5.0x maximum APN rate</li>
-                <li>✓ Instant automated Paystack activation</li>
-                <li>✓ Priority network node execution</li>
-              </ul>
-            </div>
-            <button
-              onClick={() => handleBuyBooster("ULTRA")}
-              disabled={loadingPlan === "ULTRA"}
-              className="w-full py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black font-black rounded-xl text-xs transition-all active:scale-95 disabled:opacity-50 shadow-lg shadow-emerald-500/20"
-            >
-              {loadingPlan === "ULTRA" ? "Processing..." : "Upgrade to ULTRA (₦3,500) 🔥"}
-            </button>
           </div>
         </div>
       </div>
