@@ -7,11 +7,10 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
 
-    // Support both parameter names for flexible invocation
     const targetId = body.mentorUserId || body.targetUserId;
     const { amount, masterPin } = body;
 
-    // Validate Master Security PIN
+    // 1. VERIFY MASTER SECURITY PIN
     const VALID_MASTER_PIN = process.env.MASTER_PIN || "APN-FOUNDER-2026#SECURE";
 
     if (!masterPin || String(masterPin).trim() !== VALID_MASTER_PIN) {
@@ -36,7 +35,31 @@ export async function POST(req: Request) {
       );
     }
 
-    // Fetch user balance
+    // 2. CALCULATE REMAINING FOUNDER TREASURY BALANCE
+    const TOTAL_FOUNDER_SUPPLY = 250000000; // 250 Million APN
+    const { data: txHistory } = await supabase
+      .from("Transaction")
+      .select("amount")
+      .in("type", ["FOUNDER_AIRDROP", "ADMIN_TRANSFER", "FOUNDER_BONUS"]);
+
+    const currentTotalDistributed = (txHistory || []).reduce(
+      (acc, tx) => acc + parseFloat(tx.amount || 0),
+      0
+    );
+
+    const founderRemainingBalance = TOTAL_FOUNDER_SUPPLY - currentTotalDistributed;
+
+    if (tokenAmount > founderRemainingBalance) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: `Transfer exceeds Founder Treasury Balance! Available: ${founderRemainingBalance} APN` 
+        },
+        { status: 400 }
+      );
+    }
+
+    // 3. FETCH TARGET USER
     const { data: user, error: fetchErr } = await supabase
       .from("User")
       .select("id, balance")
@@ -53,7 +76,7 @@ export async function POST(req: Request) {
     const currentBalance = parseFloat(user.balance || "0");
     const newBalance = currentBalance + tokenAmount;
 
-    // Update user balance
+    // 4. UPDATE TARGET USER BALANCE
     const { error: updateErr } = await supabase
       .from("User")
       .update({ balance: newBalance })
@@ -67,7 +90,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // Log transaction record
+    // 5. LOG TRANSACTION RECORD
     const { error: txErr } = await supabase
       .from("Transaction")
       .insert([
@@ -76,6 +99,7 @@ export async function POST(req: Request) {
           amount: tokenAmount,
           type: "FOUNDER_AIRDROP",
           description: `Founder direct bonus transfer (+${tokenAmount} APN)`,
+          createdAt: new Date().toISOString()
         },
       ]);
 
@@ -83,10 +107,13 @@ export async function POST(req: Request) {
       console.error("Transaction insert log failed:", txErr);
     }
 
+    const newFounderBalance = founderRemainingBalance - tokenAmount;
+
     return NextResponse.json({
       success: true,
-      message: `Successfully transferred ${tokenAmount} APN to the recipient.`,
+      message: `Successfully transferred ${tokenAmount} APN to recipient.`,
       newBalance: newBalance,
+      founderRemainingBalance: newFounderBalance
     });
 
   } catch (error: any) {
@@ -97,4 +124,4 @@ export async function POST(req: Request) {
     );
   }
 }
-  
+      
