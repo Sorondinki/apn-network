@@ -87,7 +87,8 @@ async function handleAdminRequest(req: Request, isGet: boolean) {
       "CREATE_ANNOUNCEMENT",
       "UPDATE_USER",
       "APPLY_MINING_BOOST",
-      "BULK_APPLY_BOOST"
+      "BULK_APPLY_BOOST",
+      "TOGGLE_BOOST"
     ];
 
     if (pinProtectedActions.includes(action)) {
@@ -132,13 +133,13 @@ async function handleAdminRequest(req: Request, isGet: boolean) {
       const rawUsers = data || [];
 
       // 1. Kwaso Real Total Circulating Balance daga dukkan Database
-const { data: allBalances } = await supabase
-  .from("User")
-  .select("balance");
+      const { data: allBalances } = await supabase
+        .from("User")
+        .select("balance");
 
-const totalDistributedTokens = (allBalances || []).reduce((acc: number, curr: any) => {
-  return acc + (parseFloat(curr.balance) || 0);
-}, 0);
+      const totalDistributedTokens = (allBalances || []).reduce((acc: number, curr: any) => {
+        return acc + (parseFloat(curr.balance) || 0);
+      }, 0);
 
       const usersWithRefs = rawUsers.map((u) => {
         const baseSpeed = 0.50;
@@ -152,6 +153,7 @@ const totalDistributedTokens = (allBalances || []).reduce((acc: number, curr: an
           balance: u.balance || 0,
           miningSpeed: finalMiningSpeed,
           miningBoost: boostVal,
+          isBoosting: Boolean(u.isBoosting),
           role: u.role || "USER",
           isSuspended: Boolean(u.isSuspended),
           isVerified: Boolean(u.isVerified),
@@ -170,7 +172,41 @@ const totalDistributedTokens = (allBalances || []).reduce((acc: number, curr: an
       });
     }
 
-    // B. APPLY PAYSTACK SPEED BOOST
+    // B. TOGGLE / UPDATE BOOSTING SPEED (3.0x / 5.50x / OFF)
+    if (action === "TOGGLE_BOOST") {
+      const targetUserId = body.userId || body.targetUserId;
+      const boostSpeed = body.boostSpeed;
+
+      if (!targetUserId) {
+        return NextResponse.json({ success: false, error: "Target User ID is required." }, { status: 400 });
+      }
+
+      const targetSpeed = parseFloat(boostSpeed !== undefined ? boostSpeed : "0.50");
+      const isBoostingState = targetSpeed > 0.50;
+
+      const { error: updateErr } = await supabase
+        .from(targetTable)
+        .update({
+          isBoosting: isBoostingState,
+          miningSpeed: targetSpeed,
+        })
+        .eq("id", targetUserId);
+
+      if (updateErr) {
+        return NextResponse.json({ success: false, error: updateErr.message }, { status: 500 });
+      }
+
+      return NextResponse.json({
+        success: true,
+        isBoosting: isBoostingState,
+        miningSpeed: targetSpeed,
+        message: isBoostingState 
+          ? `An amince da Boosting na ${targetSpeed}x Speed!` 
+          : "An maida mutum zuwa Normal Speed (0.50x).",
+      });
+    }
+
+    // C. APPLY PAYSTACK SPEED BOOST
     if (action === "APPLY_MINING_BOOST" || action === "BULK_APPLY_BOOST") {
       const { targetUserId, targetUserIds, boostMultiplier } = body;
       const boostVal = parseFloat(boostMultiplier || "2.5");
@@ -187,14 +223,15 @@ const totalDistributedTokens = (allBalances || []).reduce((acc: number, curr: an
         .from(targetTable)
         .update({
           miningSpeed: calculatedSpeed,
-          miningBoost: boostVal
+          miningBoost: boostVal,
+          isBoosting: true
         })
         .in("id", userIdsToProcess);
 
       if (error) {
         await supabase
           .from(targetTable)
-          .update({ miningSpeed: calculatedSpeed })
+          .update({ miningSpeed: calculatedSpeed, isBoosting: true })
           .in("id", userIdsToProcess);
       }
 
@@ -204,7 +241,7 @@ const totalDistributedTokens = (allBalances || []).reduce((acc: number, curr: an
       });
     }
 
-    // C. TOGGLE VERIFICATION (KYC)
+    // D. TOGGLE VERIFICATION (KYC)
     if (action === "TOGGLE_VERIFY" || action === "BULK_VERIFY") {
       const { targetUserId, targetUserIds, status } = body;
       const userIdsToProcess: string[] = targetUserIds || (targetUserId ? [targetUserId] : []);
@@ -219,7 +256,7 @@ const totalDistributedTokens = (allBalances || []).reduce((acc: number, curr: an
       return NextResponse.json({ success: true, message: "Verification status updated." });
     }
 
-    // D. TOGGLE WITHDRAWAL PERMISSION
+    // E. TOGGLE WITHDRAWAL PERMISSION
     if (action === "TOGGLE_WITHDRAW" || action === "BULK_TOGGLE_WITHDRAW") {
       const { targetUserId, targetUserIds, status } = body;
       const userIdsToProcess: string[] = targetUserIds || (targetUserId ? [targetUserId] : []);
@@ -236,7 +273,7 @@ const totalDistributedTokens = (allBalances || []).reduce((acc: number, curr: an
       return NextResponse.json({ success: true, message: "Withdrawal permission updated." });
     }
 
-    // E. AIRDROP / TOKEN TRANSFER
+    // F. AIRDROP / TOKEN TRANSFER
     if (action === "TRANSFER_TOKENS" || action === "BULK_AIRDROP") {
       const { targetUserId, targetUserIds, amount } = body;
       const tokenAmount = parseFloat(amount);
@@ -259,7 +296,7 @@ const totalDistributedTokens = (allBalances || []).reduce((acc: number, curr: an
       return NextResponse.json({ success: true, message: `Transferred ${tokenAmount} APN successfully.` });
     }
 
-    // F. TOGGLE SUSPEND
+    // G. TOGGLE SUSPEND
     if (action === "TOGGLE_SUSPEND" || action === "BULK_SUSPEND") {
       const { targetUserId, targetUserIds, status } = body;
       const userIdsToProcess: string[] = targetUserIds || (targetUserId ? [targetUserId] : []);
@@ -272,7 +309,7 @@ const totalDistributedTokens = (allBalances || []).reduce((acc: number, curr: an
       return NextResponse.json({ success: true, message: "Account suspension updated." });
     }
 
-    // G. UPDATE USER DETAILS
+    // H. UPDATE USER DETAILS
     if (action === "UPDATE_USER") {
       const { targetUserId, name, email, balance, miningSpeed, role, isVerified, canWithdraw } = body;
 
@@ -303,5 +340,5 @@ const totalDistributedTokens = (allBalances || []).reduce((acc: number, curr: an
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message || "Server error" }, { status: 500 });
   }
-    }
-          
+}
+    
