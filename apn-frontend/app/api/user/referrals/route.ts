@@ -13,7 +13,7 @@ export async function GET(req: Request) {
       );
     }
 
-    // Zakulo referrals da dukkan bayanan gani na status din su
+    // Zaƙulo duk mutanen da mai amfani ya gayyata a tsarin database
     const { data: referrals, error, count } = await supabase
       .from("User")
       .select("id, name, email, createdAt, balance, isMining, lastActive, miningStartTime", { count: "exact" })
@@ -29,10 +29,10 @@ export async function GET(req: Request) {
     }
 
     const totalInvited = count ?? referrals?.length ?? 0;
-    const bonusPerReferral = 5.0; // 5.0 APN Bonus
+    const bonusPerReferral = 5.0; // Bonus 5.0 APN
     const commissionsEarned = (totalInvited * bonusPerReferral).toFixed(2);
 
-    // Dynamic Tier/Level Calculation Engine (Kowani Mutane 10 yana ƙara Level)
+    // Lissafin matakin mai amfani (Duk mutane 10 na ƙara mataki 1)
     const calculatedLevel = Math.floor(totalInvited / 10) + 1;
     let tierName = `Level ${calculatedLevel} Miner`;
 
