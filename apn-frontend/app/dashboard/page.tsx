@@ -7,9 +7,13 @@ import Link from "next/link";
 import MaintenanceOverlay from "../components/MaintenanceOverlay";
 import AadsBanner from "../components/AadsBanner";
 
+// Sanya wadannan a saman route fakes ko page server components
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 export default function DashboardPage() {
   const isMaintenance = false;
 
+  
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
