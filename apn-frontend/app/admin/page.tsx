@@ -17,6 +17,7 @@ interface User {
   isSuspended?: boolean;
   canWithdraw?: boolean;
   referralCount?: number;
+  isBoosting?: boolean;
 }
 
 interface ActionPayload {
@@ -27,6 +28,8 @@ interface ActionPayload {
   targetUserIds?: string[];
   amount?: string | number;
   boostMultiplier?: number;
+  boostSpeed?: number;
+  userId?: string;
   status?: boolean;
   title?: string;
   content?: string;
@@ -680,38 +683,80 @@ export default function FounderAdminDashboard() {
                             {u.isSuspended ? "🚫 Suspended" : "✅ Active"}
                           </span>
                         </td>
-                        <td className="p-3 flex items-center justify-center gap-2">
-                          <button
-                            onClick={() => setBoostingUser(u)}
-                            className="px-2.5 py-1 bg-purple-600/20 text-purple-400 hover:bg-purple-600/40 rounded-lg border border-purple-500/30 font-bold"
-                          >
-                            ⚡ Boost Speed
-                          </button>
-                          <button
-                            onClick={() => {
-                              setEditingUser(u);
-                              setEditName(u.fullName || u.name || "");
-                              setEditEmail(u.email || "");
-                              setEditBalance(String(u.balance || 0));
-                              setEditSpeed(String(u.miningSpeed || 0.50));
-                              setEditRole(u.role || "USER");
-                              setEditIsVerified(u.isVerified || false);
-                              setEditCanWithdraw(u.canWithdraw ?? true);
-                            }}
-                            className="px-2.5 py-1 bg-amber-600/20 text-amber-400 hover:bg-amber-600/40 rounded-lg border border-amber-500/30 font-bold"
-                          >
-                            ✏️ KYC / Edit
-                          </button>
-                          <button
-                            onClick={() => triggerAction({
-                              action: "TOGGLE_SUSPEND",
-                              targetUserId: u.id,
-                              status: !u.isSuspended,
-                            })}
-                            className="px-2.5 py-1 bg-orange-600/20 text-orange-400 hover:bg-orange-600/40 rounded-lg border border-orange-500/30 font-bold"
-                          >
-                            {u.isSuspended ? "Unsuspend" : "Suspend"}
-                          </button>
+                        <td className="p-3">
+                          <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                            {/* 1. Maɓallin Approve 3.0x Speed */}
+                            <button
+                              onClick={() => triggerAction({
+                                action: "TOGGLE_BOOST",
+                                userId: u.id,
+                                boostSpeed: 3.00,
+                              })}
+                              className={`px-2 py-1 rounded text-xs font-bold transition ${
+                                Number(u.miningSpeed) === 3.0
+                                  ? "bg-amber-500 text-black font-extrabold"
+                                  : "bg-gray-800 text-amber-400 border border-amber-500/30 hover:bg-amber-500/20"
+                              }`}
+                            >
+                              ⚡ 3.0x Boost
+                            </button>
+                            {/* 2. Maɓallin Approve 5.50x Speed */}
+                            <button
+                              onClick={() => triggerAction({
+                                action: "TOGGLE_BOOST",
+                                userId: u.id,
+                                boostSpeed: 5.50,
+                              })}
+                              className={`px-2 py-1 rounded text-xs font-bold transition ${
+                                Number(u.miningSpeed) === 5.5
+                                  ? "bg-emerald-500 text-black font-extrabold"
+                                  : "bg-gray-800 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20"
+                              }`}
+                            >
+                              ⚡ 5.5x Boost
+                            </button>
+
+                            {/* 3. Maɓallin Reset Speed zuwa Normal (0.50x) */}
+                            {(u.isBoosting || Number(u.miningSpeed) > 0.5) && (
+                              <button
+                                onClick={() => triggerAction({
+                                  action: "TOGGLE_BOOST",
+                                  userId: u.id,
+                                  boostSpeed: 0.50,
+                                })}
+                                className="px-1.5 py-1 text-xs text-red-400 hover:text-red-300 underline"
+                                title="Mayar da mutum 0.50x"
+                              >
+                                Remove
+                              </button>
+                            )}
+
+                            <button
+                              onClick={() => {
+                                setEditingUser(u);
+                                setEditName(u.fullName || u.name || "");
+                                setEditEmail(u.email || "");
+                                setEditBalance(String(u.balance || 0));
+                                setEditSpeed(String(u.miningSpeed || 0.50));
+                                setEditRole(u.role || "USER");
+                                setEditIsVerified(u.isVerified || false);
+                                setEditCanWithdraw(u.canWithdraw ?? true);
+                              }}
+                              className="px-2.5 py-1 bg-amber-600/20 text-amber-400 hover:bg-amber-600/40 rounded-lg border border-amber-500/30 font-bold"
+                            >
+                              ✏️ Edit
+                            </button>
+                            <button
+                              onClick={() => triggerAction({
+                                action: "TOGGLE_SUSPEND",
+                                targetUserId: u.id,
+                                status: !u.isSuspended,
+                              })}
+                              className="px-2.5 py-1 bg-orange-600/20 text-orange-400 hover:bg-orange-600/40 rounded-lg border border-orange-500/30 font-bold"
+                            >
+                              {u.isSuspended ? "Unsuspend" : "Suspend"}
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -752,33 +797,33 @@ export default function FounderAdminDashboard() {
       {boostingUser && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-xl flex items-center justify-center p-4 z-50">
           <div className="bg-slate-900 border border-purple-500/40 p-6 rounded-3xl max-w-sm w-full space-y-4 text-center shadow-2xl">
-            <h3 className="text-lg font-black text-purple-400">⚡ Apply Paystack Speed Boost</h3>
+            <h3 className="text-lg font-black text-purple-400">⚡ Apply Mining Speed Boost</h3>
             <p className="text-xs text-gray-300">
               Select boost package for <b>{boostingUser.fullName || boostingUser.name}</b> ({boostingUser.email}):
             </p>
             <div className="space-y-2 pt-2">
               <button
                 onClick={() => triggerAction({
-                  action: "APPLY_MINING_BOOST",
-                  targetUserId: boostingUser.id,
-                  boostMultiplier: 2.5,
+                  action: "TOGGLE_BOOST",
+                  userId: boostingUser.id,
+                  boostSpeed: 3.00,
                 })}
                 className="w-full py-3 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-xl text-xs shadow-lg flex justify-between px-4 items-center"
               >
-                <span>⚡ 2.5x Boost Package</span>
-                <span className="font-mono bg-black/40 px-2 py-0.5 rounded">Total: 3.00x Speed</span>
+                <span>⚡ 3.0x Boost Package</span>
+                <span className="font-mono bg-black/40 px-2 py-0.5 rounded">3.00x Speed</span>
               </button>
 
               <button
                 onClick={() => triggerAction({
-                  action: "APPLY_MINING_BOOST",
-                  targetUserId: boostingUser.id,
-                  boostMultiplier: 5.0,
+                  action: "TOGGLE_BOOST",
+                  userId: boostingUser.id,
+                  boostSpeed: 5.50,
                 })}
                 className="w-full py-3 bg-orange-600 hover:bg-orange-500 text-white font-bold rounded-xl text-xs shadow-lg flex justify-between px-4 items-center"
               >
-                <span>🔥 5.0x Boost Package</span>
-                <span className="font-mono bg-black/40 px-2 py-0.5 rounded">Total: 5.50x Speed</span>
+                <span>🔥 5.5x Boost Package</span>
+                <span className="font-mono bg-black/40 px-2 py-0.5 rounded">5.50x Speed</span>
               </button>
             </div>
             <button
