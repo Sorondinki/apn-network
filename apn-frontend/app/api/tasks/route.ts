@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
 
     if (taskErr) throw taskErr;
 
-    // Karɓo ayyukan da wannan amfani (user) ya riga ya kammala
+    // Karɓo ayyukan da wannan mai amfani (user) ya riga ya kammala
     let completedTaskIds: string[] = [];
     if (userId) {
       const { data: completions } = await supabase
@@ -42,10 +42,57 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// 2. Tura bukatar kammala aiki da karɓar lada (Claim Reward)
+// 2. Sarrafa Wallafa Sabon Task (Admin) KO Kammala Task/Claim Reward (User)
 export async function POST(req: NextRequest) {
   try {
-    const { userId, taskId } = await req.json();
+    const body = await req.json();
+
+    // HANYA A: WALFA SABON TASK (ADMIN / FOUNDER ACTION)
+    if (body.title && body.link !== undefined) {
+      const { title, description, reward, link, category } = body;
+
+      if (!title || reward === undefined || reward === null || !link) {
+        return NextResponse.json(
+          { success: false, error: "Tabbatar ka shigar da Title, Reward amount, da Task Link URL daidai." },
+          { status: 400 }
+        );
+      }
+
+      const numericReward = parseFloat(String(reward));
+      if (isNaN(numericReward)) {
+        return NextResponse.json(
+          { success: false, error: "Lambar Reward ba daidai take ba." },
+          { status: 400 }
+        );
+      }
+
+      const { data: newTask, error } = await supabase
+        .from("Task")
+        .insert([
+          {
+            title: String(title).trim(),
+            description: description ? String(description).trim() : "",
+            reward: numericReward,
+            link: String(link).trim(),
+            category: category || "GENERAL",
+            isActive: true,
+            createdAt: new Date().toISOString(),
+          },
+        ])
+        .select()
+        .maybeSingle();
+
+      if (error) throw error;
+
+      return NextResponse.json({
+        success: true,
+        message: "An wallafa sabon Task cikin nasara! 🚀",
+        task: newTask,
+      });
+    }
+
+    // HANYA B: KAMMALA TASK DA KARBA LADA (USER CLAIM REWARD)
+    const { userId, taskId } = body;
 
     if (!userId || !taskId) {
       return NextResponse.json(
@@ -54,13 +101,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // A. Tabbatar idan mutum bai riga ya yi aikin ba
+    // Direct Check: Tabbatar idan mutum bai riga ya yi aikin ba
     const { data: existing } = await supabase
       .from("UserTaskCompletion")
       .select("id")
       .eq("userId", userId)
       .eq("taskId", taskId)
-      .single();
+      .maybeSingle();
 
     if (existing) {
       return NextResponse.json(
@@ -69,7 +116,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // B. Karɓo bayanin aikin daga teburin 'Task'
+    // Karɓo bayanin aikin daga teburin 'Task'
     const { data: task, error: taskErr } = await supabase
       .from("Task")
       .select("*")
@@ -83,9 +130,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const rewardAmount = parseFloat(task.reward || "0");
+    const rewardAmount = parseFloat(String(task.reward || "0"));
 
-    // C. Yi rikodin a teburin UserTaskCompletion
+    // Yi rikodin a teburin UserTaskCompletion
     const { error: completionErr } = await supabase.from("UserTaskCompletion").insert({
       userId,
       taskId,
@@ -94,7 +141,7 @@ export async function POST(req: NextRequest) {
 
     if (completionErr) throw completionErr;
 
-    // D. Sakawa mutum APN Reward ɗinsa a teburin Transaction
+    // Sakawa mutum APN Reward ɗinsa a teburin Transaction
     const { error: txErr } = await supabase.from("Transaction").insert({
       userId,
       amount: rewardAmount,
@@ -109,7 +156,6 @@ export async function POST(req: NextRequest) {
       message: `An kammala aikin cikin nasara! Ka samu +${rewardAmount} APN.`,
     });
   } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: error?.message || "Internal Server Error" }, { status: 500 });
   }
 }
-          
