@@ -77,12 +77,13 @@ export default function DashboardPage() {
     };
   }, []);
 
-  const isFounder = user?.role === "ADMIN" || user?.isFounder === true;
+  const isFounder = user?.role === "ADMIN" || user?.role === "FOUNDER" || user?.isFounder === true;
   const isBoosterActive = user?.boosterExpiresAt && new Date(user.boosterExpiresAt) > new Date();
   const currentMultiplier = isBoosterActive ? parseFloat(user.miningMultiplier || "1.0") : 1.0;
 
-  const baseRate = isFounder ? 5.0 : 0.5;
-  const boosterBoostedRate = baseRate * currentMultiplier;
+  // DYNAMIC SPEED SYSTEM: Karanta miningSpeed daga Database wanda Admin ya saita (misali 5.50x ko 3.00x)
+  const dbMiningSpeed = parseFloat(user?.miningSpeed || user?.miningBoost || (isFounder ? "5.0" : "0.5"));
+  const boosterBoostedRate = dbMiningSpeed * currentMultiplier;
   const referralBonusRate = activeReferrals * 0.2;
   const hourlyRate = boosterBoostedRate + referralBonusRate;
   
@@ -344,9 +345,15 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {isBoosterActive && (
+            {dbMiningSpeed > 0.5 && (
               <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-gradient-to-r from-amber-500/20 to-yellow-500/10 border border-amber-500/40 text-amber-300 text-xs font-bold shadow-lg">
-                ⚡ Booster Active: {currentMultiplier}x Speed
+                ⚡ Boost Active: {dbMiningSpeed.toFixed(2)}x Speed
+              </div>
+            )}
+
+            {isBoosterActive && (
+              <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-gradient-to-r from-purple-500/20 to-indigo-500/10 border border-purple-500/40 text-purple-300 text-xs font-bold shadow-lg">
+                🚀 Multiplier: {currentMultiplier}x
               </div>
             )}
 
@@ -452,9 +459,9 @@ export default function DashboardPage() {
               {hourlyRate.toFixed(2)}
             </span>
             <span className="text-xs font-semibold text-gray-400">APN / hr</span>
-            {isBoosterActive && (
+            {dbMiningSpeed > 0.5 && (
               <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-md font-bold ml-1 border border-amber-500/30">
-                {currentMultiplier}x Boost
+                {dbMiningSpeed.toFixed(2)}x Speed
               </span>
             )}
             {activeReferrals > 0 && (
