@@ -13,10 +13,10 @@ export async function GET(req: Request) {
       );
     }
 
-    // Zaƙulo duk mutanen da mai amfani ya gayyata a tsarin database
+    // Zaƙulo bayanan referrals ta amfani da `fullName` maimakon `name`
     const { data: referrals, error, count } = await supabase
       .from("User")
-      .select("id, name, email, createdAt, balance, isMining, lastActive, miningStartTime", { count: "exact" })
+      .select("id, fullName, email, createdAt, balance, isMining, lastActive, miningStartTime", { count: "exact" })
       .eq("referredById", userId)
       .order("createdAt", { ascending: false });
 
@@ -29,10 +29,9 @@ export async function GET(req: Request) {
     }
 
     const totalInvited = count ?? referrals?.length ?? 0;
-    const bonusPerReferral = 5.0; // Bonus 5.0 APN
+    const bonusPerReferral = 5.0;
     const commissionsEarned = (totalInvited * bonusPerReferral).toFixed(2);
 
-    // Lissafin matakin mai amfani (Duk mutane 10 na ƙara mataki 1)
     const calculatedLevel = Math.floor(totalInvited / 10) + 1;
     let tierName = `Level ${calculatedLevel} Miner`;
 
@@ -57,3 +56,4 @@ export async function GET(req: Request) {
     );
   }
 }
+    
