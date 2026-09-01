@@ -495,17 +495,6 @@ export default function FounderAdminDashboard() {
                   targetUserIds: selectedUserIds,
                   status: true,
                 })}
-                className="px-3 py-1.5 bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs rounded-lg shadow"
-              >
-                💸 Enable Withdrawal
-              </button>
-
-              <button
-                onClick={() => triggerAction({
-                  action: "BULK_SUSPEND",
-                  targetUserIds: selectedUserIds,
-                  status: true,
-                })}
                 className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white font-bold text-xs rounded-lg shadow"
               >
                 🚫 Suspend Selected
