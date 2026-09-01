@@ -51,9 +51,16 @@ export default function FounderAdminDashboard() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
-  // Search & Selection State
+  // Search, Pagination & Selection State
   const [searchTerm, setSearchTerm] = useState<string>("");
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [totalPages, setTotalPages] = useState<number>(1);
+  const [totalUsersCount, setTotalUsersCount] = useState<number>(0);
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+
+  // Founder Treasury Token Balance Stats
+  const TOTAL_FOUNDER_RESERVE = 250000000; // 250 Million APN Tokens
+  const [totalDistributed, setTotalDistributed] = useState<number>(0);
 
   // Custom Toast State
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
@@ -98,21 +105,29 @@ export default function FounderAdminDashboard() {
     setTimeout(() => setToast(null), 4000);
   }, []);
 
-  // Fetch Users Function
-  const fetchUsers = useCallback(async (adminId: string) => {
+  // Fetch Users Function with Server-Side Search & Pagination
+  const fetchUsers = useCallback(async (adminId: string, search: string = "", page: number = 1) => {
     setLoading(true);
     try {
-      const res = await fetch("/api/admin", {
+      const res = await fetch(`/api/admin?search=${encodeURIComponent(search)}&page=${page}&limit=100`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "FETCH_USERS",
           adminId: adminId,
+          search: search,
+          page: page,
+          limit: 100
         }),
       });
       const data = await res.json();
       if (data.success || Array.isArray(data.users)) {
         setUsers(data.users || []);
+        setTotalUsersCount(data.totalCount || (data.users ? data.users.length : 0));
+        setTotalPages(data.totalPages || 1);
+        if (data.totalDistributedTokens !== undefined) {
+          setTotalDistributed(data.totalDistributedTokens);
+        }
       } else {
         showToast(data.error || "Failed to load user records.", "error");
       }
@@ -148,22 +163,30 @@ export default function FounderAdminDashboard() {
       }
 
       setAdmin(userData);
-      fetchUsers(userData.id || "founder-root");
+      fetchUsers(userData.id || "founder-root", searchTerm, currentPage);
     } catch (err) {
       console.error("Failed to parse user data", err);
       router.push("/login");
     }
   }, [router, fetchUsers, showToast]);
 
-  // Multi-Select Logic & Search Filter
-  const filteredUsers = users.filter((u) =>
-    (u.fullName || u.name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (u.email || "").toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Handle Search Input with Debounce/Trigger
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setSearchTerm(val);
+    setCurrentPage(1);
+    fetchUsers(admin?.id || "founder-root", val, 1);
+  };
+
+  const handlePageChange = (newPage: number) => {
+    if (newPage < 1 || newPage > totalPages) return;
+    setCurrentPage(newPage);
+    fetchUsers(admin?.id || "founder-root", searchTerm, newPage);
+  };
 
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked) {
-      setSelectedUserIds(filteredUsers.map((u) => u.id));
+      setSelectedUserIds(users.map((u) => u.id));
     } else {
       setSelectedUserIds([]);
     }
@@ -231,7 +254,7 @@ export default function FounderAdminDashboard() {
         setPostTitle(""); setPostContent(""); setPostMediaUrl("");
         setTransferAmount(""); setTransferTargetId("");
 
-        fetchUsers(admin?.id || "founder-root");
+        fetchUsers(admin?.id || "founder-root", searchTerm, currentPage);
       } else {
         showToast(data.error || "Execution failed. Check Master PIN.", "error");
       }
@@ -241,6 +264,8 @@ export default function FounderAdminDashboard() {
   };
 
   if (!admin) return null;
+
+  const availableReserve = TOTAL_FOUNDER_RESERVE - totalDistributed;
 
   return (
     <div className="min-h-screen bg-slate-950 text-white p-4 md:p-8 space-y-8 max-w-7xl mx-auto font-sans relative">
@@ -264,6 +289,48 @@ export default function FounderAdminDashboard() {
         <div className="bg-black/50 p-4 rounded-2xl border border-gray-800 text-right">
           <span className="text-[10px] text-gray-400 font-bold block uppercase">Primary Admin</span>
           <span className="text-emerald-400 font-bold text-sm font-mono">{admin.email}</span>
+        </div>
+      </div>
+
+      {/* 250 MILLION APN FOUNDER TREASURY & RESERVE DASHBOARD CARD */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="p-6 rounded-3xl bg-gradient-to-br from-amber-950/40 via-slate-900 to-amber-900/20 border border-amber-500/40 shadow-2xl relative overflow-hidden col-span-1 md:col-span-2">
+          <div className="flex justify-between items-start">
+            <div>
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/20 text-amber-400 text-[11px] font-bold border border-amber-500/40">
+                💎 Founder Master Vault Reserve
+              </div>
+              <h2 className="text-2xl font-black text-white mt-3 font-mono">
+                {TOTAL_FOUNDER_RESERVE.toLocaleString()} <span className="text-amber-400 text-lg">APN</span>
+              </h2>
+              <p className="text-gray-400 text-xs mt-1">Total Genesis Founder Allocation for Airdrops, Boost Rewards & Staking Pools.</p>
+            </div>
+            <div className="text-right">
+              <span className="text-xs text-gray-400 font-medium block">Circulating / Minted</span>
+              <span className="text-emerald-400 font-mono font-bold text-lg">
+                {totalDistributed.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} APN
+              </span>
+            </div>
+          </div>
+
+          <div className="mt-4 pt-4 border-t border-amber-500/20 flex justify-between items-center text-xs">
+            <span className="text-gray-300">Remaining Vault Reserve:</span>
+            <span className="font-mono font-bold text-amber-300">
+              {availableReserve.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} APN
+            </span>
+          </div>
+        </div>
+
+        <div className="p-6 rounded-3xl bg-slate-900/80 border border-gray-800 shadow-xl flex flex-col justify-between">
+          <div>
+            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block">Total Database Users</span>
+            <div className="text-3xl font-black text-white mt-2 font-mono">{totalUsersCount.toLocaleString()}</div>
+            <p className="text-[11px] text-gray-400 mt-1">Live synchronized record from Supabase cluster.</p>
+          </div>
+          <div className="mt-3 pt-3 border-t border-gray-800 flex justify-between items-center text-xs text-gray-400">
+            <span>Server Search:</span>
+            <span className="text-emerald-400 font-bold">Active (ilike)</span>
+          </div>
         </div>
       </div>
 
@@ -438,13 +505,13 @@ export default function FounderAdminDashboard() {
           <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
             <input
               type="text"
-              placeholder="🔍 Search name or email..."
+              placeholder="🔍 Search email or name..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="bg-black/80 border border-gray-800 rounded-xl px-4 py-2 text-xs text-white focus:border-emerald-500 outline-none w-full md:w-64"
+              onChange={handleSearchChange}
+              className="bg-black/80 border border-gray-800 rounded-xl px-4 py-2 text-xs text-white focus:border-emerald-500 outline-none w-full md:w-72"
             />
             <span className="text-xs bg-slate-800 px-3 py-2 rounded-xl text-gray-300 font-mono border border-gray-700">
-              Total: <b>{users.length}</b>
+              Total: <b>{totalUsersCount}</b>
             </span>
           </div>
         </div>
@@ -505,7 +572,7 @@ export default function FounderAdminDashboard() {
 
         {/* USERS TABLE */}
         {loading ? (
-          <p className="text-gray-400 text-xs animate-pulse p-4">Loading user records...</p>
+          <p className="text-gray-400 text-xs animate-pulse p-4">Loading user records from database...</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
@@ -515,7 +582,7 @@ export default function FounderAdminDashboard() {
                     <input
                       type="checkbox"
                       onChange={handleSelectAll}
-                      checked={filteredUsers.length > 0 && selectedUserIds.length === filteredUsers.length}
+                      checked={users.length > 0 && selectedUserIds.length === users.length}
                       className="rounded accent-emerald-500 cursor-pointer"
                     />
                   </th>
@@ -529,121 +596,154 @@ export default function FounderAdminDashboard() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-800/60">
-                {filteredUsers.map((u) => {
-                  const currentSpeed = Number(u.miningSpeed || 0.50);
-                  return (
-                    <tr key={u.id} className="hover:bg-slate-800/30 transition">
-                      <td className="p-3">
-                        <input
-                          type="checkbox"
-                          checked={selectedUserIds.includes(u.id)}
-                          onChange={() => handleSelectUser(u.id)}
-                          className="rounded accent-emerald-500 cursor-pointer"
-                        />
-                      </td>
-                      <td className="p-3">
-                        <div className="font-bold text-white flex items-center gap-1.5">
-                          {u.fullName || u.name || "N/A"}
-                          {u.isVerified && <span className="text-blue-400 text-sm" title="Verified Account">☑️</span>}
-                        </div>
-                        <div className="text-gray-400 text-[11px] font-mono">{u.email}</div>
-                      </td>
+                {users.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="text-center py-8 text-gray-400">
+                      No matching users found for "{searchTerm}"
+                    </td>
+                  </tr>
+                ) : (
+                  users.map((u) => {
+                    const currentSpeed = Number(u.miningSpeed || 0.50);
+                    return (
+                      <tr key={u.id} className="hover:bg-slate-800/30 transition">
+                        <td className="p-3">
+                          <input
+                            type="checkbox"
+                            checked={selectedUserIds.includes(u.id)}
+                            onChange={() => handleSelectUser(u.id)}
+                            className="rounded accent-emerald-500 cursor-pointer"
+                          />
+                        </td>
+                        <td className="p-3">
+                          <div className="font-bold text-white flex items-center gap-1.5">
+                            {u.fullName || u.name || "N/A"}
+                            {u.isVerified && <span className="text-blue-400 text-sm" title="Verified Account">☑️</span>}
+                          </div>
+                          <div className="text-gray-400 text-[11px] font-mono">{u.email}</div>
+                        </td>
 
-                      {/* MINING SPEED COLUMN */}
-                      <td className="p-3">
-                        <span className={`px-2 py-1 rounded-md font-mono font-bold text-[11px] ${
-                          currentSpeed >= 5.0 
-                            ? "bg-amber-500/20 text-amber-400 border border-amber-500/40" 
-                            : currentSpeed >= 3.0 
-                            ? "bg-purple-500/20 text-purple-400 border border-purple-500/40"
-                            : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                        }`}>
-                          ⚡ {currentSpeed.toFixed(2)}x / hr
-                        </span>
-                      </td>
+                        {/* MINING SPEED COLUMN */}
+                        <td className="p-3">
+                          <span className={`px-2 py-1 rounded-md font-mono font-bold text-[11px] ${
+                            currentSpeed >= 5.0 
+                              ? "bg-amber-500/20 text-amber-400 border border-amber-500/40" 
+                              : currentSpeed >= 3.0 
+                              ? "bg-purple-500/20 text-purple-400 border border-purple-500/40"
+                              : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                          }`}>
+                            ⚡ {currentSpeed.toFixed(2)}x / hr
+                          </span>
+                        </td>
 
-                      <td className="p-3">
-                        <button
-                          onClick={() => triggerAction({
-                            action: "TOGGLE_VERIFY",
-                            targetUserId: u.id,
-                            status: !u.isVerified,
-                          })}
-                          className={`px-2 py-1 rounded-md font-bold text-[10px] transition ${
-                            u.isVerified 
-                              ? "bg-blue-500/20 text-blue-400 border border-blue-500/30" 
-                              : "bg-gray-800 text-gray-400 border border-gray-700 hover:bg-emerald-600/20 hover:text-emerald-400"
-                          }`}
-                        >
-                          {u.isVerified ? "☑️ Verified" : "⏳ Approve KYC"}
-                        </button>
-                      </td>
-                      <td className="p-3">
-                        <button
-                          onClick={() => triggerAction({
-                            action: "TOGGLE_WITHDRAW",
-                            targetUserId: u.id,
-                            status: !(u.canWithdraw ?? true),
-                          })}
-                          className={`px-2 py-1 rounded-md font-bold text-[10px] transition ${
-                            (u.canWithdraw ?? true)
-                              ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                              : "bg-red-500/20 text-red-400 border border-red-500/30"
-                          }`}
-                        >
-                          {(u.canWithdraw ?? true) ? "🟢 Allowed" : "🔴 Blocked"}
-                        </button>
-                      </td>
-                      <td className="p-3 font-mono font-semibold text-emerald-400">
-                        {Number(u.balance || 0).toFixed(2)} APN
-                      </td>
-                      <td className="p-3">
-                        <span className={`px-2 py-1 rounded-md font-bold text-[10px] ${
-                          u.isSuspended 
-                            ? "bg-red-500/20 text-red-400 border border-red-500/30" 
-                            : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                        }`}>
-                          {u.isSuspended ? "🚫 Suspended" : "✅ Active"}
-                        </span>
-                      </td>
-                      <td className="p-3 flex items-center justify-center gap-2">
-                        <button
-                          onClick={() => setBoostingUser(u)}
-                          className="px-2.5 py-1 bg-purple-600/20 text-purple-400 hover:bg-purple-600/40 rounded-lg border border-purple-500/30 font-bold"
-                        >
-                          ⚡ Boost Speed
-                        </button>
-                        <button
-                          onClick={() => {
-                            setEditingUser(u);
-                            setEditName(u.fullName || u.name || "");
-                            setEditEmail(u.email || "");
-                            setEditBalance(String(u.balance || 0));
-                            setEditSpeed(String(u.miningSpeed || 0.50));
-                            setEditRole(u.role || "USER");
-                            setEditIsVerified(u.isVerified || false);
-                            setEditCanWithdraw(u.canWithdraw ?? true);
-                          }}
-                          className="px-2.5 py-1 bg-amber-600/20 text-amber-400 hover:bg-amber-600/40 rounded-lg border border-amber-500/30 font-bold"
-                        >
-                          ✏️ KYC / Edit
-                        </button>
-                        <button
-                          onClick={() => triggerAction({
-                            action: "TOGGLE_SUSPEND",
-                            targetUserId: u.id,
-                            status: !u.isSuspended,
-                          })}
-                          className="px-2.5 py-1 bg-orange-600/20 text-orange-400 hover:bg-orange-600/40 rounded-lg border border-orange-500/30 font-bold"
-                        >
-                          {u.isSuspended ? "Unsuspend" : "Suspend"}
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
+                        <td className="p-3">
+                          <button
+                            onClick={() => triggerAction({
+                              action: "TOGGLE_VERIFY",
+                              targetUserId: u.id,
+                              status: !u.isVerified,
+                            })}
+                            className={`px-2 py-1 rounded-md font-bold text-[10px] transition ${
+                              u.isVerified 
+                                ? "bg-blue-500/20 text-blue-400 border border-blue-500/30" 
+                                : "bg-gray-800 text-gray-400 border border-gray-700 hover:bg-emerald-600/20 hover:text-emerald-400"
+                            }`}
+                          >
+                            {u.isVerified ? "☑️ Verified" : "⏳ Approve KYC"}
+                          </button>
+                        </td>
+                        <td className="p-3">
+                          <button
+                            onClick={() => triggerAction({
+                              action: "TOGGLE_WITHDRAW",
+                              targetUserId: u.id,
+                              status: !(u.canWithdraw ?? true),
+                            })}
+                            className={`px-2 py-1 rounded-md font-bold text-[10px] transition ${
+                              (u.canWithdraw ?? true)
+                                ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                                : "bg-red-500/20 text-red-400 border border-red-500/30"
+                            }`}
+                          >
+                            {(u.canWithdraw ?? true) ? "🟢 Allowed" : "🔴 Blocked"}
+                          </button>
+                        </td>
+                        <td className="p-3 font-mono font-semibold text-emerald-400">
+                          {Number(u.balance || 0).toFixed(2)} APN
+                        </td>
+                        <td className="p-3">
+                          <span className={`px-2 py-1 rounded-md font-bold text-[10px] ${
+                            u.isSuspended 
+                              ? "bg-red-500/20 text-red-400 border border-red-500/30" 
+                              : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                          }`}>
+                            {u.isSuspended ? "🚫 Suspended" : "✅ Active"}
+                          </span>
+                        </td>
+                        <td className="p-3 flex items-center justify-center gap-2">
+                          <button
+                            onClick={() => setBoostingUser(u)}
+                            className="px-2.5 py-1 bg-purple-600/20 text-purple-400 hover:bg-purple-600/40 rounded-lg border border-purple-500/30 font-bold"
+                          >
+                            ⚡ Boost Speed
+                          </button>
+                          <button
+                            onClick={() => {
+                              setEditingUser(u);
+                              setEditName(u.fullName || u.name || "");
+                              setEditEmail(u.email || "");
+                              setEditBalance(String(u.balance || 0));
+                              setEditSpeed(String(u.miningSpeed || 0.50));
+                              setEditRole(u.role || "USER");
+                              setEditIsVerified(u.isVerified || false);
+                              setEditCanWithdraw(u.canWithdraw ?? true);
+                            }}
+                            className="px-2.5 py-1 bg-amber-600/20 text-amber-400 hover:bg-amber-600/40 rounded-lg border border-amber-500/30 font-bold"
+                          >
+                            ✏️ KYC / Edit
+                          </button>
+                          <button
+                            onClick={() => triggerAction({
+                              action: "TOGGLE_SUSPEND",
+                              targetUserId: u.id,
+                              status: !u.isSuspended,
+                            })}
+                            className="px-2.5 py-1 bg-orange-600/20 text-orange-400 hover:bg-orange-600/40 rounded-lg border border-orange-500/30 font-bold"
+                          >
+                            {u.isSuspended ? "Unsuspend" : "Suspend"}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* PAGINATION NAVIGATION */}
+        {totalPages > 1 && (
+          <div className="flex justify-between items-center pt-4 border-t border-gray-800 text-xs">
+            <span className="text-gray-400 font-mono">
+              Page <b>{currentPage}</b> of <b>{totalPages}</b>
+            </span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+                className="px-4 py-2 bg-gray-800 hover:bg-gray-700 disabled:opacity-40 rounded-xl font-bold transition"
+              >
+                ◀ Previous
+              </button>
+              <button
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 rounded-xl font-bold transition"
+              >
+                Next ▶
+              </button>
+            </div>
           </div>
         )}
       </div>
