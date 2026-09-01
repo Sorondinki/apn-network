@@ -3,10 +3,29 @@ import { supabase } from "@/lib/supabase";
 
 export const dynamic = 'force-dynamic';
 
+export async function GET(req: Request) {
+  return handleAdminRequest(req, true);
+}
+
 export async function POST(req: Request) {
+  return handleAdminRequest(req, false);
+}
+
+async function handleAdminRequest(req: Request, isGet: boolean) {
   try {
-    const body = await req.json();
-    const { action, adminId, adminEmail } = body;
+    let body: any = {};
+    const url = new URL(req.url);
+
+    if (!isGet) {
+      body = await req.json().catch(() => ({}));
+    }
+
+    const searchParam = url.searchParams.get("search") || body.search || "";
+    const pageParam = parseInt(url.searchParams.get("page") || body.page || "1");
+    const limitParam = parseInt(url.searchParams.get("limit") || body.limit || "100");
+    const action = body.action || url.searchParams.get("action") || "FETCH_USERS";
+    const adminId = body.adminId || url.searchParams.get("adminId");
+    const adminEmail = body.adminEmail || url.searchParams.get("adminEmail");
 
     // 1. SECURITY CHECK: VERIFY ADMIN / FOUNDER EMAIL OR ROLE
     let isAuthorized = false;
@@ -53,7 +72,6 @@ export async function POST(req: Request) {
     }
 
     // 2. MASTER PIN CHECK (ONLY FOR SENSITIVE MUTATIVE ACTIONS)
-    // Dynamic fetching of users is NOW EXEMPTED so UI loads freely!
     const pinProtectedActions = [
       "TRANSFER_TOKENS",
       "BULK_AIRDROP",
@@ -89,24 +107,38 @@ export async function POST(req: Request) {
 
     const targetTable = "User";
 
-    // A. FETCH ALL USERS (RUNS AUTOMATICALLY ON PAGE LOAD)
+    // A. SERVER-SIDE SEARCH & PAGINATED FETCH ALL USERS
     if (action === "FETCH_USERS" || action === "GET_FOUNDER_STATS") {
-      let rawUsers: any[] = [];
-      
-      const { data, error: usersErr } = await supabase
+      const offset = (pageParam - 1) * limitParam;
+
+      let query = supabase
         .from(targetTable)
-        .select("*")
-        .order("createdAt", { ascending: false });
+        .select("*", { count: "exact" });
+
+      // Search Filter at Database Level
+      if (searchParam && searchParam.trim() !== "") {
+        const term = searchParam.trim();
+        query = query.or(`email.ilike.%${term}%,name.ilike.%${term}%,fullName.ilike.%${term}%`);
+      }
+
+      const { data, count, error: usersErr } = await query
+        .order("createdAt", { ascending: false })
+        .range(offset, offset + limitParam - 1);
 
       if (usersErr) {
-        const { data: retryUsers, error: retryErr } = await supabase
-          .from(targetTable)
-          .select("*");
-        if (retryErr) throw retryErr;
-        rawUsers = retryUsers || [];
-      } else {
-        rawUsers = data || [];
+        throw usersErr;
       }
+
+      const rawUsers = data || [];
+
+      // Calculate Total Distributed Tokens in the Network
+      const { data: balanceData } = await supabase
+        .from(targetTable)
+        .select("balance");
+
+      const totalDistributedTokens = (balanceData || []).reduce((acc: number, curr: any) => {
+        return acc + (parseFloat(curr.balance) || 0);
+      }, 0);
 
       const usersWithRefs = rawUsers.map((u) => {
         const baseSpeed = 0.50;
@@ -130,7 +162,11 @@ export async function POST(req: Request) {
 
       return NextResponse.json({ 
         success: true, 
-        users: usersWithRefs 
+        users: usersWithRefs,
+        totalCount: count || usersWithRefs.length,
+        totalPages: Math.ceil((count || usersWithRefs.length) / limitParam),
+        currentPage: pageParam,
+        totalDistributedTokens: totalDistributedTokens
       });
     }
 
@@ -267,4 +303,5 @@ export async function POST(req: Request) {
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message || "Server error" }, { status: 500 });
   }
- }
+    }
+          
