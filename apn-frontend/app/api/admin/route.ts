@@ -131,14 +131,14 @@ async function handleAdminRequest(req: Request, isGet: boolean) {
 
       const rawUsers = data || [];
 
-      // Calculate Total Distributed Tokens in the Network
-      const { data: balanceData } = await supabase
-        .from(targetTable)
-        .select("balance");
+      // 1. Kwaso Real Total Circulating Balance daga dukkan Database
+const { data: allBalances } = await supabase
+  .from("User")
+  .select("balance");
 
-      const totalDistributedTokens = (balanceData || []).reduce((acc: number, curr: any) => {
-        return acc + (parseFloat(curr.balance) || 0);
-      }, 0);
+const totalDistributedTokens = (allBalances || []).reduce((acc: number, curr: any) => {
+  return acc + (parseFloat(curr.balance) || 0);
+}, 0);
 
       const usersWithRefs = rawUsers.map((u) => {
         const baseSpeed = 0.50;
