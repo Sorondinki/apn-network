@@ -7,13 +7,9 @@ import Link from "next/link";
 import MaintenanceOverlay from "../components/MaintenanceOverlay";
 import AadsBanner from "../components/AadsBanner";
 
-// Sanya wadannan a saman route fakes ko page server components
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
 export default function DashboardPage() {
   const isMaintenance = false;
 
-  
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -60,7 +56,7 @@ export default function DashboardPage() {
     window.addEventListener("contextmenu", handleContextMenu);
     window.addEventListener("keydown", handleKeyDown);
 
-    // Dynamic anti-debugger lock out
+    // Dynamic anti-debugger lockout
     const devToolsInterval = setInterval(() => {
       const startTime = performance.now();
       (function () {
@@ -309,7 +305,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* CPALEAD HIGH-REWARD MONETIZATION CARD (NON-INTRUSIVE & HIGH CONVERTING) */}
+      {/* CPALEAD HIGH-REWARD MONETIZATION CARD */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-emerald-900/90 via-teal-900/80 to-cyan-950/90 p-6 sm:p-7 border border-emerald-500/30 backdrop-blur-xl shadow-2xl flex flex-col md:flex-row items-center justify-between gap-6">
         <div className="space-y-2 max-w-xl text-left">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold">
