@@ -7,7 +7,6 @@ import (
 	"sync"
 )
 
-// MessageTypes za su gano ko sakon Transaction ne ko kuma Block
 const (
 	MessageTypeTx    = "NEW_TX"
 	MessageTypeBlock = "NEW_BLOCK"
@@ -28,7 +27,6 @@ func NewP2PNode(port string) *P2PNode {
 	}
 }
 
-// StartServer yana buɗe TCP Listener na P2P Node
 func (node *P2PNode) StartServer() {
 	listener, err := net.Listen("tcp", ":"+node.Port)
 	if err != nil {
@@ -52,7 +50,6 @@ func (node *P2PNode) StartServer() {
 	}
 }
 
-// ConnectToPeer yana haɗa wannan node ɗin da wata Node daban
 func (node *P2PNode) ConnectToPeer(address string) error {
 	conn, err := net.Dial("tcp", address)
 	if err != nil {
@@ -68,7 +65,6 @@ func (node *P2PNode) ConnectToPeer(address string) error {
 	return nil
 }
 
-// BroadcastMessage yana yada Transaction ko Block ga DUKAN peers da ke haɗe (Gossip)
 func (node *P2PNode) BroadcastMessage(msgType string, payload string) {
 	node.mu.Lock()
 	defer node.mu.Unlock()
