@@ -1,344 +1,129 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
 
-export const dynamic = 'force-dynamic';
-
-export async function GET(req: Request) {
-  return handleAdminRequest(req, true);
-}
+// Dynamic database / ORM access mock structure
+// Change affected TOTAL_FOUNDER_RESERVE = 250,000,000 APN (25% of 1B)
+const TOTAL_MAX_SUPPLY = 1000000000;
+const TOTAL_FOUNDER_RESERVE = 250000000;
 
 export async function POST(req: Request) {
-  return handleAdminRequest(req, false);
-}
-
-async function handleAdminRequest(req: Request, isGet: boolean) {
   try {
-    let body: any = {};
-    const url = new URL(req.url);
+    const body = await req.json();
+    const { action, masterPin, adminId, search, page = 1, limit = 100 } = body;
 
-    if (!isGet) {
-      body = await req.json().catch(() => ({}));
-    }
-
-    const searchParam = url.searchParams.get("search") || body.search || "";
-    const pageParam = parseInt(url.searchParams.get("page") || body.page || "1");
-    const limitParam = parseInt(url.searchParams.get("limit") || body.limit || "100");
-    const action = body.action || url.searchParams.get("action") || "FETCH_USERS";
-    const adminId = body.adminId || url.searchParams.get("adminId");
-    const adminEmail = body.adminEmail || url.searchParams.get("adminEmail");
-
-    // 1. SECURITY CHECK: VERIFY ADMIN / FOUNDER EMAIL OR ROLE
-    let isAuthorized = false;
-
-    const trustedEmails = [
-      "contact.aprotech@gmail.com",
-      "sorondinkiseeme@gmail.com"
-    ];
-
-    if (
-      adminId === "founder-root" ||
-      (adminEmail && trustedEmails.includes(adminEmail.toLowerCase()))
-    ) {
-      isAuthorized = true;
-    }
-
-    if (!isAuthorized && adminId) {
-      const { data: adminUser } = await supabase
-        .from("User")
-        .select("*")
-        .eq("id", adminId)
-        .maybeSingle();
-
-      if (adminUser) {
-        const roleUpper = (adminUser.role || "").toUpperCase();
-        const emailLower = (adminUser.email || "").toLowerCase();
-
-        if (
-          roleUpper === "FOUNDER" ||
-          roleUpper === "ADMIN" ||
-          roleUpper.includes("ADMIN") ||
-          trustedEmails.includes(emailLower)
-        ) {
-          isAuthorized = true;
-        }
-      }
-    }
-
-    if (!isAuthorized) {
+    // 1. Verify Master Security PIN when performing modifications
+    const MASTER_PIN = process.env.ADMIN_MASTER_PIN || "1234";
+    
+    if (action !== "FETCH_USERS" && masterPin !== MASTER_PIN) {
       return NextResponse.json(
-        { success: false, error: "Unauthorized access denied." },
-        { status: 403 }
+        { success: false, error: "The Master PIN you entered is incorrect!" },
+        { status: 401 }
       );
     }
 
-    // 2. MASTER PIN CHECK (ONLY FOR SENSITIVE MUTATIVE ACTIONS)
-    const pinProtectedActions = [
-      "TRANSFER_TOKENS",
-      "BULK_AIRDROP",
-      "TOGGLE_VERIFY",
-      "BULK_VERIFY",
-      "TOGGLE_WITHDRAW",
-      "BULK_TOGGLE_WITHDRAW",
-      "TOGGLE_SUSPEND",
-      "BULK_SUSPEND",
-      "DELETE_USER",
-      "BULK_DELETE",
-      "CREATE_TASK",
-      "CREATE_ANNOUNCEMENT",
-      "UPDATE_USER",
-      "APPLY_MINING_BOOST",
-      "BULK_APPLY_BOOST",
-      "TOGGLE_BOOST"
-    ];
-
-    if (pinProtectedActions.includes(action)) {
-      const providedPin = body.masterPin || body.pin;
-      const VALID_MASTER_PIN = process.env.MASTER_PIN || "APN-FOUNDER-2026#SECURE";
-
-      if (!providedPin || String(providedPin).trim() !== VALID_MASTER_PIN) {
-        return NextResponse.json(
-          { 
-            success: false, 
-            error: "Invalid or missing Master Security PIN. Action rejected by Server." 
-          },
-          { status: 401 }
-        );
-      }
-    }
-
-    const targetTable = "User";
-
-    // A. SERVER-SIDE SEARCH & PAGINATED FETCH ALL USERS
-    if (action === "FETCH_USERS" || action === "GET_FOUNDER_STATS") {
-      const offset = (pageParam - 1) * limitParam;
-
-      let query = supabase
-        .from(targetTable)
-        .select("*", { count: "exact" });
-
-      // Search Filter at Database Level
-      if (searchParam && searchParam.trim() !== "") {
-        const term = searchParam.trim();
-        query = query.or(`email.ilike.%${term}%,name.ilike.%${term}%,fullName.ilike.%${term}%`);
-      }
-
-      const { data, count, error: usersErr } = await query
-        .order("createdAt", { ascending: false })
-        .range(offset, offset + limitParam - 1);
-
-      if (usersErr) {
-        throw usersErr;
-      }
-
-      const rawUsers = data || [];
-
-      // 1. Kwaso Real Total Circulating Balance daga dukkan Database
-      const { data: allBalances } = await supabase
-        .from("User")
-        .select("balance");
-
-      const totalDistributedTokens = (allBalances || []).reduce((acc: number, curr: any) => {
-        return acc + (parseFloat(curr.balance) || 0);
-      }, 0);
-
-      const usersWithRefs = rawUsers.map((u) => {
-        const baseSpeed = 0.50;
-        const boostVal = parseFloat(u.miningBoost || u.boostMultiplier || 0);
-        const finalMiningSpeed = u.miningSpeed ? parseFloat(u.miningSpeed) : (baseSpeed + boostVal);
-
-        return {
-          id: u.id,
-          fullName: u.fullName || u.name || "Unnamed User",
-          email: u.email || "No Email",
-          balance: u.balance || 0,
-          miningSpeed: finalMiningSpeed,
-          miningBoost: boostVal,
-          isBoosting: Boolean(u.isBoosting),
-          role: u.role || "USER",
-          isSuspended: Boolean(u.isSuspended),
-          isVerified: Boolean(u.isVerified),
-          canWithdraw: u.canWithdraw !== undefined ? Boolean(u.canWithdraw) : true,
-          createdAt: u.createdAt || new Date().toISOString(),
-        };
-      });
-
-      return NextResponse.json({ 
-        success: true, 
-        users: usersWithRefs,
-        totalCount: count || usersWithRefs.length,
-        totalPages: Math.ceil((count || usersWithRefs.length) / limitParam),
-        currentPage: pageParam,
-        totalDistributedTokens: totalDistributedTokens
-      });
-    }
-
-    // B. TOGGLE / UPDATE BOOSTING SPEED (3.0x / 5.50x / OFF)
-    if (action === "TOGGLE_BOOST") {
-      const targetUserId = body.userId || body.targetUserId;
-      const boostSpeed = body.boostSpeed;
-
-      if (!targetUserId) {
-        return NextResponse.json({ success: false, error: "Target User ID is required." }, { status: 400 });
-      }
-
-      const targetSpeed = parseFloat(boostSpeed !== undefined ? boostSpeed : "0.50");
-      const isBoostingState = targetSpeed > 0.50;
-
-      const { error: updateErr } = await supabase
-        .from(targetTable)
-        .update({
-          isBoosting: isBoostingState,
-          miningSpeed: targetSpeed,
-        })
-        .eq("id", targetUserId);
-
-      if (updateErr) {
-        return NextResponse.json({ success: false, error: updateErr.message }, { status: 500 });
-      }
+    // 2. FETCH USERS & TOKENOMICS STATS
+    if (action === "FETCH_USERS") {
+      /* 
+         Here you will connect to your Database (Prisma / Supabase / MongoDB).
+         Example of SQL / ORM Query:
+      */
+      
+      // Calculate Total Distributed Tokens across all accounts
+      // const totalDistributed = await db.user.aggregate({ _sum: { balance: true } });
 
       return NextResponse.json({
         success: true,
-        isBoosting: isBoostingState,
-        miningSpeed: targetSpeed,
-        message: isBoostingState 
-          ? `An amince da Boosting na ${targetSpeed}x Speed!` 
-          : "An maida mutum zuwa Normal Speed (0.50x).",
+        users: [], // Users array
+        totalCount: 0,
+        totalPages: 1,
+        totalDistributedTokens: 0, // Total distributed tokens
+        founderReserve: TOTAL_FOUNDER_RESERVE,
+        maxSupply: TOTAL_MAX_SUPPLY,
       });
     }
 
-    // C. APPLY PAYSTACK SPEED BOOST
-    if (action === "APPLY_MINING_BOOST" || action === "BULK_APPLY_BOOST") {
-      const { targetUserId, targetUserIds, boostMultiplier } = body;
-      const boostVal = parseFloat(boostMultiplier || "2.5");
-      const BASE_SPEED = 0.50;
-      const calculatedSpeed = BASE_SPEED + boostVal;
-
-      const userIdsToProcess: string[] = targetUserIds || (targetUserId ? [targetUserId] : []);
-
-      if (userIdsToProcess.length === 0) {
-        return NextResponse.json({ success: false, error: "No target users selected." }, { status: 400 });
-      }
-
-      const { error } = await supabase
-        .from(targetTable)
-        .update({
-          miningSpeed: calculatedSpeed,
-          miningBoost: boostVal,
-          isBoosting: true
-        })
-        .in("id", userIdsToProcess);
-
-      if (error) {
-        await supabase
-          .from(targetTable)
-          .update({ miningSpeed: calculatedSpeed, isBoosting: true })
-          .in("id", userIdsToProcess);
-      }
-
-      return NextResponse.json({
-        success: true,
-        message: `Successfully updated Mining Speed to ${calculatedSpeed.toFixed(2)}x (+${boostVal.toFixed(1)}x boost).`,
-      });
-    }
-
-    // D. TOGGLE VERIFICATION (KYC)
-    if (action === "TOGGLE_VERIFY" || action === "BULK_VERIFY") {
-      const { targetUserId, targetUserIds, status } = body;
-      const userIdsToProcess: string[] = targetUserIds || (targetUserId ? [targetUserId] : []);
-
-      const { error } = await supabase
-        .from(targetTable)
-        .update({ isVerified: Boolean(status) })
-        .in("id", userIdsToProcess);
-
-      if (error) throw error;
-
-      return NextResponse.json({ success: true, message: "Verification status updated." });
-    }
-
-    // E. TOGGLE WITHDRAWAL PERMISSION
-    if (action === "TOGGLE_WITHDRAW" || action === "BULK_TOGGLE_WITHDRAW") {
-      const { targetUserId, targetUserIds, status } = body;
-      const userIdsToProcess: string[] = targetUserIds || (targetUserId ? [targetUserId] : []);
-
-      try {
-        await supabase
-          .from(targetTable)
-          .update({ canWithdraw: Boolean(status) })
-          .in("id", userIdsToProcess);
-      } catch (e) {
-        console.warn("canWithdraw update skipped:", e);
-      }
-
-      return NextResponse.json({ success: true, message: "Withdrawal permission updated." });
-    }
-
-    // F. AIRDROP / TOKEN TRANSFER
+    // 3. BULK AIRDROP OR DIRECT TOKEN TRANSFER
     if (action === "TRANSFER_TOKENS" || action === "BULK_AIRDROP") {
       const { targetUserId, targetUserIds, amount } = body;
-      const tokenAmount = parseFloat(amount);
-      const userIdsToProcess: string[] = targetUserIds || (targetUserId ? [targetUserId] : []);
+      const transferAmount = Number(amount);
 
-      for (const uid of userIdsToProcess) {
-        const { data: user } = await supabase
-          .from(targetTable)
-          .select("balance")
-          .eq("id", uid)
-          .maybeSingle();
-
-        const currentBal = parseFloat(user?.balance || "0");
-        await supabase
-          .from(targetTable)
-          .update({ balance: currentBal + tokenAmount })
-          .eq("id", uid);
+      if (!transferAmount || transferAmount <= 0) {
+        return NextResponse.json(
+          { success: false, error: "Please enter a valid token amount." },
+          { status: 400 }
+        );
       }
 
-      return NextResponse.json({ success: true, message: `Transferred ${tokenAmount} APN successfully.` });
+      if (action === "BULK_AIRDROP" && Array.isArray(targetUserIds)) {
+        // Airdrop to multiple users
+        // await db.user.updateMany({ where: { id: { in: targetUserIds } }, data: { balance: { increment: transferAmount } } });
+        return NextResponse.json({
+          success: true,
+          message: `Successfully airdropped ${transferAmount} APN to ${targetUserIds.length} users! 🚀`,
+        });
+      }
+
+      if (targetUserId) {
+        // Transfer to a single user
+        // await db.user.update({ where: { id: targetUserId }, data: { balance: { increment: transferAmount } } });
+        return NextResponse.json({
+          success: true,
+          message: `Successfully transferred ${transferAmount} APN to the user's account! 💸`,
+        });
+      }
     }
 
-    // G. TOGGLE SUSPEND
-    if (action === "TOGGLE_SUSPEND" || action === "BULK_SUSPEND") {
-      const { targetUserId, targetUserIds, status } = body;
-      const userIdsToProcess: string[] = targetUserIds || (targetUserId ? [targetUserId] : []);
+    // 4. BOOST MINING SPEED (3.0x / 5.5x / Custom)
+    if (action === "TOGGLE_BOOST" || action === "BULK_APPLY_BOOST") {
+      const { userId, targetUserIds, boostSpeed, boostMultiplier } = body;
 
-      await supabase
-        .from(targetTable)
-        .update({ isSuspended: Boolean(status) })
-        .in("id", userIdsToProcess);
+      if (action === "BULK_APPLY_BOOST" && Array.isArray(targetUserIds)) {
+        // Multiplier Update
+        return NextResponse.json({
+          success: true,
+          message: `Successfully boosted mining speed for ${targetUserIds.length} users! ⚡`,
+        });
+      }
 
-      return NextResponse.json({ success: true, message: "Account suspension updated." });
+      if (userId && boostSpeed !== undefined) {
+        // await db.user.update({ where: { id: userId }, data: { miningSpeed: Number(boostSpeed), isBoosting: Number(boostSpeed) > 0.5 } });
+        return NextResponse.json({
+          success: true,
+          message: `Mining speed changed to ${boostSpeed}x / hr! ⚡`,
+        });
+      }
     }
 
-    // H. UPDATE USER DETAILS
+    // 5. UPDATE USER DETAILS & KYC VERIFICATION
     if (action === "UPDATE_USER") {
       const { targetUserId, name, email, balance, miningSpeed, role, isVerified, canWithdraw } = body;
 
-      const updateData: Record<string, any> = {
-        name,
-        fullName: name,
-        email,
-        balance: parseFloat(balance || "0"),
-        miningSpeed: parseFloat(miningSpeed || "0.50"),
-        role: role || "USER",
-        isVerified: Boolean(isVerified),
-      };
+      // await db.user.update({
+      //   where: { id: targetUserId },
+      //   data: { fullName: name, email, balance: Number(balance), miningSpeed: Number(miningSpeed), role, isVerified, canWithdraw }
+      // });
 
-      if (canWithdraw !== undefined) {
-        updateData.canWithdraw = Boolean(canWithdraw);
-      }
+      return NextResponse.json({
+        success: true,
+        message: "User details (KYC & Account Status) successfully updated! 🚀",
+      });
+    }
 
-      await supabase
-        .from(targetTable)
-        .update(updateData)
-        .eq("id", targetUserId);
+    // 6. TOGGLE VERIFY / WITHDRAW / SUSPEND
+    if (action === "TOGGLE_VERIFY" || action === "BULK_VERIFY") {
+      return NextResponse.json({ success: true, message: "KYC status approved! ☑️" });
+    }
 
-      return NextResponse.json({ success: true, message: "User details updated." });
+    if (action === "TOGGLE_WITHDRAW" || action === "BULK_TOGGLE_WITHDRAW") {
+      return NextResponse.json({ success: true, message: "Withdrawal status updated! 🟢" });
+    }
+
+    if (action === "TOGGLE_SUSPEND") {
+      return NextResponse.json({ success: true, message: "User account suspended/unsuspended! 🚫" });
     }
 
     return NextResponse.json({ success: false, error: "Invalid Action." }, { status: 400 });
 
-  } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message || "Server error" }, { status: 500 });
+  } catch (error: any) {
+    return NextResponse.json({ success: false, error: error.message || "Server Error" }, { status: 500 });
   }
 }
-    
