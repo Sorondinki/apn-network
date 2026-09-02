@@ -11,6 +11,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Sorondinki/apn-network/consensus"
+	"github.com/Sorondinki/apn-network/core"
+	"github.com/Sorondinki/apn-network/p2p"
+	"github.com/Sorondinki/apn-network/rpc"
+
 	_ "modernc.org/sqlite"
 )
 
@@ -23,8 +28,12 @@ type UserAccount struct {
 }
 
 var (
-	db *sql.DB
-	mu sync.Mutex
+	db       *sql.DB
+	mu       sync.Mutex
+	APNChain *core.Blockchain
+	APNState *core.AccountState
+	APNDPoS  *consensus.DPoSEngine
+	APNNode  *p2p.P2PNode
 )
 
 func initDB() {
@@ -34,8 +43,9 @@ func initDB() {
 		log.Fatalf("Failed to connect to SQLite DB: %v", err)
 	}
 
+	// Amfani da ainihin sunan Teburinki: "User" (Asali)
 	createTableSQL := `
-	CREATE TABLE IF NOT EXISTS users (
+	CREATE TABLE IF NOT EXISTS User (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		email TEXT UNIQUE NOT NULL,
 		password_hash TEXT NOT NULL,
@@ -46,9 +56,9 @@ func initDB() {
 
 	_, err = db.Exec(createTableSQL)
 	if err != nil {
-		log.Fatalf("Failed to create users table: %v", err)
+		log.Fatalf("Failed to create User table: %v", err)
 	}
-	fmt.Println("DATABASE: SQLite Database connected & schema initialized successfully!")
+	fmt.Println("DATABASE: SQLite Database connected & User table initialized successfully!")
 }
 
 func hashPassword(p string) string {
@@ -69,7 +79,6 @@ func enableCORSMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
 		w.Header().Set("Content-Type", "application/json")
 
-		// Handle preflight OPTIONS request
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)
 			return
@@ -94,7 +103,8 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 	wallet := generateWallet()
 	passHash := hashPassword(req.Password)
 
-	_, err := db.Exec("INSERT INTO users (email, password_hash, wallet_address) VALUES (?, ?, ?)", req.Email, passHash, wallet)
+	// An maida query zuwa teburin User
+	_, err := db.Exec("INSERT INTO User (email, password_hash, wallet_address) VALUES (?, ?, ?)", req.Email, passHash, wallet)
 	if err != nil {
 		http.Error(w, `{"error": "Email already exists"}`, http.StatusBadRequest)
 		return
@@ -121,7 +131,8 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 
 	var u UserAccount
 	var passHash string
-	err := db.QueryRow("SELECT email, password_hash, wallet_address, mined_balance, mining_end_time FROM users WHERE email = ?", req.Email).Scan(&u.Email, &passHash, &u.WalletAddress, &u.MinedBalance, &u.MiningEndTime)
+	// An maida query zuwa teburin User
+	err := db.QueryRow("SELECT email, password_hash, wallet_address, mined_balance, mining_end_time FROM User WHERE email = ?", req.Email).Scan(&u.Email, &passHash, &u.WalletAddress, &u.MinedBalance, &u.MiningEndTime)
 
 	if err != nil || passHash != hashPassword(req.Password) {
 		http.Error(w, `{"error": "Invalid email or password"}`, http.StatusUnauthorized)
@@ -156,7 +167,8 @@ func startMiningHandler(w http.ResponseWriter, r *http.Request) {
 	now := time.Now().Unix()
 	newEndTime := now + (24 * 60 * 60) // 24-Hour Mining Session
 
-	_, err := db.Exec("UPDATE users SET mining_end_time = ? WHERE email = ?", newEndTime, req.Email)
+	// An maida query zuwa teburin User
+	_, err := db.Exec("UPDATE User SET mining_end_time = ? WHERE email = ?", newEndTime, req.Email)
 	if err != nil {
 		http.Error(w, `{"error": "Failed to activate 24-hour mining session"}`, http.StatusInternalServerError)
 		return
@@ -184,7 +196,8 @@ func syncBalanceHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err := db.Exec("UPDATE users SET mined_balance = ? WHERE email = ?", req.Balance, req.Email)
+	// An maida query zuwa teburin User
+	_, err := db.Exec("UPDATE User SET mined_balance = ? WHERE email = ?", req.Balance, req.Email)
 	if err != nil {
 		http.Error(w, `{"error": "Balance sync failed"}`, http.StatusInternalServerError)
 		return
@@ -199,13 +212,30 @@ func syncBalanceHandler(w http.ResponseWriter, r *http.Request) {
 func main() {
 	initDB()
 
-	// Wrap handlers using enableCORSMiddleware
+	// 1. Kaddamar da Core Blockchain Engines
+	APNState = core.NewAccountState()
+	APNChain = core.NewBlockchain(APNState)
+	APNDPoS = consensus.NewDPoSEngine()
+
+	// 2. Kaddamar da P2P Node (Port 6000)
+	APNNode = p2p.NewP2PNode("6000")
+	go APNNode.StartServer()
+
+	// 3. Kaddamar da JSON-RPC Server (Port 8545)
+	rpcServer := rpc.NewRPCServer("8545", APNChain, APNState, APNDPoS)
+	go func() {
+		if err := rpcServer.Start(); err != nil {
+			log.Printf("RPC Server Error: %v\n", err)
+		}
+	}()
+
+	// 4. REST API Routes don Frontend
 	http.HandleFunc("/api/register", enableCORSMiddleware(registerHandler))
 	http.HandleFunc("/api/login", enableCORSMiddleware(loginHandler))
 	http.HandleFunc("/api/start-mining", enableCORSMiddleware(startMiningHandler))
 	http.HandleFunc("/api/mine/start", enableCORSMiddleware(startMiningHandler))
 	http.HandleFunc("/api/sync-balance", enableCORSMiddleware(syncBalanceHandler))
 
-	fmt.Println("🚀 APN Backend API Server running at http://localhost:8080")
+	fmt.Println("🚀 APN API Server running at http://localhost:8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
