@@ -18,7 +18,6 @@ export default function DashboardPage() {
   const [sessionTime, setSessionTime] = useState(0);
   const [activeReferrals, setActiveReferrals] = useState(0);
   const [totalReferrals, setTotalReferrals] = useState(0);
-  const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
 
   const notices = [
     "APN Core (v1.0.2): PoS Node validation engine active. Maximum base yield: 12 APN / 24 Hours.",
@@ -57,7 +56,7 @@ export default function DashboardPage() {
     window.addEventListener("contextmenu", handleContextMenu);
     window.addEventListener("keydown", handleKeyDown);
 
-    // Dynamic anti-debugger lock out
+    // Dynamic anti-debugger lockout
     const devToolsInterval = setInterval(() => {
       const startTime = performance.now();
       (function () {
@@ -67,7 +66,6 @@ export default function DashboardPage() {
         ();
       const endTime = performance.now();
       if (endTime - startTime > 50) {
-        // Idan an bude DevTools, kankare console kuma karkata mai amfani
         console.clear();
       }
     }, 1000);
@@ -79,12 +77,13 @@ export default function DashboardPage() {
     };
   }, []);
 
-  const isFounder = user?.role === "ADMIN" || user?.isFounder === true;
+  const isFounder = user?.role === "ADMIN" || user?.role === "FOUNDER" || user?.isFounder === true;
   const isBoosterActive = user?.boosterExpiresAt && new Date(user.boosterExpiresAt) > new Date();
   const currentMultiplier = isBoosterActive ? parseFloat(user.miningMultiplier || "1.0") : 1.0;
 
-  const baseRate = isFounder ? 5.0 : 0.5;
-  const boosterBoostedRate = baseRate * currentMultiplier;
+  // DYNAMIC SPEED SYSTEM: Karanta miningSpeed daga Database wanda Admin ya saita (misali 5.50x ko 3.00x)
+  const dbMiningSpeed = parseFloat(user?.miningSpeed || user?.miningBoost || (isFounder ? "5.0" : "0.5"));
+  const boosterBoostedRate = dbMiningSpeed * currentMultiplier;
   const referralBonusRate = activeReferrals * 0.2;
   const hourlyRate = boosterBoostedRate + referralBonusRate;
   
@@ -257,34 +256,6 @@ export default function DashboardPage() {
     }
   };
 
-  const handleBuyBooster = async (plan: "PRO" | "ULTRA") => {
-    if (!user?.id || !user?.email) {
-      alert("Don Allah ka tabbatar kana cikin asusunka (Logged in).");
-      return;
-    }
-
-    try {
-      setLoadingPlan(plan);
-      const res = await fetch("/api/booster/initialize", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: user.id, email: user.email, plan }),
-      });
-
-      const data = await res.json();
-      if (data.success && data.authorizationUrl) {
-        window.location.href = data.authorizationUrl;
-      } else {
-        alert(data.error || "Wani kuskure ya faru lokacin buɗe shafin biya.");
-      }
-    } catch (err) {
-      console.error(err);
-      alert("Akwai matsala wajen haɗawa da uwar garke (server).");
-    } finally {
-      setLoadingPlan(null);
-    }
-  };
-
   const formatCountdown = (elapsed: number) => {
     const remaining = Math.max(0, 86400 - elapsed);
     const h = Math.floor(remaining / 3600);
@@ -335,7 +306,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* CPALEAD HIGH-REWARD MONETIZATION CARD (NON-INTRUSIVE & HIGH CONVERTING) */}
+      {/* CPALEAD HIGH-REWARD MONETIZATION CARD */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-emerald-900/90 via-teal-900/80 to-cyan-950/90 p-6 sm:p-7 border border-emerald-500/30 backdrop-blur-xl shadow-2xl flex flex-col md:flex-row items-center justify-between gap-6">
         <div className="space-y-2 max-w-xl text-left">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold">
@@ -374,9 +345,15 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {isBoosterActive && (
+            {dbMiningSpeed > 0.5 && (
               <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-gradient-to-r from-amber-500/20 to-yellow-500/10 border border-amber-500/40 text-amber-300 text-xs font-bold shadow-lg">
-                ⚡ Booster Active: {currentMultiplier}x Speed
+                ⚡ Boost Active: {dbMiningSpeed.toFixed(2)}x Speed
+              </div>
+            )}
+
+            {isBoosterActive && (
+              <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-gradient-to-r from-purple-500/20 to-indigo-500/10 border border-purple-500/40 text-purple-300 text-xs font-bold shadow-lg">
+                🚀 Multiplier: {currentMultiplier}x
               </div>
             )}
 
@@ -482,9 +459,9 @@ export default function DashboardPage() {
               {hourlyRate.toFixed(2)}
             </span>
             <span className="text-xs font-semibold text-gray-400">APN / hr</span>
-            {isBoosterActive && (
+            {dbMiningSpeed > 0.5 && (
               <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-md font-bold ml-1 border border-amber-500/30">
-                {currentMultiplier}x Boost
+                {dbMiningSpeed.toFixed(2)}x Speed
               </span>
             )}
             {activeReferrals > 0 && (
@@ -519,79 +496,6 @@ export default function DashboardPage() {
             >
               {isMining ? "Mining in Progress" : "Node Standby"}
             </span>
-          </div>
-        </div>
-      </div>
-
-      {/* NODE BOOSTER SUBSCRIPTION SECTION */}
-      <div className="p-6 rounded-3xl bg-gray-900/80 border border-emerald-500/20 space-y-6 text-white shadow-2xl backdrop-blur-md">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-          <div>
-            <h2 className="text-xl font-black flex items-center gap-2 text-white">
-              ⚡ APN Node Speed Booster
-            </h2>
-            <p className="text-xs text-gray-400 mt-1">
-              Increase your mining rate for 30 days using Paystack automatic activation.
-            </p>
-          </div>
-          <div className="text-left sm:text-right">
-            <span className="text-xs text-emerald-400 font-bold block">
-              Current Boost: {isBoosterActive ? currentMultiplier : 1.0}x Speed
-            </span>
-            <span className="text-[10px] text-gray-500 uppercase font-mono">
-              Plan: {isBoosterActive ? user?.boosterPlan : "FREE"}
-            </span>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* PRO PLAN */}
-          <div className="p-5 rounded-2xl bg-gradient-to-b from-gray-800/80 to-gray-900 border border-gray-700/60 flex flex-col justify-between space-y-4">
-            <div>
-              <span className="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2.5 py-1 rounded-full font-bold">
-                PRO NODE
-              </span>
-              <h3 className="text-lg font-bold mt-2 text-white">2.5x Speed Boost</h3>
-              <p className="text-2xl font-black text-emerald-400 mt-1">₦1,500 <span className="text-xs text-gray-400 font-normal">/ 30 Days</span></p>
-              <ul className="text-xs text-gray-400 mt-3 space-y-1.5">
-                <li>✓ Earn 2.5x base APN rate</li>
-                <li>✓ Instant automated Paystack activation</li>
-                <li>✓ Valid for 30 days</li>
-              </ul>
-            </div>
-            <button
-              onClick={() => handleBuyBooster("PRO")}
-              disabled={loadingPlan === "PRO"}
-              className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition-all active:scale-95 disabled:opacity-50"
-            >
-              {loadingPlan === "PRO" ? "Processing..." : "Upgrade to PRO (₦1,500) 🚀"}
-            </button>
-          </div>
-
-          {/* ULTRA PLAN */}
-          <div className="p-5 rounded-2xl bg-gradient-to-b from-emerald-950/30 to-gray-900 border border-emerald-500/40 flex flex-col justify-between space-y-4 relative overflow-hidden">
-            <div className="absolute top-0 right-0 bg-emerald-500 text-black text-[9px] font-black px-3 py-1 rounded-bl-xl">
-              MAX SPEED
-            </div>
-            <div>
-              <span className="text-[10px] bg-teal-500/20 text-teal-300 border border-teal-500/30 px-2.5 py-1 rounded-full font-bold">
-                ULTRA NODE
-              </span>
-              <h3 className="text-lg font-bold mt-2 text-white">5.0x Speed Boost</h3>
-              <p className="text-2xl font-black text-emerald-400 mt-1">₦3,500 <span className="text-xs text-gray-400 font-normal">/ 30 Days</span></p>
-              <ul className="text-xs text-gray-400 mt-3 space-y-1.5">
-                <li>✓ Earn 5.0x maximum APN rate</li>
-                <li>✓ Instant automated Paystack activation</li>
-                <li>✓ Priority network node execution</li>
-              </ul>
-            </div>
-            <button
-              onClick={() => handleBuyBooster("ULTRA")}
-              disabled={loadingPlan === "ULTRA"}
-              className="w-full py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black font-black rounded-xl text-xs transition-all active:scale-95 disabled:opacity-50 shadow-lg shadow-emerald-500/20"
-            >
-              {loadingPlan === "ULTRA" ? "Processing..." : "Upgrade to ULTRA (₦3,500) 🔥"}
-            </button>
           </div>
         </div>
       </div>

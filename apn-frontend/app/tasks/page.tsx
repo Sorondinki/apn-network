@@ -11,9 +11,15 @@ export default function TasksPage() {
 
   useEffect(() => {
     // Samo current user ID daga local storage ko kiran session
-    const storedUserId = localStorage.getItem("userId"); 
+    const storedUserId = localStorage.getItem("userId") || localStorage.getItem("apn_user"); 
     if (storedUserId) {
-      setUserId(storedUserId);
+      // Idan ajiyar a matsayin JSON string take
+      try {
+        const parsed = JSON.parse(storedUserId);
+        setUserId(parsed.id || storedUserId);
+      } catch {
+        setUserId(storedUserId);
+      }
     }
 
     loadTasks(storedUserId);
@@ -59,7 +65,7 @@ export default function TasksPage() {
           prev.map((t) => (t.id === task.id ? { ...t, isCompleted: true } : t))
         );
       } else {
-        alert(data.error || "Akwai matsala wajen yi amsa ladan.");
+        alert(data.error || "Akwai matsala wajen karɓar ladan.");
       }
     } catch (err) {
       console.error(err);
@@ -69,6 +75,10 @@ export default function TasksPage() {
     }
   };
 
+  // Direct Link dinka na CPAlead
+  const CPALEAD_BASE_URL = "https://www.cdnflair.com/wall/GbzJ";
+  const cpaleadIframeSrc = userId ? `${CPALEAD_BASE_URL}?subid=${userId}` : CPALEAD_BASE_URL;
+
   return (
     <div className="max-w-5xl mx-auto p-4 space-y-6 selection:bg-emerald-500 selection:text-white select-none">
       
@@ -76,17 +86,39 @@ export default function TasksPage() {
       <div className="p-8 rounded-3xl bg-gradient-to-br from-gray-900/90 via-gray-900/60 to-gray-950/90 border border-gray-800/80 backdrop-blur-xl shadow-2xl">
         <div className="flex items-center gap-3 mb-2">
           <span className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold">
-            ⚡ Web3 Community Tasks
+            ⚡ Web3 Community Tasks & Offerwall
           </span>
         </div>
         <h1 className="text-3xl font-black text-white tracking-tight">APN Ecosystem Tasks</h1>
         <p className="text-gray-400 text-xs mt-1 leading-relaxed">
-          Complete verified network missions and community campaigns to earn instant APN Token bonuses.
+          Complete verified network missions, surveys, and global offers to earn instant APN Token rewards.
         </p>
       </div>
 
       {/* A-ADS MONETIZATION BANNER */}
       <AadsBanner />
+
+      {/* CPALEAD OFFERWALL SECTION */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+          <h2 className="text-lg font-bold text-white tracking-wide">🔥 Premium CPA Offers</h2>
+        </div>
+        <div className="w-full h-[650px] bg-gray-900 rounded-3xl border border-gray-800 overflow-hidden shadow-2xl">
+          <iframe
+            src={cpaleadIframeSrc}
+            className="w-full h-full border-none"
+            title="CPALead Offerwall"
+            sandbox="allow-popups allow-same-origin allow-scripts allow-forms allow-top-navigation-by-user-activation allow-popups-to-escape-sandbox"
+            referrerPolicy="no-referrer"
+          />
+        </div>
+      </div>
+
+      {/* COMMUNITY TASKS HEADER */}
+      <div className="pt-4 flex items-center gap-2">
+        <h2 className="text-lg font-bold text-white tracking-wide">🌐 Community Missions</h2>
+      </div>
 
       {/* TASKS LIST GRID */}
       {isLoading ? (
@@ -96,8 +128,8 @@ export default function TasksPage() {
         </div>
       ) : tasks.length === 0 ? (
         <div className="p-8 rounded-2xl bg-gray-900/40 border border-gray-800 text-center space-y-2">
-          <p className="text-sm text-gray-400 font-medium">No active tasks available right now.</p>
-          <p className="text-xs text-gray-600">Check back soon for new bounty distributions!</p>
+          <p className="text-sm text-gray-400 font-medium">No active community tasks right now.</p>
+          <p className="text-xs text-gray-600">Complete the CPA offers above to continue earning!</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

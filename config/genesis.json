@@ -9,7 +9,7 @@
     "evmCompatible": true,
     "nativeCurrency": {
       "name": "Alpha Proficiency Token",
-      "symbol": "APN",
+      "symbol": "$APN",
       "decimals": 18
     }
   },
@@ -17,30 +17,25 @@
   "extraData": "0x416c7068612050726f66696369656e6379204e6574776f726b2047656e6573697320426c6f636b",
   "gasLimit": "0x1C9C380",
   "alloc": {
-    "0xAPN_FOUNDER_AND_TREASURY_WALLETS": {
-      "comment": "20% Total Supply Allocation for Founder, Core Team & Alpha Proficiency Tech Treasury",
-      "balance": "200000000000000000000000000",
-      "vesting": {
-        "cliffMonths": 12,
-        "vestingMonths": 36,
-        "stakingAllowedFromGenesis": true
-      }
+    "0x1000000000000000000000000000000000000001": {
+      "comment": "25% ($APN) Founder, Core Team & Alpha Proficiency Tech Treasury",
+      "balance": "0xd3c21bcecceda000000"
     },
-    "0xAPN_PUBLIC_STAKING_REWARDS_POOL": {
-      "comment": "40% Reserved for Public Staking & Validator Network Rewards over 10 Years",
-      "balance": "400000000000000000000000000"
+    "0x2000000000000000000000000000000000000002": {
+      "comment": "40% ($APN) Public Staking & Validator Network Rewards over 10 Years",
+      "balance": "0x152d02c7e14f60000000"
     },
-    "0xAPN_ECOSYSTEM_AND_DEV_GRANTS": {
-      "comment": "15% Ecosystem Development, dApp Incubator, and Security Audits",
-      "balance": "150000000000000000000000000"
+    "0x3000000000000000000000000000000000000003": {
+      "comment": "15% ($APN) Ecosystem Development, dApp Incubator, and Security Audits",
+      "balance": "0x7f23a2d7a2218000000"
     },
-    "0xAPN_PUBLIC_SALE_AND_LIQUIDITY": {
-      "comment": "15% Allocated for Public Sale, DEX Pools & Exchange Listings (CEX)",
-      "balance": "150000000000000000000000000"
+    "0x4000000000000000000000000000000000000004": {
+      "comment": "15% ($APN) Public Sale, DEX Pools & Exchange Listings (CEX)",
+      "balance": "0x7f23a2d7a2218000000"
     },
-    "0xAPN_STRATEGIC_ADVISORS_POOL": {
-      "comment": "10% Strategic Partners, Technical Advisory, and Early Integration",
-      "balance": "100000000000000000000000000"
+    "0x5000000000000000000000000000000000000005": {
+      "comment": "5% ($APN) Strategic Partners, Technical Advisory, and Early Integration",
+      "balance": "0x2a5a058fc2930000000"
     }
   }
 }

@@ -10,14 +10,12 @@ import (
 	"log"
 )
 
-// APNWallet yana ɗauke da mabuɗan sirri da na fili tare da adireshin walat
 type APNWallet struct {
 	PrivateKey *ecdsa.PrivateKey
 	PublicKey  []byte
 	Address    string
 }
 
-// NewWallet yana ƙirƙirar sabon walat na APN ta hanyar amfani da ECDSA
 func NewWallet() *APNWallet {
 	curve := elliptic.P256()
 
@@ -26,9 +24,9 @@ func NewWallet() *APNWallet {
 		log.Panic("Kuskure wajen samar da Private Key: ", err)
 	}
 
-	pubKey := append(privateKey.PublicKey.X.Bytes(), privateKey.PublicKey.Y.Bytes()...)
+	pubKey := elliptic.Marshal(curve, privateKey.PublicKey.X, privateKey.PublicKey.Y)
 
-	// Hash ɗin Public Key don cire Wallet Address
+	// Hash ɗin Public Key don cire Wallet Address (Ethereum-style 20 bytes)
 	hash := sha256.Sum256(pubKey)
 	addressBytes := hash[12:] // Ɗauko 20 bytes na ƙarshe
 	address := "0x" + hex.EncodeToString(addressBytes)
@@ -40,12 +38,12 @@ func NewWallet() *APNWallet {
 	}
 }
 
-// GetPrivateKeyHex yana maida Private Key zuwa string mai sauƙin karantawa
 func (w *APNWallet) GetPrivateKeyHex() string {
-	return hex.EncodeToString(w.PrivateKey.D.Bytes())
+	dBytes := make([]byte, 32)
+	w.PrivateKey.D.FillBytes(dBytes)
+	return hex.EncodeToString(dBytes)
 }
 
-// DisplayWalletInfo yana nuna bayanan walat a Terminal
 func (w *APNWallet) DisplayWalletInfo() {
 	fmt.Println("--------------------------------------------------")
 	fmt.Println("         APN NETWORK WALLET GENERATOR             ")

@@ -12,11 +12,11 @@ import (
 type Transaction struct {
 	Sender    string
 	Recipient string
-	Amount    int64
+	Amount    *big.Int
 	Signature []byte
 }
 
-func NewTransaction(sender, recipient string, amount int64) *Transaction {
+func NewTransaction(sender, recipient string, amount *big.Int) *Transaction {
 	return &Transaction{
 		Sender:    sender,
 		Recipient: recipient,
@@ -26,7 +26,7 @@ func NewTransaction(sender, recipient string, amount int64) *Transaction {
 
 // CalculateHash includes Amount so any modification invalidates signature
 func (tx *Transaction) CalculateHash() []byte {
-	record := fmt.Sprintf("%s:%s:%d", tx.Sender, tx.Recipient, tx.Amount)
+	record := fmt.Sprintf("%s:%s:%s", tx.Sender, tx.Recipient, tx.Amount.String())
 	hash := sha256.Sum256([]byte(record))
 	return hash[:]
 }
@@ -38,14 +38,18 @@ func (tx *Transaction) Sign(privKey *ecdsa.PrivateKey) error {
 		return err
 	}
 
-	// Store 64-byte signature (R + S)
-	signature := append(r.Bytes(), s.Bytes()...)
-	tx.Signature = signature
+	// Ensure fixed 32-byte padding for R and S
+	rBytes := make([]byte, 32)
+	sBytes := make([]byte, 32)
+	r.FillBytes(rBytes)
+	s.FillBytes(sBytes)
+
+	tx.Signature = append(rBytes, sBytes...)
 	return nil
 }
 
 func (tx *Transaction) VerifySignature(pubKeyBytes []byte) bool {
-	if len(tx.Signature) < 64 {
+	if len(tx.Signature) != 64 {
 		return false
 	}
 
@@ -68,5 +72,13 @@ func (tx *Transaction) VerifySignature(pubKeyBytes []byte) bool {
 }
 
 func (tx *Transaction) String() string {
-	return fmt.Sprintf("TX [%s -> %s | %d APN]", tx.Sender[:10], tx.Recipient[:10], tx.Amount)
+	senderShort := tx.Sender
+	if len(tx.Sender) > 10 {
+		senderShort = tx.Sender[:10]
+	}
+	recipShort := tx.Recipient
+	if len(tx.Recipient) > 10 {
+		recipShort = tx.Recipient[:10]
+	}
+	return fmt.Sprintf("TX [%s -> %s | %s $APN]", senderShort, recipShort, tx.Amount.String())
 }

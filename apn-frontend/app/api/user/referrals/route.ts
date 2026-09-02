@@ -13,10 +13,10 @@ export async function GET(req: Request) {
       );
     }
 
-    // Nemi mutanen da id dinka ke matsayin referredById a gurinsu
+    // Zaƙulo bayanan referrals ta amfani da `fullName` maimakon `name`
     const { data: referrals, error, count } = await supabase
       .from("User")
-      .select("id, name, email, createdAt, balance", { count: "exact" })
+      .select("id, fullName, email, createdAt, balance, isMining, lastActive, miningStartTime", { count: "exact" })
       .eq("referredById", userId)
       .order("createdAt", { ascending: false });
 
@@ -28,15 +28,24 @@ export async function GET(req: Request) {
       );
     }
 
-    // Lissafin lamba guda guda tare da Kariya (Safety Checks)
     const totalInvited = count ?? referrals?.length ?? 0;
-    const bonusPerReferral = 5.0; // Kowani referral 5 APN
+    const bonusPerReferral = 5.0;
     const commissionsEarned = (totalInvited * bonusPerReferral).toFixed(2);
+
+    const calculatedLevel = Math.floor(totalInvited / 10) + 1;
+    let tierName = `Level ${calculatedLevel} Miner`;
+
+    if (calculatedLevel === 2) tierName = `Level 2 Validator`;
+    else if (calculatedLevel === 3) tierName = `Level 3 Master Node`;
+    else if (calculatedLevel === 4) tierName = `Level 4 Network Founder`;
+    else if (calculatedLevel >= 5) tierName = `Level ${calculatedLevel} Tier Commander`;
 
     return NextResponse.json({
       success: true,
       totalInvited,
       commissionsEarned,
+      tier: tierName,
+      level: calculatedLevel,
       referrals: referrals || [],
     });
   } catch (err: any) {
@@ -47,3 +56,4 @@ export async function GET(req: Request) {
     );
   }
 }
+    

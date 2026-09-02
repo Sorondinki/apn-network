@@ -58,7 +58,7 @@ func (d *DPoSEngine) SlashValidator(address string, penaltyPercentage int64) err
 	v.IsActive = false
 	v.Jailed = true
 
-	fmt.Printf("[⚠️ SLASHING ALERT] Validator %s slashed by %d%% (%s APN). Jailed status: true\n",
+	fmt.Printf("[⚠️ SLASHING ALERT] Validator %s slashed by %d%% (%s $APN). Jailed status: true\n",
 		address, penaltyPercentage, penalty.String())
 
 	return nil

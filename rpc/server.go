@@ -117,19 +117,26 @@ func (server *RPCServer) handleRequest(w http.ResponseWriter, r *http.Request) {
 			res.Error = map[string]string{"message": "Missing contract code parameter"}
 		}
 
-	// 🚀 Mining & Staking Integration
 	case "apn_stake":
 		if len(req.Params) >= 2 {
 			address, addrOk := req.Params[0].(string)
-			amountFloat, amtOk := req.Params[1].(float64)
+			amountStr, amtOk := req.Params[1].(string)
 
 			if addrOk && amtOk && server.DPoS != nil {
-				stakeAmt := big.NewInt(int64(amountFloat))
-				server.DPoS.RegisterValidator(address, stakeAmt)
-				res.Result = map[string]interface{}{
-					"status":  "success",
-					"message": fmt.Sprintf("Mining node registered! Staked %d APN successfully", stakeAmt.Int64()),
-					"address": address,
+				stakeAmt, success := new(big.Int).SetString(amountStr, 10)
+				if !success {
+					stakeAmt, success = new(big.Int).SetString(amountStr, 0)
+				}
+
+				if success {
+					server.DPoS.RegisterValidator(address, stakeAmt)
+					res.Result = map[string]interface{}{
+						"status":  "success",
+						"message": fmt.Sprintf("Mining node registered! Staked %s $APN successfully", stakeAmt.String()),
+						"address": address,
+					}
+				} else {
+					res.Error = map[string]string{"message": "Invalid stake amount format"}
 				}
 			} else {
 				res.Error = map[string]string{"message": "Invalid stake parameters"}
