@@ -8,14 +8,23 @@ import (
 
 type Blockchain struct {
 	Blocks []*Block
+	State  *AccountState
 	mu     sync.RWMutex
 }
 
+// InitBlockchain don buɗe chain ba tare da state ba
 func InitBlockchain() *Blockchain {
 	genesisBlock := GenesisBlock()
 	return &Blockchain{
 		Blocks: []*Block{genesisBlock},
 	}
+}
+
+// NewBlockchain yana haɗa State da InitBlockchain don kada main.go ya sami kuskure
+func NewBlockchain(state *AccountState) *Blockchain {
+	bc := InitBlockchain()
+	bc.State = state
+	return bc
 }
 
 func (bc *Blockchain) AddBlock(transactions [][]byte) (*Block, error) {
@@ -51,7 +60,7 @@ func (bc *Blockchain) DisplayChainLogs() {
 	defer bc.mu.RUnlock()
 
 	fmt.Println("\n==================================================")
-	fmt.Println("       ALPHA PROFICIENCY NETWORK - LEDGER         ")
+	fmt.Println("     ALPHA PROFICIENCY NETWORK - LEDGER         ")
 	fmt.Println("==================================================")
 	for _, block := range bc.Blocks {
 		fmt.Println("==================================================")
