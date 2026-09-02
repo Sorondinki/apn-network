@@ -10,12 +10,12 @@ export async function POST(req: Request) {
 
     if (!senderId || !recipientAddress || isNaN(transferAmount) || transferAmount <= 0) {
       return NextResponse.json(
-        { success: false, error: "Tabbatar ka shigar da ma'aunin da ya dace." },
+        { success: false, error: "Please enter a valid transfer amount." },
         { status: 400 }
       );
     }
 
-    // 1. Zaqulo bayanan Mai Aikawa (Sender)
+    // 1. Fetch Sender details
     const { data: sender, error: senderErr } = await supabase
       .from('User')
       .select('id, balance, canWithdraw')
@@ -23,20 +23,20 @@ export async function POST(req: Request) {
       .single();
 
     if (senderErr || !sender) {
-      return NextResponse.json({ success: false, error: "Ba a samu asusun mai aikawa ba." }, { status: 404 });
+      return NextResponse.json({ success: false, error: "Sender account not found." }, { status: 404 });
     }
 
     if (sender.canWithdraw === false) {
-      return NextResponse.json({ success: false, error: "An dakatar da wannan asusun daga cire kuɗi." }, { status: 403 });
+      return NextResponse.json({ success: false, error: "This account is restricted from withdrawing funds." }, { status: 403 });
     }
 
     const currentSenderBalance = parseFloat(sender.balance || 0);
 
     if (currentSenderBalance < transferAmount) {
-      return NextResponse.json({ success: false, error: "Ma'aunin APN ɗinka bai kai adadin da kake son turawa ba." }, { status: 400 });
+      return NextResponse.json({ success: false, error: "Your APN balance is insufficient for this transfer." }, { status: 400 });
     }
 
-    // 2. Nemo Mai Karɓa (Recipient) ta walletAddress ko ID
+    // 2. Find Recipient by walletAddress or ID
     const cleanAddress = recipientAddress.trim();
     let recipientQuery = supabase.from('User').select('id, balance, walletAddress');
 
@@ -51,34 +51,34 @@ export async function POST(req: Request) {
     const recipient = recipients && recipients.length > 0 ? recipients[0] : null;
 
     if (recipientErr || !recipient) {
-      return NextResponse.json({ success: false, error: "Ba a samu mai karɓa tare da wannan adireshin ba." }, { status: 404 });
+      return NextResponse.json({ success: false, error: "Recipient not found with this address." }, { status: 404 });
     }
 
     if (recipient.id === senderId) {
-      return NextResponse.json({ success: false, error: "Baza ka iya tura wa kanka kuɗi ba." }, { status: 400 });
+      return NextResponse.json({ success: false, error: "You cannot transfer funds to yourself." }, { status: 400 });
     }
 
-    // 3. AIWATAR DA TRANSACTION
+    // 3. EXECUTE TRANSACTION
     const newSenderBalance = currentSenderBalance - transferAmount;
     const newRecipientBalance = parseFloat(recipient.balance || 0) + transferAmount;
 
-    // Cire daga Sender
+    // Deduct from Sender
     const { error: updateSenderErr } = await supabase
       .from('User')
       .update({ balance: newSenderBalance, updatedAt: new Date().toISOString() })
       .eq('id', senderId);
 
     if (updateSenderErr) {
-      return NextResponse.json({ success: false, error: "Kuskure wajen cire ma'auni daga asusunta." }, { status: 500 });
+      return NextResponse.json({ success: false, error: "Error deducting balance from sender account." }, { status: 500 });
     }
 
-    // Ƙara wa Recipient
+    // Add to Recipient
     await supabase
       .from('User')
       .update({ balance: newRecipientBalance, updatedAt: new Date().toISOString() })
       .eq('id', recipient.id);
 
-    // Kirkiro Transaction Logs
+    // Create Transaction Logs
     await supabase.from('Transaction').insert([
       {
         userId: senderId,
@@ -101,12 +101,11 @@ export async function POST(req: Request) {
     return NextResponse.json({
       success: true,
       newBalance: newSenderBalance,
-      message: `Kayi nasarar tura ${transferAmount} APN!`
+      toastMessage: `Successfully transferred ${transferAmount} APN! 💸`
     });
 
   } catch (error: any) {
     console.error("Transfer Error:", error);
-    return NextResponse.json({ success: false, error: error?.message || "Server Error" }, { status: 500 });
+    return NextResponse.json({ success: false, error: error?.message || "Internal Server Error" }, { status: 500 });
   }
 }
-               
