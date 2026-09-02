@@ -31,14 +31,6 @@ interface ActionPayload {
   boostSpeed?: number;
   userId?: string;
   status?: boolean;
-  title?: string;
-  content?: string;
-  mediaUrl?: string;
-  platform?: string;
-  description?: string;
-  reward?: string | number;
-  link?: string;
-  category?: string;
   name?: string;
   email?: string;
   balance?: string | number;
@@ -61,8 +53,9 @@ export default function FounderAdminDashboard() {
   const [totalUsersCount, setTotalUsersCount] = useState<number>(0);
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
 
-  // Founder Treasury Token Balance Stats
-  const TOTAL_FOUNDER_RESERVE = 250000000; // 250 Million APN Tokens
+  // Tokenomics Architecture (1 Billion Max Supply)
+  const TOTAL_MAX_SUPPLY = 1000000000; // 1 Billion APN Total Supply
+  const TOTAL_FOUNDER_RESERVE = 250000000; // 250M APN (25%) Allocated to Founders, Mentors & Team
   const [totalDistributed, setTotalDistributed] = useState<number>(0);
 
   // Custom Toast State
@@ -73,7 +66,7 @@ export default function FounderAdminDashboard() {
   const [pendingAction, setPendingAction] = useState<ActionPayload | null>(null);
   const [showPinModal, setShowPinModal] = useState<boolean>(false);
 
-  // Edit User / KYC & Boost Modal State
+  // Edit User / KYC Modal State
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [editName, setEditName] = useState<string>("");
   const [editEmail, setEditEmail] = useState<string>("");
@@ -89,19 +82,6 @@ export default function FounderAdminDashboard() {
   // Token Transfer State
   const [transferTargetId, setTransferTargetId] = useState<string>("");
   const [transferAmount, setTransferAmount] = useState<string>("");
-
-  // New Task State
-  const [taskTitle, setTaskTitle] = useState<string>("");
-  const [taskDesc, setTaskDesc] = useState<string>("");
-  const [taskReward, setTaskReward] = useState<string>("");
-  const [taskLink, setTaskLink] = useState<string>("");
-  const [taskCategory, setTaskCategory] = useState<string>("TWITTER");
-
-  // Announcement State
-  const [postTitle, setPostTitle] = useState<string>("");
-  const [postContent, setPostContent] = useState<string>("");
-  const [postMediaUrl, setPostMediaUrl] = useState<string>("");
-  const [targetPlatform, setTargetPlatform] = useState<string>("ALL");
 
   const showToast = useCallback((message: string, type: "success" | "error" | "info" = "info") => {
     setToast({ message, type });
@@ -173,7 +153,7 @@ export default function FounderAdminDashboard() {
     }
   }, [router, fetchUsers, showToast]);
 
-  // Handle Search Input with Debounce/Trigger
+  // Handle Search Input
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     setSearchTerm(val);
@@ -253,9 +233,8 @@ export default function FounderAdminDashboard() {
         setSelectedUserIds([]);
 
         // Reset inputs
-        setTaskTitle(""); setTaskDesc(""); setTaskReward(""); setTaskLink("");
-        setPostTitle(""); setPostContent(""); setPostMediaUrl("");
-        setTransferAmount(""); setTransferTargetId("");
+        setTransferAmount(""); 
+        setTransferTargetId("");
 
         fetchUsers(admin?.id || "founder-root", searchTerm, currentPage);
       } else {
@@ -287,7 +266,7 @@ export default function FounderAdminDashboard() {
             🛡️ APN Network Founder Console
           </div>
           <h1 className="text-3xl font-black mt-2 tracking-tight">Founder Executive Portal</h1>
-          <p className="text-gray-400 text-xs mt-1">Manage network users, mining speed boosts, verification approvals, and APN tokens.</p>
+          <p className="text-gray-400 text-xs mt-1">Manage global token distribution, mining speed boosts, KYC approvals, and team transfers.</p>
         </div>
         <div className="bg-black/50 p-4 rounded-2xl border border-gray-800 text-right">
           <span className="text-[10px] text-gray-400 font-bold block uppercase">Primary Admin</span>
@@ -295,21 +274,21 @@ export default function FounderAdminDashboard() {
         </div>
       </div>
 
-      {/* 250 MILLION APN FOUNDER TREASURY & RESERVE DASHBOARD CARD */}
+      {/* 1 BILLION TOTAL TOKENOMICS & RESERVE DASHBOARD CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="p-6 rounded-3xl bg-gradient-to-br from-amber-950/40 via-slate-900 to-amber-900/20 border border-amber-500/40 shadow-2xl relative overflow-hidden col-span-1 md:col-span-2">
           <div className="flex justify-between items-start">
             <div>
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/20 text-amber-400 text-[11px] font-bold border border-amber-500/40">
-                💎 Founder Master Vault Reserve
+                💎 Founder & Team Reserve Vault (25%)
               </div>
               <h2 className="text-2xl font-black text-white mt-3 font-mono">
                 {TOTAL_FOUNDER_RESERVE.toLocaleString()} <span className="text-amber-400 text-lg">APN</span>
               </h2>
-              <p className="text-gray-400 text-xs mt-1">Total Genesis Founder Allocation for Airdrops, Boost Rewards & Staking Pools.</p>
+              <p className="text-gray-400 text-xs mt-1">Total allocation for Founders, Mentors, Core Team rewards, and Staking liquidity pools.</p>
             </div>
             <div className="text-right">
-              <span className="text-xs text-gray-400 font-medium block">Circulating / Minted</span>
+              <span className="text-xs text-gray-400 font-medium block">Circulating / Distributed</span>
               <span className="text-emerald-400 font-mono font-bold text-lg">
                 {totalDistributed.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} APN
               </span>
@@ -317,7 +296,7 @@ export default function FounderAdminDashboard() {
           </div>
 
           <div className="mt-4 pt-4 border-t border-amber-500/20 flex justify-between items-center text-xs">
-            <span className="text-gray-300">Remaining Vault Reserve:</span>
+            <span className="text-gray-300">Remaining Founder Treasury:</span>
             <span className="font-mono font-bold text-amber-300">
               {availableReserve.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} APN
             </span>
@@ -326,157 +305,58 @@ export default function FounderAdminDashboard() {
 
         <div className="p-6 rounded-3xl bg-slate-900/80 border border-gray-800 shadow-xl flex flex-col justify-between">
           <div>
-            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block">Total Database Users</span>
-            <div className="text-3xl font-black text-white mt-2 font-mono">{totalUsersCount.toLocaleString()}</div>
-            <p className="text-[11px] text-gray-400 mt-1">Live synchronized record from Supabase cluster.</p>
+            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block">Global Network Supply</span>
+            <div className="text-3xl font-black text-emerald-400 mt-2 font-mono">
+              {(TOTAL_MAX_SUPPLY / 1000000000).toFixed(1)}B <span className="text-sm font-normal text-gray-400">APN</span>
+            </div>
+            <p className="text-[11px] text-gray-400 mt-1">Global Genesis Supply for Public Mining, DEX/CEX Listing & Ecosystem.</p>
           </div>
           <div className="mt-3 pt-3 border-t border-gray-800 flex justify-between items-center text-xs text-gray-400">
-            <span>Server Search:</span>
-            <span className="text-emerald-400 font-bold">Active (ilike)</span>
+            <span>Total Registered Users:</span>
+            <span className="text-white font-mono font-bold">{totalUsersCount.toLocaleString()}</span>
           </div>
         </div>
       </div>
 
-      {/* MAIN ACTION GRID */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-
-        {/* FORM 1: ANNOUNCEMENT */}
-        <div className="p-6 rounded-2xl bg-slate-900/60 border border-gray-800 space-y-4 shadow-xl flex flex-col justify-between">
-          <div className="space-y-3 text-xs">
-            <h3 className="text-md font-bold text-purple-400 flex items-center gap-2">
-              🌐 Broadcast Announcement
-            </h3>
-            <input
-              type="text"
-              placeholder="Announcement Title"
-              value={postTitle}
-              onChange={(e) => setPostTitle(e.target.value)}
-              className="w-full bg-black/60 border border-gray-800 rounded-xl p-3 text-white focus:border-purple-500 outline-none"
-            />
-            <textarea
-              placeholder="Post Content / Update details..."
-              value={postContent}
-              onChange={(e) => setPostContent(e.target.value)}
-              className="w-full bg-black/60 border border-gray-800 rounded-xl p-3 text-white focus:border-purple-500 outline-none h-20"
-            />
-            <input
-              type="text"
-              placeholder="Banner Image URL (Optional)"
-              value={postMediaUrl}
-              onChange={(e) => setPostMediaUrl(e.target.value)}
-              className="w-full bg-black/60 border border-gray-800 rounded-xl p-3 text-white focus:border-purple-500 outline-none"
-            />
-            <select
-              value={targetPlatform}
-              onChange={(e) => setTargetPlatform(e.target.value)}
-              className="w-full bg-black/60 border border-gray-800 rounded-xl p-3 text-white focus:border-purple-500 outline-none"
-            >
-              <option value="ALL">All APN Feeds & Telegram</option>
-              <option value="TWITTER">Twitter/X Channel</option>
-              <option value="TELEGRAM">Telegram Announcement Group</option>
-            </select>
-          </div>
-          <button
-            onClick={() => triggerAction({
-              action: "CREATE_ANNOUNCEMENT",
-              title: postTitle,
-              content: postContent,
-              mediaUrl: postMediaUrl,
-              platform: targetPlatform,
-            })}
-            className="w-full py-3 bg-purple-600 hover:bg-purple-500 font-bold text-white rounded-xl transition shadow-lg shadow-purple-900/40 mt-3"
-          >
-            📢 Broadcast Update
-          </button>
-        </div>
-
-        {/* FORM 2: POST A NEW TASK */}
-        <div className="p-6 rounded-2xl bg-slate-900/60 border border-gray-800 space-y-4 shadow-xl flex flex-col justify-between">
-          <div className="space-y-3 text-xs">
-            <h3 className="text-md font-bold text-emerald-400 flex items-center gap-2">
-              🚀 Post Network Task
-            </h3>
-            <input
-              type="text"
-              placeholder="Task Title (e.g., Follow APN Twitter)"
-              value={taskTitle}
-              onChange={(e) => setTaskTitle(e.target.value)}
-              className="w-full bg-black/60 border border-gray-800 rounded-xl p-3 text-white focus:border-emerald-500 outline-none"
-            />
-            <textarea
-              placeholder="Task Instructions"
-              value={taskDesc}
-              onChange={(e) => setTaskDesc(e.target.value)}
-              className="w-full bg-black/60 border border-gray-800 rounded-xl p-3 text-white focus:border-emerald-500 outline-none h-20"
-            />
-            <div className="grid grid-cols-2 gap-2">
-              <input
-                type="number"
-                placeholder="Reward (APN)"
-                value={taskReward}
-                onChange={(e) => setTaskReward(e.target.value)}
-                className="bg-black/60 border border-gray-800 rounded-xl p-3 text-white focus:border-emerald-500 outline-none"
-              />
-              <select
-                value={taskCategory}
-                onChange={(e) => setTaskCategory(e.target.value)}
-                className="bg-black/60 border border-gray-800 rounded-xl p-3 text-white focus:border-emerald-500 outline-none"
-              >
-                <option value="TWITTER">Twitter/X</option>
-                <option value="TELEGRAM">Telegram</option>
-                <option value="YOUTUBE">YouTube</option>
-              </select>
-            </div>
-            <input
-              type="text"
-              placeholder="Task Link URL"
-              value={taskLink}
-              onChange={(e) => setTaskLink(e.target.value)}
-              className="w-full bg-black/60 border border-gray-800 rounded-xl p-3 text-white focus:border-emerald-500 outline-none"
-            />
-          </div>
-          <button
-            onClick={() => triggerAction({
-              action: "CREATE_TASK",
-              title: taskTitle,
-              description: taskDesc,
-              reward: taskReward,
-              link: taskLink,
-              category: taskCategory,
-            })}
-            className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 font-bold text-white rounded-xl transition shadow-lg shadow-emerald-900/40 mt-3"
-          >
-            ⚡ Publish Task
-          </button>
-        </div>
-
-        {/* FORM 3: TOKEN TRANSFER / BULK AIRDROP */}
-        <div className="p-6 rounded-2xl bg-slate-900/60 border border-gray-800 space-y-4 shadow-xl flex flex-col justify-between">
-          <div className="space-y-3 text-xs">
+      {/* DIRECT TOKEN TRANSFER FORM */}
+      <div className="p-6 rounded-2xl bg-slate-900/60 border border-gray-800 space-y-4 shadow-xl">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-gray-800 pb-4">
+          <div>
             <h3 className="text-md font-bold text-blue-400 flex items-center gap-2">
-              💎 Direct Token Transfer
+              💎 Direct Token Transfer & Founder Airdrop
             </h3>
-            <p className="text-xs text-gray-400">Transfer native APN to single user or selected bulk users.</p>
+            <p className="text-xs text-gray-400 mt-0.5">Transfer APN tokens directly to mentors, staff members, or selected user accounts.</p>
+          </div>
+          <span className="text-xs font-mono text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-lg border border-emerald-500/20">
+            Vault Balance: {availableReserve.toLocaleString()} APN
+          </span>
+        </div>
 
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end text-xs">
+          <div className="space-y-1 md:col-span-1">
+            <label className="text-gray-400 font-semibold block">Select Single Recipient (Optional if Bulk):</label>
             <select
               value={transferTargetId}
               onChange={(e) => setTransferTargetId(e.target.value)}
               className="w-full bg-black/60 border border-gray-800 rounded-xl p-3 text-white focus:border-blue-500 outline-none"
             >
-              <option value="">-- Single Recipient (Optional if Bulk) --</option>
+              <option value="">-- Choose User / Mentor --</option>
               {users.map((u) => (
                 <option key={u.id} value={u.id}>
                   {u.fullName || u.name || "User"} ({u.email || "No email"}) - Speed: {Number(u.miningSpeed || 0.5).toFixed(2)}x
                 </option>
               ))}
             </select>
+          </div>
 
+          <div className="space-y-1 md:col-span-1">
+            <label className="text-gray-400 font-semibold block">Token Amount (APN):</label>
             <input
               type="number"
-              placeholder="Amount in APN (e.g. 50)"
+              placeholder="e.g. 5000"
               value={transferAmount}
               onChange={(e) => setTransferAmount(e.target.value)}
-              className="w-full bg-black/60 border border-gray-800 rounded-xl p-3 text-white focus:border-blue-500 outline-none"
+              className="w-full bg-black/60 border border-gray-800 rounded-xl p-3 text-white focus:border-blue-500 outline-none font-mono"
             />
           </div>
 
@@ -487,14 +367,13 @@ export default function FounderAdminDashboard() {
               targetUserIds: selectedUserIds.length > 0 ? selectedUserIds : undefined,
               amount: transferAmount,
             })}
-            className="w-full py-3 bg-blue-600 hover:bg-blue-500 font-bold text-white rounded-xl transition shadow-lg shadow-blue-900/40 mt-3"
+            className="w-full py-3 bg-blue-600 hover:bg-blue-500 font-bold text-white rounded-xl transition shadow-lg shadow-blue-900/40 md:col-span-1"
           >
             {selectedUserIds.length > 0 
               ? `🎁 Airdrop ${transferAmount || 0} APN to (${selectedUserIds.length}) Selected` 
               : "💸 Transfer APN Tokens"}
           </button>
         </div>
-
       </div>
 
       {/* USER DATABASE & BULK CONTROL PANEL */}
@@ -502,7 +381,7 @@ export default function FounderAdminDashboard() {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
             <h3 className="text-xl font-extrabold text-white">📋 Registered Network Users</h3>
-            <p className="text-xs text-gray-400">Select users for mining speed boosting, verification approvals, airdrops, or suspensions.</p>
+            <p className="text-xs text-gray-400">Manage mining speeds, verification approvals, user roles, and account permissions.</p>
           </div>
 
           <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
@@ -685,7 +564,7 @@ export default function FounderAdminDashboard() {
                         </td>
                         <td className="p-3">
                           <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                            {/* 1. Maɓallin Approve 3.0x Speed */}
+                            {/* 1. Approve 3.0x Speed */}
                             <button
                               onClick={() => triggerAction({
                                 action: "TOGGLE_BOOST",
@@ -700,7 +579,8 @@ export default function FounderAdminDashboard() {
                             >
                               ⚡ 3.0x Boost
                             </button>
-                            {/* 2. Maɓallin Approve 5.50x Speed */}
+
+                            {/* 2. Approve 5.50x Speed */}
                             <button
                               onClick={() => triggerAction({
                                 action: "TOGGLE_BOOST",
@@ -716,7 +596,7 @@ export default function FounderAdminDashboard() {
                               ⚡ 5.5x Boost
                             </button>
 
-                            {/* 3. Maɓallin Reset Speed zuwa Normal (0.50x) */}
+                            {/* 3. Reset Speed to Normal (0.50x) */}
                             {(u.isBoosting || Number(u.miningSpeed) > 0.5) && (
                               <button
                                 onClick={() => triggerAction({
