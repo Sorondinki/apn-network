@@ -37,6 +37,12 @@ interface ActionPayload {
   canWithdraw?: boolean;
 }
 
+interface TabCounts {
+  verified: number;
+  boosted: number;
+  suspended: number;
+}
+
 export default function FounderAdminDashboard() {
   const router = useRouter();
   const [admin, setAdmin] = useState<User | null>(null);
@@ -45,6 +51,7 @@ export default function FounderAdminDashboard() {
 
   // Active Category Filter Tab State
   const [activeTab, setActiveTab] = useState<"ALL" | "VERIFIED" | "BOOSTED" | "SUSPENDED">("ALL");
+  const [tabCounts, setTabCounts] = useState<TabCounts>({ verified: 0, boosted: 0, suspended: 0 });
 
   // Search, Pagination & Selection State
   const [searchTerm, setSearchTerm] = useState<string>("");
@@ -53,9 +60,10 @@ export default function FounderAdminDashboard() {
   const [totalUsersCount, setTotalUsersCount] = useState<number>(0);
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
 
-  // Tokenomics Architecture (1 Billion Max Supply)
+  // Tokenomics Architecture (1 Billion Hard Cap Max Supply)
   const TOTAL_MAX_SUPPLY = 1000000000;
   const TOTAL_FOUNDER_RESERVE = 250000000;
+  const PUBLIC_MINING_ALLOCATION = 750000000;
   const [totalDistributed, setTotalDistributed] = useState<number>(0);
 
   // Custom Toast State
@@ -95,40 +103,47 @@ export default function FounderAdminDashboard() {
     setTimeout(() => setToast(null), 4000);
   }, []);
 
-  // Fetch Users Function
-  const fetchUsers = useCallback(async (adminId: string, search: string = "", page: number = 1) => {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/admin", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "FETCH_USERS",
-          adminId,
-          search,
-          page,
-          limit: 100,
-        }),
-      });
-      const data = await res.json();
-      if (data.success || Array.isArray(data.users)) {
-        setUsers(data.users || []);
-        setTotalUsersCount(data.totalCount || 0);
-        setTotalPages(data.totalPages || 1);
-        if (data.totalDistributedTokens !== undefined) {
-          setTotalDistributed(data.totalDistributedTokens);
+  // Database-Synchronized Fetch Users Function
+  const fetchUsers = useCallback(
+    async (adminId: string, search: string = "", page: number = 1, tab: string = activeTab) => {
+      setLoading(true);
+      try {
+        const res = await fetch("/api/admin", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "FETCH_USERS",
+            adminId,
+            search,
+            page,
+            limit: 100,
+            filterTab: tab,
+          }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          setUsers(data.users || []);
+          setTotalUsersCount(data.totalCount || 0);
+          setTotalPages(data.totalPages || 1);
+          if (data.counts) {
+            setTabCounts(data.counts);
+          }
+          if (data.totalDistributedTokens !== undefined) {
+            setTotalDistributed(Number(data.totalDistributedTokens));
+          }
+        } else {
+          showToast(data.error || "Failed to load ledger records.", "error");
         }
-      } else {
-        showToast(data.error || "Failed to load user records.", "error");
+      } catch (e) {
+        showToast("Network connection error communicating with database.", "error");
+      } finally {
+        setLoading(false);
       }
-    } catch (e) {
-      showToast("Network error fetching database.", "error");
-    } finally {
-      setLoading(false);
-    }
-  }, [showToast]);
+    },
+    [activeTab, showToast]
+  );
 
-  // Auth Check
+  // Authentication & Session Guard
   useEffect(() => {
     const savedUser = localStorage.getItem("apn_user");
     if (!savedUser) {
@@ -153,43 +168,36 @@ export default function FounderAdminDashboard() {
       }
 
       setAdmin(userData);
-      fetchUsers(userData.id || "founder-root", searchTerm, currentPage);
+      fetchUsers(userData.id || "founder-root", searchTerm, currentPage, activeTab);
     } catch (err) {
       router.push("/login");
     }
   }, [router, fetchUsers, showToast]);
 
-  // Tab switching clears explicit row selection
+  // Tab Filtering Handlers
   const handleTabChange = (tab: "ALL" | "VERIFIED" | "BOOSTED" | "SUSPENDED") => {
     setActiveTab(tab);
     setSelectedUserIds([]);
+    setCurrentPage(1);
+    fetchUsers(admin?.id || "founder-root", searchTerm, 1, tab);
   };
-
-  // Client-Side Tab Filtering Logic
-  const filteredUsers = users.filter((u) => {
-    const speed = Number(u.miningSpeed || 0.5);
-    if (activeTab === "VERIFIED") return u.isVerified === true;
-    if (activeTab === "BOOSTED") return u.isBoosting === true || speed > 0.5;
-    if (activeTab === "SUSPENDED") return u.isSuspended === true;
-    return true; // "ALL"
-  });
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     setSearchTerm(val);
     setCurrentPage(1);
-    fetchUsers(admin?.id || "founder-root", val, 1);
+    fetchUsers(admin?.id || "founder-root", val, 1, activeTab);
   };
 
   const handlePageChange = (newPage: number) => {
     if (newPage < 1 || newPage > totalPages) return;
     setCurrentPage(newPage);
-    fetchUsers(admin?.id || "founder-root", searchTerm, newPage);
+    fetchUsers(admin?.id || "founder-root", searchTerm, newPage, activeTab);
   };
 
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked) {
-      setSelectedUserIds(filteredUsers.map((u) => u.id));
+      setSelectedUserIds(users.map((u) => u.id));
     } else {
       setSelectedUserIds([]);
     }
@@ -242,19 +250,18 @@ export default function FounderAdminDashboard() {
       const data = await res.json();
 
       if (data.success) {
-        showToast(data.message || "Operation completed successfully!", "success");
+        showToast(data.message || "Operation confirmed and committed successfully!", "success");
         setShowPinModal(false);
 
-        // Generate Receipt for Transfers/Airdrops
         if (isMentorTransfer && pendingAction) {
           const targetUser = users.find((u) => u.id === pendingAction.targetUserId);
           setReceiptData({
             referenceId: `APN-TX-${Math.floor(100000 + Math.random() * 900000)}`,
-            recipientName: targetUser?.fullName || targetUser?.name || "User / Mentor",
-            recipientEmail: targetUser?.email || "N/A",
+            recipientName: targetUser?.fullName || targetUser?.name || "Verified Node / Mentor",
+            recipientEmail: targetUser?.email || "treasury-node@apnprotocol.ng",
             amount: pendingAction.amount || 0,
             date: new Date().toLocaleString(),
-            status: "SUCCESSFUL (CONFIRMED)",
+            status: "CONFIRMED ON APN LEDGER",
           });
         }
 
@@ -265,86 +272,117 @@ export default function FounderAdminDashboard() {
         setTransferAmount("");
         setTransferTargetId("");
 
-        fetchUsers(admin?.id || "founder-root", searchTerm, currentPage);
+        fetchUsers(admin?.id || "founder-root", searchTerm, currentPage, activeTab);
       } else {
-        showToast(data.error || "Execution failed. Check Master PIN.", "error");
+        showToast(data.error || "Authentication failed: Invalid Master PIN.", "error");
       }
     } catch (e) {
-      showToast("Network connection error.", "error");
+      showToast("Network request timeout. Verify blockchain connection.", "error");
     }
   };
 
   if (!admin) return null;
 
-  const availableReserve = TOTAL_FOUNDER_RESERVE - totalDistributed;
+  // Real-Time Tokenomics Computations
+  const availableFounderReserve = Math.max(0, TOTAL_FOUNDER_RESERVE - totalDistributed);
+  const remainingTotalSupply = Math.max(0, TOTAL_MAX_SUPPLY - totalDistributed);
+  const founderReserveDepletionPercentage = ((totalDistributed / TOTAL_FOUNDER_RESERVE) * 100).toFixed(2);
 
   return (
     <div className="min-h-screen bg-slate-950 text-white p-4 md:p-8 space-y-8 max-w-7xl mx-auto font-sans relative">
-      {/* TOAST NOTIFICATION */}
+      {/* FLOATING SYSTEM TOAST */}
       {toast && (
-        <div className="fixed top-5 right-5 z-50 flex items-center gap-3 px-5 py-3 rounded-2xl bg-slate-900 border border-slate-700 shadow-2xl backdrop-blur-xl animate-bounce">
+        <div className="fixed top-5 right-5 z-50 flex items-center gap-3 px-5 py-3.5 rounded-2xl bg-slate-900/95 border border-slate-700 shadow-2xl backdrop-blur-2xl transition-all animate-bounce">
           <span>{toast.type === "success" ? "✅" : toast.type === "error" ? "⚠️" : "ℹ️"}</span>
-          <span className="text-xs font-semibold text-white">{toast.message}</span>
+          <span className="text-xs font-semibold text-white tracking-wide">{toast.message}</span>
         </div>
       )}
 
-      {/* TOP HEADER */}
-      <div className="p-8 rounded-3xl bg-gradient-to-r from-amber-950/40 via-slate-900 to-purple-900/40 border border-amber-500/30 flex flex-col md:flex-row justify-between items-center gap-6 shadow-2xl">
+      {/* FOUNDER COMMAND CENTER BANNER */}
+      <div className="p-8 rounded-3xl bg-gradient-to-r from-amber-950/40 via-slate-900 to-slate-950 border border-amber-500/30 flex flex-col md:flex-row justify-between items-center gap-6 shadow-2xl">
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/20 text-amber-400 text-xs font-semibold border border-amber-500/40">
             ⚡ APN FOUNDER COMMAND CENTER
           </div>
           <h1 className="text-3xl font-black mt-2 tracking-tight">Executive Management Portal</h1>
           <p className="text-slate-400 text-xs mt-1">
-            Alpha Proficiency Network • Mainnet Vault, Node Governance & Token Control
+            Alpha Proficiency Network • Mainnet Vault, Node Governance & $APN Supply Control
           </p>
         </div>
         <div className="bg-slate-950/80 p-4 rounded-2xl border border-slate-800 text-right">
-          <span className="text-[10px] text-slate-400 font-bold block uppercase">Primary Founder</span>
+          <span className="text-[10px] text-slate-400 font-bold block uppercase tracking-wider">Primary Founder Node</span>
           <span className="text-amber-400 font-bold text-sm font-mono">{admin.email}</span>
         </div>
       </div>
 
-      {/* TOKENOMICS CARDS */}
+      {/* TOKENOMICS LIVE RESERVE METRICS */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="p-6 rounded-3xl bg-gradient-to-br from-amber-950/40 via-slate-900 to-amber-900/20 border border-amber-500/40 shadow-2xl col-span-1 md:col-span-2">
-          <div className="flex justify-between items-start">
-            <div>
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/20 text-amber-400 text-[11px] font-bold border border-amber-500/40">
-                💎 Founder & Team Reserve Vault (25%)
+        {/* Founder Reserve Card */}
+        <div className="p-6 rounded-3xl bg-gradient-to-br from-amber-950/40 via-slate-900 to-amber-900/20 border border-amber-500/40 shadow-2xl col-span-1 md:col-span-2 flex flex-col justify-between">
+          <div>
+            <div className="flex justify-between items-start">
+              <div>
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/20 text-amber-400 text-[11px] font-bold border border-amber-500/40">
+                  💎 Founder & Team Reserve Vault (25%)
+                </div>
+                <h2 className="text-3xl font-black text-white mt-3 font-mono">
+                  {availableFounderReserve.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{" "}
+                  <span className="text-amber-400 text-xl font-bold">$APN</span>
+                </h2>
+                <p className="text-slate-400 text-xs mt-1">
+                  Initial Pool: {TOTAL_FOUNDER_RESERVE.toLocaleString()} $APN • Allocated for Strategic Mentors & Airdrops
+                </p>
               </div>
-              <h2 className="text-2xl font-black text-white mt-3 font-mono">
-                {TOTAL_FOUNDER_RESERVE.toLocaleString()} <span className="text-amber-400 text-lg">APN</span>
-              </h2>
-              <p className="text-slate-400 text-xs mt-1">Reserved for Core Development, Mentors, and Strategic Airdrops.</p>
+              <div className="text-right">
+                <span className="text-xs text-slate-400 font-medium block">Total Vault Transferred</span>
+                <span className="text-emerald-400 font-mono font-bold text-lg">
+                  {totalDistributed.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $APN
+                </span>
+                <span className="text-[10px] text-slate-500 block">({founderReserveDepletionPercentage}% Depleted)</span>
+              </div>
             </div>
-            <div className="text-right">
-              <span className="text-xs text-slate-400 font-medium block">Total Transferred</span>
-              <span className="text-emerald-400 font-mono font-bold text-lg">
-                {totalDistributed.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} APN
-              </span>
+
+            {/* Progress Bar for Founder Reserve */}
+            <div className="w-full bg-slate-950 rounded-full h-2.5 mt-5 border border-slate-800 overflow-hidden">
+              <div
+                className="bg-gradient-to-r from-amber-500 to-emerald-400 h-2.5 rounded-full transition-all duration-500"
+                style={{ width: `${Math.min(100, (totalDistributed / TOTAL_FOUNDER_RESERVE) * 100)}%` }}
+              />
             </div>
           </div>
 
-          <div className="mt-4 pt-4 border-t border-amber-500/20 flex justify-between items-center text-xs">
-            <span className="text-slate-300">Remaining Vault Reserve:</span>
-            <span className="font-mono font-bold text-amber-300">
-              {availableReserve.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} APN
+          <div className="mt-5 pt-4 border-t border-amber-500/20 flex flex-wrap justify-between items-center text-xs gap-2">
+            <span className="text-slate-300">Available Vault Liquid Balance:</span>
+            <span className="font-mono font-bold text-amber-300 text-sm">
+              {availableFounderReserve.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $APN
             </span>
           </div>
         </div>
 
+        {/* Global 1 Billion Max Supply Card */}
         <div className="p-6 rounded-3xl bg-slate-900/80 border border-slate-800 shadow-xl flex flex-col justify-between">
           <div>
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Global Max Supply</span>
-            <div className="text-3xl font-black text-emerald-400 mt-2 font-mono">
-              {(TOTAL_MAX_SUPPLY / 1000000000).toFixed(1)}B <span className="text-sm font-normal text-slate-400">APN</span>
+            <div className="flex justify-between items-center">
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Global Max Supply</span>
+              <span className="text-[10px] font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+                Hard Capped
+              </span>
             </div>
-            <p className="text-[11px] text-slate-400 mt-1">Hard-capped max supply. 75% allocated to Public Mining.</p>
+            <div className="text-3xl font-black text-emerald-400 mt-2 font-mono">
+              {(TOTAL_MAX_SUPPLY / 1000000000).toFixed(1)}B <span className="text-sm font-normal text-slate-400">$APN</span>
+            </div>
+            <p className="text-[11px] text-slate-400 mt-2 leading-relaxed">
+              Total circulating and public mining pool remaining after reserve distributions:
+            </p>
+            <div className="mt-3 p-3 bg-slate-950 rounded-xl border border-slate-800 font-mono text-xs flex justify-between items-center">
+              <span className="text-slate-400">Total Remaining:</span>
+              <span className="text-white font-bold">{remainingTotalSupply.toLocaleString()} $APN</span>
+            </div>
           </div>
-          <div className="mt-3 pt-3 border-t border-slate-800 flex justify-between items-center text-xs text-slate-400">
-            <span>Total Registered Users:</span>
-            <span className="text-white font-mono font-bold">{totalUsersCount.toLocaleString()}</span>
+
+          <div className="mt-4 pt-3 border-t border-slate-800 flex justify-between items-center text-xs text-slate-400">
+            <span>Registered Protocol Accounts:</span>
+            <span className="text-amber-400 font-mono font-bold">{totalUsersCount.toLocaleString()}</span>
           </div>
         </div>
       </div>
@@ -354,34 +392,36 @@ export default function FounderAdminDashboard() {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-800 pb-4">
           <div>
             <h3 className="text-md font-bold text-amber-400 flex items-center gap-2">
-              🚀 Direct Founder Vault Allocation (Send Tokens / Mentor Airdrop)
+              🚀 Founder Vault Allocation ($APN Direct Transfer / Mentor Airdrop)
             </h3>
-            <p className="text-xs text-slate-400 mt-0.5">Transfer $APN tokens directly and generate verified receipts.</p>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Issue native $APN tokens straight to user accounts from the Founder Treasury with verifiable receipts.
+            </p>
           </div>
-          <span className="text-xs font-mono text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-lg border border-emerald-500/20">
-            Vault Balance: {availableReserve.toLocaleString()} APN
+          <span className="text-xs font-mono text-emerald-400 bg-emerald-500/10 px-3 py-1.5 rounded-xl border border-emerald-500/20">
+            Live Vault Balance: {availableFounderReserve.toLocaleString()} $APN
           </span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end text-xs">
           <div className="space-y-1">
-            <label className="text-slate-400 font-semibold block">Select Recipient / Mentor:</label>
+            <label className="text-slate-400 font-semibold block">Select Recipient / Mentor Node:</label>
             <select
               value={transferTargetId}
               onChange={(e) => setTransferTargetId(e.target.value)}
               className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white focus:border-amber-500 outline-none"
             >
-              <option value="">-- Choose User / Mentor --</option>
+              <option value="">-- Choose User Account --</option>
               {users.map((u) => (
                 <option key={u.id} value={u.id}>
-                  {u.fullName || u.name || "User"} ({u.email}) - {Number(u.miningSpeed || 0.5).toFixed(2)}x
+                  {u.fullName || u.name || "Anonymous User"} ({u.email}) - {Number(u.miningSpeed || 0.5).toFixed(2)}x
                 </option>
               ))}
             </select>
           </div>
 
           <div className="space-y-1">
-            <label className="text-slate-400 font-semibold block">Amount ($APN):</label>
+            <label className="text-slate-400 font-semibold block">Transfer Amount ($APN):</label>
             <input
               type="number"
               placeholder="e.g. 50000"
@@ -394,7 +434,7 @@ export default function FounderAdminDashboard() {
           <button
             onClick={() => {
               if (selectedUserIds.length === 0 && (!transferTargetId || !transferAmount)) {
-                return alert("Please choose a target user/selected items and enter an amount!");
+                return showToast("Please select a target user/selected items and enter an amount!", "error");
               }
               triggerAction({
                 action: selectedUserIds.length > 0 ? "BULK_AIRDROP" : "TRANSFER_MENTOR_TOKENS",
@@ -403,21 +443,23 @@ export default function FounderAdminDashboard() {
                 amount: Number(transferAmount),
               });
             }}
-            className="w-full py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl transition shadow-lg shadow-amber-500/20 text-sm"
+            className="w-full py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl transition shadow-lg shadow-amber-500/20 text-sm cursor-pointer"
           >
             {selectedUserIds.length > 0
-              ? `🎁 Bulk Airdrop ${transferAmount || 0} APN to (${selectedUserIds.length})`
+              ? `🎁 Bulk Airdrop ${transferAmount || 0} $APN to (${selectedUserIds.length}) Accounts`
               : "Transfer & Generate Receipt 🧾"}
           </button>
         </div>
       </div>
 
-      {/* CATEGORY TAB FILTERS & USER DATABASE */}
+      {/* CATEGORY TAB FILTERS & USER DATABASE LEDGER */}
       <div className="p-6 rounded-3xl bg-slate-900/50 border border-slate-800 backdrop-blur-md space-y-6 shadow-2xl">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-800 pb-4">
           <div>
-            <h3 className="text-xl font-black text-white">📋 Registered Users & Network Accounts</h3>
-            <p className="text-xs text-slate-400">Filter accounts by state, manage mining speeds, and issue updates.</p>
+            <h3 className="text-xl font-black text-white">📋 Registered Users & Network Ledger</h3>
+            <p className="text-xs text-slate-400">
+              Real-time database queries filtered by KYC verification, active hash power, and network status.
+            </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
@@ -428,64 +470,64 @@ export default function FounderAdminDashboard() {
               onChange={handleSearchChange}
               className="bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white focus:border-amber-500 outline-none w-full md:w-64"
             />
-            <span className="text-xs bg-slate-800 px-3 py-2.5 rounded-xl text-slate-300 font-mono border border-slate-700">
-              Total: <b>{totalUsersCount}</b>
+          <span className="text-xs bg-slate-800 px-3 py-2.5 rounded-xl text-slate-300 font-mono border border-slate-700">
+              Showing: <b>{users.length}</b> of <b>{totalUsersCount}</b>
             </span>
           </div>
         </div>
 
-        {/* CUSTOM CATEGORY FILTER TABS */}
+        {/* DATABASE-DRIVEN CATEGORY TABS */}
         <div className="flex flex-wrap gap-2 text-xs font-bold border-b border-slate-800 pb-3">
           <button
             onClick={() => handleTabChange("ALL")}
-            className={`px-4 py-2.5 rounded-xl transition ${
+            className={`px-4 py-2.5 rounded-xl transition cursor-pointer ${
               activeTab === "ALL"
                 ? "bg-amber-500 text-slate-950 font-black shadow-lg shadow-amber-500/20"
                 : "bg-slate-950 text-slate-400 hover:bg-slate-800 hover:text-white border border-slate-800"
             }`}
           >
-            👥 All Users ({users.length})
+            👥 All Users ({totalUsersCount})
           </button>
 
           <button
             onClick={() => handleTabChange("VERIFIED")}
-            className={`px-4 py-2.5 rounded-xl transition ${
+            className={`px-4 py-2.5 rounded-xl transition cursor-pointer ${
               activeTab === "VERIFIED"
                 ? "bg-blue-600 text-white font-black shadow-lg shadow-blue-600/30"
                 : "bg-slate-950 text-slate-400 hover:bg-slate-800 hover:text-white border border-slate-800"
             }`}
           >
-            ☑️ Verified Users ({users.filter((u) => u.isVerified).length})
+            ☑️ Verified Users ({tabCounts.verified})
           </button>
 
           <button
             onClick={() => handleTabChange("BOOSTED")}
-            className={`px-4 py-2.5 rounded-xl transition ${
+            className={`px-4 py-2.5 rounded-xl transition cursor-pointer ${
               activeTab === "BOOSTED"
                 ? "bg-emerald-600 text-white font-black shadow-lg shadow-emerald-600/30"
                 : "bg-slate-950 text-slate-400 hover:bg-slate-800 hover:text-white border border-slate-800"
             }`}
           >
-            ⚡ Boosted Users ({users.filter((u) => u.isBoosting || Number(u.miningSpeed || 0.5) > 0.5).length})
+            ⚡ Boosted Users ({tabCounts.boosted})
           </button>
 
           <button
             onClick={() => handleTabChange("SUSPENDED")}
-            className={`px-4 py-2.5 rounded-xl transition ${
+            className={`px-4 py-2.5 rounded-xl transition cursor-pointer ${
               activeTab === "SUSPENDED"
                 ? "bg-red-600 text-white font-black shadow-lg shadow-red-600/30"
                 : "bg-slate-950 text-slate-400 hover:bg-slate-800 hover:text-white border border-slate-800"
             }`}
           >
-            🚫 Suspended ({users.filter((u) => u.isSuspended).length})
+            🚫 Suspended ({tabCounts.suspended})
           </button>
         </div>
 
-        {/* BULK SELECTION ACTION TOOLBAR */}
+        {/* BULK ACTION BAR */}
         {selectedUserIds.length > 0 && (
-          <div className="p-4 rounded-2xl bg-amber-950/40 border border-amber-500/40 flex flex-wrap justify-between items-center gap-4">
+          <div className="p-4 rounded-2xl bg-amber-950/40 border border-amber-500/40 flex flex-wrap justify-between items-center gap-4 animate-in fade-in">
             <div className="text-xs font-bold text-amber-400">
-              🎯 Selected ({selectedUserIds.length}) Accounts in current view
+              🎯 Selected ({selectedUserIds.length}) Accounts in current ledger view
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <button
@@ -496,7 +538,7 @@ export default function FounderAdminDashboard() {
                     boostMultiplier: 3.0,
                   })
                 }
-                className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg shadow"
+                className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg shadow cursor-pointer"
               >
                 ⚡ Boost 3.0x Speed
               </button>
@@ -509,7 +551,7 @@ export default function FounderAdminDashboard() {
                     boostMultiplier: 5.5,
                   })
                 }
-                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg shadow"
+                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg shadow cursor-pointer"
               >
                 🔥 Boost 5.5x Speed
               </button>
@@ -522,7 +564,7 @@ export default function FounderAdminDashboard() {
                     status: true,
                   })
                 }
-                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-lg shadow"
+                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-lg shadow cursor-pointer"
               >
                 ✅ Verify Selected
               </button>
@@ -535,7 +577,7 @@ export default function FounderAdminDashboard() {
                     status: false,
                   })
                 }
-                className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white font-bold text-xs rounded-lg shadow"
+                className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white font-bold text-xs rounded-lg shadow cursor-pointer"
               >
                 🚫 Restrict Withdrawal
               </button>
@@ -543,40 +585,42 @@ export default function FounderAdminDashboard() {
           </div>
         )}
 
-        {/* USERS TABLE */}
+        {/* LEDGER TABLE */}
         {loading ? (
-          <div className="p-8 text-center text-slate-500 text-xs">Loading database records...</div>
+          <div className="p-12 text-center text-slate-400 text-xs font-mono">
+            Synchronizing records with Supabase database...
+          </div>
         ) : (
           <div className="overflow-x-auto rounded-2xl border border-slate-800">
             <table className="w-full text-left text-xs border-collapse">
-              <thead className="bg-slate-950/80 text-slate-400 uppercase font-mono border-b border-slate-800">
+              <thead className="bg-slate-950 text-slate-400 uppercase font-mono border-b border-slate-800">
                 <tr>
                   <th className="p-3">
                     <input
                       type="checkbox"
                       onChange={handleSelectAll}
-                      checked={filteredUsers.length > 0 && selectedUserIds.length === filteredUsers.length}
+                      checked={users.length > 0 && selectedUserIds.length === users.length}
                       className="rounded accent-amber-500 cursor-pointer"
                     />
                   </th>
-                  <th className="p-3">User / Email</th>
-                  <th className="p-3">Mining Speed</th>
-                  <th className="p-3">KYC Verified</th>
-                  <th className="p-3">Withdrawal</th>
-                  <th className="p-3">Balance</th>
-                  <th className="p-3">Status</th>
-                  <th className="p-3 text-center">Quick Actions</th>
+                  <th className="p-3">User Account</th>
+                  <th className="p-3">Mining Hashrate</th>
+                  <th className="p-3">KYC Status</th>
+                  <th className="p-3">Withdrawals</th>
+                  <th className="p-3">Holdings</th>
+                  <th className="p-3">State</th>
+                  <th className="p-3 text-center">Protocol Controls</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60">
-                {filteredUsers.length === 0 ? (
+              <tbody className="divide-y divide-slate-800/60 font-sans">
+                {users.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="text-center py-8 text-slate-500">
-                      No records match the active tab filter.
+                    <td colSpan={8} className="text-center py-10 text-slate-500">
+                      No accounts found under this tab category.
                     </td>
                   </tr>
                 ) : (
-                  filteredUsers.map((u) => {
+                  users.map((u) => {
                     const currentSpeed = Number(u.miningSpeed || 0.5);
                     return (
                       <tr key={u.id} className="hover:bg-slate-800/40 transition">
@@ -590,7 +634,7 @@ export default function FounderAdminDashboard() {
                         </td>
                         <td className="p-3">
                           <div className="font-bold text-white flex items-center gap-1.5">
-                            {u.fullName || u.name || "Anonymous"}
+                            {u.fullName || u.name || "Anonymous Miner"}
                             {u.isVerified && <span className="text-blue-400 text-sm">☑️</span>}
                           </div>
                           <div className="text-slate-400 text-[11px] font-mono">{u.email}</div>
@@ -619,7 +663,7 @@ export default function FounderAdminDashboard() {
                                 status: !u.isVerified,
                               })
                             }
-                            className={`px-2 py-1 rounded-md font-bold text-[10px] transition ${
+                            className={`px-2 py-1 rounded-md font-bold text-[10px] transition cursor-pointer ${
                               u.isVerified
                                 ? "bg-blue-500/20 text-blue-400 border border-blue-500/30"
                                 : "bg-slate-800 text-slate-400 border border-slate-700 hover:bg-emerald-600/20"
@@ -638,7 +682,7 @@ export default function FounderAdminDashboard() {
                                 status: !(u.canWithdraw ?? true),
                               })
                             }
-                            className={`px-2 py-1 rounded-md font-bold text-[10px] transition ${
+                            className={`px-2 py-1 rounded-md font-bold text-[10px] transition cursor-pointer ${
                               (u.canWithdraw ?? true)
                                 ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
                                 : "bg-red-500/20 text-red-400 border border-red-500/30"
@@ -649,7 +693,7 @@ export default function FounderAdminDashboard() {
                         </td>
 
                         <td className="p-3 font-mono font-semibold text-amber-300">
-                          {Number(u.balance || 0).toLocaleString()} APN
+                          {Number(u.balance || 0).toLocaleString()} <span className="text-[10px] text-amber-500">$APN</span>
                         </td>
 
                         <td className="p-3">
@@ -674,7 +718,7 @@ export default function FounderAdminDashboard() {
                                   boostSpeed: 3.0,
                                 })
                               }
-                              className={`px-2 py-1 rounded text-xs font-bold transition ${
+                              className={`px-2 py-1 rounded text-xs font-bold transition cursor-pointer ${
                                 Number(u.miningSpeed) === 3.0
                                   ? "bg-amber-500 text-slate-950 font-extrabold"
                                   : "bg-slate-800 text-amber-400 border border-amber-500/30 hover:bg-amber-500/20"
@@ -691,7 +735,7 @@ export default function FounderAdminDashboard() {
                                   boostSpeed: 5.5,
                                 })
                               }
-                              className={`px-2 py-1 rounded text-xs font-bold transition ${
+                              className={`px-2 py-1 rounded text-xs font-bold transition cursor-pointer ${
                                 Number(u.miningSpeed) === 5.5
                                   ? "bg-emerald-500 text-slate-950 font-extrabold"
                                   : "bg-slate-800 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20"
@@ -709,7 +753,7 @@ export default function FounderAdminDashboard() {
                                     boostSpeed: 0.5,
                                   })
                                 }
-                                className="px-1.5 py-1 text-xs text-red-400 hover:text-red-300 underline"
+                                className="px-1.5 py-1 text-xs text-red-400 hover:text-red-300 underline cursor-pointer"
                               >
                                 Reset
                               </button>
@@ -726,7 +770,7 @@ export default function FounderAdminDashboard() {
                                 setEditIsVerified(u.isVerified || false);
                                 setEditCanWithdraw(u.canWithdraw ?? true);
                               }}
-                              className="px-2.5 py-1 bg-amber-600/20 text-amber-300 hover:bg-amber-600/40 rounded-lg border border-amber-500/30 font-bold"
+                              className="px-2.5 py-1 bg-amber-600/20 text-amber-300 hover:bg-amber-600/40 rounded-lg border border-amber-500/30 font-bold cursor-pointer"
                             >
                               ✏️ Edit
                             </button>
@@ -739,7 +783,7 @@ export default function FounderAdminDashboard() {
                                   status: !u.isSuspended,
                                 })
                               }
-                              className="px-2.5 py-1 bg-orange-600/20 text-orange-400 hover:bg-orange-600/40 rounded-lg border border-orange-500/30 font-bold"
+                              className="px-2.5 py-1 bg-orange-600/20 text-orange-400 hover:bg-orange-600/40 rounded-lg border border-orange-500/30 font-bold cursor-pointer"
                             >
                               {u.isSuspended ? "Unsuspend" : "Suspend"}
                             </button>
@@ -764,14 +808,14 @@ export default function FounderAdminDashboard() {
               <button
                 onClick={() => handlePageChange(currentPage - 1)}
                 disabled={currentPage === 1}
-                className="px-4 py-2 bg-slate-900 border border-slate-800 hover:bg-slate-800 disabled:opacity-40 rounded-xl font-bold transition"
+                className="px-4 py-2 bg-slate-900 border border-slate-800 hover:bg-slate-800 disabled:opacity-40 rounded-xl font-bold transition cursor-pointer"
               >
                 ◀ Previous
               </button>
               <button
                 onClick={() => handlePageChange(currentPage + 1)}
                 disabled={currentPage === totalPages}
-                className="px-4 py-2 bg-amber-500 text-slate-950 font-black hover:bg-amber-400 disabled:opacity-40 rounded-xl transition"
+                className="px-4 py-2 bg-amber-500 text-slate-950 font-black hover:bg-amber-400 disabled:opacity-40 rounded-xl transition cursor-pointer"
               >
                 Next ▶
               </button>
@@ -779,11 +823,11 @@ export default function FounderAdminDashboard() {
           </div>
         )}
       </div>
-      {/* EDIT USER MODAL */}
+      {/* EDIT USER PROFILE MODAL */}
       {editingUser && (
-        <div className="fixed inset-0 bg-black/90 backdrop-blur-xl flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-xl flex items-center justify-center p-4 z-50 animate-in fade-in">
           <div className="bg-slate-900 border border-amber-500/40 p-6 rounded-3xl max-w-md w-full space-y-4 shadow-2xl">
-            <h3 className="text-lg font-black text-amber-400">✏️ Edit KYC & User Profile</h3>
+            <h3 className="text-lg font-black text-amber-400">✏️ Edit KYC & Account Profile</h3>
             <div className="space-y-3 text-xs">
               <div>
                 <label className="text-slate-400 block mb-1">Full Name:</label>
@@ -814,7 +858,7 @@ export default function FounderAdminDashboard() {
                   />
                 </div>
                 <div>
-                  <label className="text-slate-400 block mb-1">Mining Speed (x):</label>
+                  <label className="text-slate-400 block mb-1">Mining Hash Speed (x):</label>
                   <input
                     type="number"
                     step="0.1"
@@ -825,7 +869,7 @@ export default function FounderAdminDashboard() {
                 </div>
               </div>
               <div>
-                <label className="text-slate-400 block mb-1">User Role:</label>
+                <label className="text-slate-400 block mb-1">Account Role:</label>
                 <select
                   value={editRole}
                   onChange={(e) => setEditRole(e.target.value)}
@@ -845,7 +889,7 @@ export default function FounderAdminDashboard() {
                   className="rounded accent-blue-500 cursor-pointer w-4 h-4"
                 />
                 <label htmlFor="verifyCheckbox" className="text-blue-400 font-bold cursor-pointer">
-                  Mark User as Verified (KYC Approved ☑️)
+                  Mark Account as KYC Approved (Verified ☑️)
                 </label>
               </div>
               <div className="flex items-center gap-2 pt-1">
@@ -857,18 +901,17 @@ export default function FounderAdminDashboard() {
                   className="rounded accent-emerald-500 cursor-pointer w-4 h-4"
                 />
                 <label htmlFor="canWithdrawCheckbox" className="text-emerald-400 font-bold cursor-pointer">
-                  Allow User Withdrawal (canWithdraw)
+                  Enable Direct Withdrawal Permissions
                 </label>
               </div>
             </div>
             <div className="flex gap-2 pt-2">
               <button
                 onClick={() => setEditingUser(null)}
-                className="w-1/2 py-2.5 bg-slate-800 text-slate-300 font-bold rounded-xl text-xs"
+                className="w-1/2 py-2.5 bg-slate-800 text-slate-300 font-bold rounded-xl text-xs cursor-pointer"
               >
                 Cancel
               </button>
-
               <button
                 onClick={() =>
                   triggerAction({
@@ -883,27 +926,27 @@ export default function FounderAdminDashboard() {
                     canWithdraw: editCanWithdraw,
                   })
                 }
-                className="w-1/2 py-2.5 bg-amber-500 text-slate-950 font-black rounded-xl text-xs shadow-lg shadow-amber-500/20"
+                className="w-1/2 py-2.5 bg-amber-500 text-slate-950 font-black rounded-xl text-xs shadow-lg shadow-amber-500/20 cursor-pointer"
               >
-                Save Changes 🚀
+                Commit Changes 🚀
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* MASTER PIN MODAL */}
+      {/* MASTER PIN VERIFICATION MODAL */}
       {showPinModal && (
-        <div className="fixed inset-0 bg-black/90 backdrop-blur-xl flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-xl flex items-center justify-center p-4 z-50 animate-in fade-in">
           <div className="bg-slate-900 border border-amber-500/40 p-6 rounded-3xl max-w-sm w-full space-y-4 text-center shadow-2xl">
-            <h3 className="text-lg font-black text-amber-400">Security PIN Required</h3>
-            <p className="text-xs text-slate-400">Enter your Founder Master Security PIN to confirm action.</p>
+            <h3 className="text-lg font-black text-amber-400">Master Security Authorization</h3>
+            <p className="text-xs text-slate-400">Enter your Founder Master PIN to broadcast changes to the ledger.</p>
             <input
               type="password"
-              placeholder="Enter Master PIN"
+              placeholder="••••"
               value={masterPin}
               onChange={(e) => setMasterPin(e.target.value)}
-              className="w-full bg-slate-950 border border-amber-500/50 rounded-xl p-3 text-center text-white text-xl tracking-widest outline-none font-mono"
+              className="w-full bg-slate-950 border border-amber-500/50 rounded-xl p-3 text-center text-white text-2xl tracking-widest outline-none font-mono"
             />
             <div className="flex gap-2">
               <button
@@ -911,36 +954,36 @@ export default function FounderAdminDashboard() {
                   setShowPinModal(false);
                   setMasterPin("");
                 }}
-                className="w-1/2 py-2.5 bg-slate-800 text-slate-300 font-bold rounded-xl text-xs"
+                className="w-1/2 py-2.5 bg-slate-800 text-slate-300 font-bold rounded-xl text-xs cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 onClick={executeActionWithPin}
-                className="w-1/2 py-2.5 bg-amber-500 text-slate-950 font-black rounded-xl text-xs shadow-lg shadow-amber-500/20"
+                className="w-1/2 py-2.5 bg-amber-500 text-slate-950 font-black rounded-xl text-xs shadow-lg shadow-amber-500/20 cursor-pointer"
               >
-                Confirm 🚀
+                Confirm & Broadcast 🚀
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* RECEIPT MODAL */}
+      {/* IMMUTABLE TRANSACTION RECEIPT MODAL */}
       {receiptData && (
-        <div className="fixed inset-0 bg-black/90 backdrop-blur-xl flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-xl flex items-center justify-center p-4 z-50 animate-in fade-in">
           <div className="bg-slate-900 border border-emerald-500/50 p-6 rounded-3xl max-w-md w-full space-y-5 shadow-2xl relative text-white font-sans">
             <div className="text-center border-b border-slate-800 pb-4">
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold uppercase tracking-wider mb-2 border border-emerald-500/30">
                 ⚡ Alpha Proficiency Network
               </div>
-              <h2 className="text-xl font-black text-white">Transfer Receipt</h2>
-              <p className="text-[11px] text-slate-400 mt-0.5">Founder Treasury Allocation</p>
+              <h2 className="text-xl font-black text-white">Transfer Allocation Receipt</h2>
+              <p className="text-[11px] text-slate-400 mt-0.5">APN Founder Treasury Direct Allocation</p>
             </div>
 
             <div className="bg-emerald-950/40 border border-emerald-500/30 p-4 rounded-2xl text-center">
               <span className="text-xs text-emerald-400 font-bold uppercase block">
-                Transferred Amount
+                Total Transferred Amount
               </span>
               <div className="text-3xl font-black text-emerald-300 font-mono mt-1">
                 +{Number(receiptData.amount).toLocaleString()} <span className="text-lg font-bold text-emerald-400">$APN</span>
@@ -952,11 +995,11 @@ export default function FounderAdminDashboard() {
 
             <div className="space-y-3 text-xs bg-slate-950 p-4 rounded-2xl border border-slate-800 font-mono">
               <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-                <span className="text-slate-400">Ref ID:</span>
+                <span className="text-slate-400">Reference ID:</span>
                 <span className="text-white font-bold">{receiptData.referenceId}</span>
               </div>
               <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-                <span className="text-slate-400">Recipient Name:</span>
+                <span className="text-slate-400">Recipient Account:</span>
                 <span className="text-amber-300 font-bold">{receiptData.recipientName}</span>
               </div>
               <div className="flex justify-between items-center border-b border-slate-800 pb-2">
@@ -965,10 +1008,10 @@ export default function FounderAdminDashboard() {
               </div>
               <div className="flex justify-between items-center border-b border-slate-800 pb-2">
                 <span className="text-slate-400">Source Vault:</span>
-                <span className="text-amber-400 font-bold">Founder Treasury (25%)</span>
+                <span className="text-amber-400 font-bold">Founder Treasury Pool (25%)</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-slate-400">Date & Time:</span>
+                <span className="text-slate-400">Block Timestamp:</span>
                 <span className="text-slate-300 text-[10px]">{receiptData.date}</span>
               </div>
             </div>
@@ -976,13 +1019,13 @@ export default function FounderAdminDashboard() {
             <div className="flex gap-3 pt-2">
               <button
                 onClick={() => window.print()}
-                className="w-1/2 py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl text-xs border border-slate-700 transition"
+                className="w-1/2 py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl text-xs border border-slate-700 transition cursor-pointer"
               >
-                🖨️ Print / Save PDF
+                🖨️ Print Receipt
               </button>
               <button
                 onClick={() => setReceiptData(null)}
-                className="w-1/2 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs shadow-lg shadow-emerald-900/40 transition"
+                className="w-1/2 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs shadow-lg shadow-emerald-900/40 transition cursor-pointer"
               >
                 Done 🚀
               </button>
