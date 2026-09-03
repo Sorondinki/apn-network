@@ -13,22 +13,32 @@ export async function GET(req: Request) {
       );
     }
 
-    // Zaƙulo bayanan referrals ta amfani da `fullName` maimakon `name`
+    // 1. Tabbatar da cewa ba a saka columns da babu a table din User ba (Kamar lastActive)
     const { data: referrals, error, count } = await supabase
       .from("User")
-      .select("id, fullName, email, createdAt, balance, isMining, lastActive, miningStartTime", { count: "exact" })
+      .select(
+        "id, fullName, name, email, phone, createdAt, balance, isMining, miningStartTime, miningSpeed, isBoosting",
+        { count: "exact" }
+      )
       .eq("referredById", userId)
       .order("createdAt", { ascending: false });
 
     if (error) {
-      console.error("Fetch referrals error:", error);
+      console.error("Fetch referrals database error:", error);
       return NextResponse.json(
         { success: false, message: error.message },
         { status: 500 }
       );
     }
 
-    const totalInvited = count ?? referrals?.length ?? 0;
+    const referralList = referrals || [];
+    const totalInvited = count ?? referralList.length;
+
+    // Lissafin Active Miners da Idle
+    const activeMinersCount = referralList.filter((r) => r.isMining === true).length;
+    const idleMinersCount = totalInvited - activeMinersCount;
+
+    // Bonus & Tier Calculation
     const bonusPerReferral = 5.0;
     const commissionsEarned = (totalInvited * bonusPerReferral).toFixed(2);
 
@@ -38,15 +48,17 @@ export async function GET(req: Request) {
     if (calculatedLevel === 2) tierName = `Level 2 Validator`;
     else if (calculatedLevel === 3) tierName = `Level 3 Master Node`;
     else if (calculatedLevel === 4) tierName = `Level 4 Network Founder`;
-    else if (calculatedLevel >= 5) tierName = `Level ${calculatedLevel} Tier Commander`;
+    else if (calculatedLevel >= 5) tierName = `Level ${calculatedLevel} Protocol Pioneer`;
 
     return NextResponse.json({
       success: true,
       totalInvited,
+      activeMinersCount,
+      idleMinersCount,
       commissionsEarned,
       tier: tierName,
       level: calculatedLevel,
-      referrals: referrals || [],
+      referrals: referralList,
     });
   } catch (err: any) {
     console.error("Referral API Crash Prevented:", err);
@@ -56,4 +68,3 @@ export async function GET(req: Request) {
     );
   }
 }
-    
