@@ -1,5 +1,6 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 
 const TESTER_EMAILS = [
@@ -10,18 +11,27 @@ const TESTER_EMAILS = [
   "kingibrahimsharif@gmail.com"
 ];
 
+interface ToastState {
+  message: string;
+  type: "success" | "error" | "info";
+}
+
 export default function WalletPage() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
-  const [balance, setBalance] = useState<number>(0.000000);
+  const [balance, setBalance] = useState<number>(0.0);
   const [canWithdraw, setCanWithdraw] = useState<boolean>(true);
   const [isMining, setIsMining] = useState<boolean>(false);
   const [copied, setCopied] = useState<boolean>(false);
   const [withdrawAddress, setWithdrawAddress] = useState<string>("");
   const [withdrawAmount, setWithdrawAmount] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [showQrModal, setShowQrModal] = useState<boolean>(false);
 
-  const [syntheticBalances, setSyntheticBalances] = useState<Record<string, number>>({
+  // Toast Notification State
+  const [toast, setToast] = useState<ToastState | null>(null);
+
+  const [syntheticBalances] = useState<Record<string, number>>({
     aETH: 0.0045,
     aBTC: 0.00015,
     aUSDT: 12.5,
@@ -43,16 +53,21 @@ export default function WalletPage() {
   const APN_PRICE_USD = 0.15;
 
   const TOKEN_PRICES: Record<string, number> = {
-    aETH: 3520.00,
-    aBTC: 67450.00,
-    aUSDT: 1.00,
-    aSOL: 154.50,
+    aETH: 3520.0,
+    aBTC: 67450.0,
+    aUSDT: 1.0,
+    aSOL: 154.5,
     aSIDRA: 1.45,
     aCORE: 1.28,
     aRUBI: 0.65,
     aICE: 0.08,
-    aPI: 31.40,
+    aPI: 31.4,
   };
+
+  const triggerToast = useCallback((message: string, type: "success" | "error" | "info" = "info") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 4000);
+  }, []);
 
   const isTester = Boolean(
     user?.email && TESTER_EMAILS.includes(user.email.toLowerCase().trim())
@@ -111,7 +126,7 @@ export default function WalletPage() {
     }
   }, [router]);
 
-  // LIVE MINING TICKER & BACKGROUND SYNC
+  // LIVE MINING TICKER & SAFE BACKEND SYNC (Prevents Overwriting Database Transfers)
   useEffect(() => {
     let interval: NodeJS.Timeout;
     let syncInterval: NodeJS.Timeout;
@@ -128,18 +143,28 @@ export default function WalletPage() {
         }
       }, 1000);
 
-      syncInterval = setInterval(() => {
+      syncInterval = setInterval(async () => {
         if (user?.id && !isSubmittingRef.current) {
-          fetch("/api/user/sync-balance", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              userId: user.id,
-              balance: balanceRef.current,
-              isMining: true,
-              miningStartTime: localStorage.getItem("apn_mining_start_time")
-            }),
-          }).catch(err => console.error("Sync interval error:", err));
+          try {
+            const res = await fetch("/api/user/sync-balance", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                userId: user.id,
+                isMining: true,
+                miningStartTime: localStorage.getItem("apn_mining_start_time")
+              }),
+            });
+            const data = await res.json();
+            if (data.success && data.balance !== undefined) {
+              const fresh = parseFloat(data.balance);
+              setBalance(fresh);
+              balanceRef.current = fresh;
+              localStorage.setItem("apn_user_balance", fresh.toString());
+            }
+          } catch (err) {
+            console.error("Balance sync error:", err);
+          }
         }
       }, 10000);
     }
@@ -157,24 +182,25 @@ export default function WalletPage() {
   const handleCopyAddress = () => {
     navigator.clipboard.writeText(walletAddress);
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    triggerToast("Wallet address copied to clipboard!", "success");
+    setTimeout(() => setCopied(false), 2500);
   };
 
   const handleTestingTransfer = async () => {
     const cleanAddress = withdrawAddress.trim();
     if (!cleanAddress || cleanAddress.length < 10) {
-      alert("Please enter a valid recipient APN wallet address.");
+      triggerToast("Please enter a valid recipient $APN wallet address.", "error");
       return;
     }
 
     const amountNum = parseFloat(withdrawAmount);
     if (isNaN(amountNum) || amountNum <= 0) {
-      alert("Please enter a valid positive transfer amount.");
+      triggerToast("Please enter a valid positive transfer amount.", "error");
       return;
     }
 
     if (amountNum > balance) {
-      alert("Insufficient APN balance for this transfer.");
+      triggerToast("Insufficient $APN balance for this transaction.", "error");
       return;
     }
 
@@ -200,15 +226,15 @@ export default function WalletPage() {
         balanceRef.current = updatedBal;
         localStorage.setItem("apn_user_balance", updatedBal.toString());
 
-        alert(`Success! Transferred ${amountNum} APN to ${cleanAddress}.`);
+        triggerToast(`Successfully transferred ${amountNum.toLocaleString()} $APN to ${cleanAddress.substring(0, 10)}...`, "success");
         setWithdrawAddress("");
         setWithdrawAmount("");
       } else {
-        alert(`Transfer failed: ${resData.error || "Server Error"}`);
+        triggerToast(`Transfer Failed: ${resData.error || "Server validation rejected"}`, "error");
       }
     } catch (err) {
       console.error("Transfer execution error:", err);
-      alert("Network error during transfer process.");
+      triggerToast("Network communication error. Please try again.", "error");
     } finally {
       setIsSubmitting(false);
       isSubmittingRef.current = false;
@@ -225,25 +251,39 @@ export default function WalletPage() {
   const totalPortfolioValueUsd = apnUsdValue + syntheticUsdValue;
   const isWithdrawUnlocked = isTester || canWithdraw;
 
+  // Web3 Dynamic QR Code API Endpoint
+  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(walletAddress)}&bgcolor=0f172a&color=38bdf8&margin=10`;
+
   return (
-    <div className="space-y-6 md:space-y-8 max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6">
-      <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-gray-900/80 via-slate-900/70 to-gray-900/80 border border-gray-800/80 backdrop-blur-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6 shadow-2xl">
+    <div className="space-y-6 md:space-y-8 max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 font-sans relative">
+      {/* PREMIUM FLOATING TOAST NOTIFICATION */}
+      {toast && (
+        <div className="fixed top-5 right-5 z-50 flex items-center gap-3 px-5 py-3.5 rounded-2xl bg-slate-900/95 border border-slate-700 shadow-2xl backdrop-blur-2xl transition-all animate-in fade-in slide-in-from-top-4">
+          <span className="text-base">
+            {toast.type === "success" ? "✅" : toast.type === "error" ? "⚠️" : "ℹ️"}
+          </span>
+          <span className="text-xs font-semibold text-white tracking-wide">{toast.message}</span>
+        </div>
+      )}
+
+      {/* PORTFOLIO OVERVIEW HERO HEADER */}
+      <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-slate-900 via-slate-900/90 to-blue-950/30 border border-slate-800 backdrop-blur-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6 shadow-2xl">
         <div className="space-y-2 w-full md:w-auto">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-400 text-xs font-semibold">
-            💳 APN Decentralized Multi-Asset Vault
+            ⚡ APN Layer-1 Decentralized Multi-Asset Vault
           </div>
           <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
             Wallet & Portfolio Holdings
           </h1>
-          <p className="text-gray-400 text-xs max-w-md leading-relaxed">
-            Monitor native APN tokens alongside synthetic cross-chain assets locked in your decentralized vault.
+          <p className="text-slate-400 text-xs max-w-md leading-relaxed">
+            Manage your native $APN crypto assets along with cross-chain synthetic liquidity tokens locked in your secure vault.
           </p>
         </div>
 
-        <div className="w-full md:w-auto p-5 sm:p-6 rounded-2xl bg-black/60 border border-emerald-500/30 backdrop-blur-md shadow-inner">
+        <div className="w-full md:w-auto p-5 sm:p-6 rounded-2xl bg-slate-950/80 border border-emerald-500/30 backdrop-blur-md shadow-inner">
           <div className="flex justify-between items-center mb-1 gap-4">
-            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">
-              TOTAL PORTFOLIO NET WORTH
+            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
+              ESTIMATED PORTFOLIO VALUE
             </span>
             {isMining && (
               <span className="flex items-center gap-1.5 text-[10px] text-emerald-400 font-mono">
@@ -257,39 +297,49 @@ export default function WalletPage() {
             <span className="text-2xl sm:text-3xl font-black text-emerald-400 font-mono tracking-tight">
               ${totalPortfolioValueUsd.toFixed(2)}
             </span>
-            <span className="text-xs font-bold text-gray-400">USD</span>
+            <span className="text-xs font-bold text-slate-400">USD</span>
           </div>
 
-          <div className="mt-3 pt-2 border-t border-gray-800/80 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-1.5 text-xs font-mono text-gray-300">
-              <span className="text-blue-400 font-bold">{balance.toFixed(4)} APN</span>
-              <span className="text-[10px] text-gray-500">(≈ ${apnUsdValue.toFixed(2)})</span>
+          <div className="mt-3 pt-2 border-t border-slate-800 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-1.5 text-xs font-mono text-slate-300">
+              <span className="text-blue-400 font-bold">{balance.toFixed(4)} $APN</span>
+              <span className="text-[10px] text-slate-500">(≈ ${apnUsdValue.toFixed(2)})</span>
             </div>
             <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 font-mono">
-              1 APN = ${APN_PRICE_USD.toFixed(2)}
+              1 $APN = ${APN_PRICE_USD.toFixed(2)}
             </span>
           </div>
         </div>
       </div>
 
+      {/* CORE WALLET INTERACTION GRID */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
-        <div className="p-6 sm:p-8 rounded-3xl bg-gray-900/50 border border-gray-800/80 backdrop-blur-md flex flex-col justify-between space-y-6 shadow-lg">
+        {/* RECEIVE ASSETS & QR CODE PANEL */}
+        <div className="p-6 sm:p-8 rounded-3xl bg-slate-900/50 border border-slate-800 backdrop-blur-md flex flex-col justify-between space-y-6 shadow-xl">
           <div className="space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-blue-400 font-bold shrink-0">
-                📥
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-blue-400 font-bold shrink-0">
+                  📥
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white">Receive $APN & P2P Deposit</h3>
+                  <p className="text-xs text-slate-400">Your unique APN Layer-1 public deposit address</p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-lg font-bold text-white">Receive Assets & APN</h3>
-                <p className="text-xs text-gray-400">Your unique APN Layer-1 deposit address</p>
-              </div>
+              <button
+                onClick={() => setShowQrModal(true)}
+                className="px-3 py-1.5 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 text-blue-400 text-xs font-semibold rounded-xl transition flex items-center gap-1.5 cursor-pointer"
+              >
+                <span>📱</span> Show QR
+              </button>
             </div>
 
             <div className="space-y-2 pt-2">
-              <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">
                 Public Wallet Address
               </label>
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 bg-black/60 p-3 rounded-xl border border-gray-800">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 bg-slate-950 p-3 rounded-xl border border-slate-800">
                 <span className="text-xs font-mono text-emerald-400 truncate flex-1 break-all py-1 sm:py-0">
                   {walletAddress}
                 </span>
@@ -301,40 +351,57 @@ export default function WalletPage() {
                 </button>
               </div>
             </div>
+
+            {/* EMBEDDED QUICK QR PREVIEW */}
+            <div className="bg-slate-950/70 border border-slate-800/80 rounded-2xl p-4 flex items-center gap-4">
+              <img
+                src={qrCodeUrl}
+                alt="APN Wallet QR"
+                className="w-16 h-16 rounded-xl border border-slate-700 bg-slate-900 shrink-0 cursor-pointer"
+                onClick={() => setShowQrModal(true)}
+              />
+              <div className="text-xs space-y-1">
+                <span className="text-slate-200 font-bold block">P2P Scan & Pay</span>
+                <p className="text-slate-400 text-[11px] leading-relaxed">
+                  Scan this QR code from any camera or Web3 mobile device to receive direct $APN and instant P2P payments.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div className="p-6 sm:p-8 rounded-3xl bg-gray-900/50 border border-gray-800/80 backdrop-blur-md flex flex-col justify-between space-y-6 shadow-lg">
+        {/* SEND / WITHDRAW APN TOKENS */}
+        <div className="p-6 sm:p-8 rounded-3xl bg-slate-900/50 border border-slate-800 backdrop-blur-md flex flex-col justify-between space-y-6 shadow-xl">
           <div className="space-y-6">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-purple-600/20 border border-purple-500/40 flex items-center justify-center text-purple-400 font-bold shrink-0">
                 📤
               </div>
               <div>
-                <h3 className="text-lg font-bold text-white">Withdraw APN</h3>
-                <p className="text-xs text-gray-400">Transfer APN native tokens to external Web3 address</p>
+                <h3 className="text-lg font-bold text-white">Transfer & Withdraw $APN</h3>
+                <p className="text-xs text-slate-400">Send native $APN coins to external or P2P addresses</p>
               </div>
             </div>
 
             <div className="space-y-4">
               <div className="space-y-2">
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">
                   Recipient Wallet Address
                 </label>
                 <input
                   type="text"
                   disabled={!isWithdrawUnlocked}
-                  placeholder="Paste 0x... or APN wallet address"
+                  placeholder="Paste recipient 0x... or APN address"
                   value={withdrawAddress}
                   onChange={(e) => setWithdrawAddress(e.target.value)}
-                  className="w-full bg-black/50 border border-gray-800 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-blue-500 font-mono disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-blue-500 font-mono disabled:opacity-50 disabled:cursor-not-allowed"
                 />
               </div>
 
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
-                  <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">
-                    Amount (APN)
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                    Amount ($APN)
                   </label>
                   <button
                     disabled={!isWithdrawUnlocked}
@@ -350,20 +417,20 @@ export default function WalletPage() {
                   placeholder="0.000000"
                   value={withdrawAmount}
                   onChange={(e) => setWithdrawAmount(e.target.value)}
-                  className="w-full bg-black/50 border border-gray-800 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-blue-500 font-mono disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-blue-500 font-mono disabled:opacity-50 disabled:cursor-not-allowed"
                 />
               </div>
             </div>
           </div>
 
-          <div className="space-y-3 pt-4 border-t border-gray-800/80">
+          <div className="space-y-3 pt-4 border-t border-slate-800">
             {isTester ? (
               <button
                 onClick={handleTestingTransfer}
                 disabled={isSubmitting}
-                className="w-full py-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs uppercase tracking-wider transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                className="w-full py-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs uppercase tracking-wider transition-all shadow-lg shadow-emerald-950 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
               >
-                <span>🚀</span> {isSubmitting ? "Processing Transaction..." : "Transfer APN (Tester Access)"}
+                <span>🚀</span> {isSubmitting ? "Broadcasting to APN Ledger..." : "Transfer $APN (Live Direct)"}
               </button>
             ) : !canWithdraw ? (
               <button
@@ -375,14 +442,58 @@ export default function WalletPage() {
             ) : (
               <button
                 disabled
-                className="w-full py-4 rounded-xl bg-gray-800/80 text-gray-400 font-bold text-xs uppercase tracking-wider cursor-not-allowed border border-gray-700/50 shadow-inner flex items-center justify-center gap-2"
+                className="w-full py-4 rounded-xl bg-slate-800/80 text-slate-400 font-bold text-xs uppercase tracking-wider cursor-not-allowed border border-slate-700/50 shadow-inner flex items-center justify-center gap-2"
               >
-                <span>🔒</span> Withdrawals Locked (Mainnet Coming Soon)
+                <span>🔒</span> Withdrawals Locked (Mainnet Transition)
               </button>
             )}
           </div>
         </div>
       </div>
+
+      {/* FULL-SIZE QR CODE MODAL FOR P2P TRANSFERS */}
+      {showQrModal && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-xl flex items-center justify-center p-4 z-50 animate-in fade-in">
+          <div className="bg-slate-900 border border-blue-500/40 p-6 sm:p-8 rounded-3xl max-w-sm w-full space-y-6 text-center shadow-2xl relative">
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-blue-400 bg-blue-500/10 px-3 py-1 rounded-full border border-blue-500/20">
+                P2P QR Direct Transfer
+              </span>
+              <h3 className="text-xl font-black text-white mt-2">Scan to Receive $APN</h3>
+              <p className="text-xs text-slate-400">Layer-1 APN native address verification</p>
+            </div>
+
+            <div className="flex justify-center p-4 bg-slate-950 rounded-2xl border border-slate-800">
+              <img
+                src={qrCodeUrl}
+                alt="P2P Wallet Address QR Code"
+                className="w-52 h-52 rounded-xl shadow-lg"
+              />
+            </div>
+
+            <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
+              <p className="text-[11px] font-mono text-emerald-400 break-all select-all">
+                {walletAddress}
+              </p>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={handleCopyAddress}
+                className="w-1/2 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xs transition"
+              >
+                Copy Address
+              </button>
+              <button
+                onClick={() => setShowQrModal(false)}
+                className="w-1/2 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl text-xs transition border border-slate-700"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
