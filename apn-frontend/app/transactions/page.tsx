@@ -73,33 +73,56 @@ export default function TransactionsPage() {
     return null;
   }
 
-    const filteredTransactions = transactions.filter((tx) => {
+  const filteredTransactions = transactions.filter((tx) => {
     if (filter === "ALL") return true;
 
-    // Direct filter logic for Founder Airdrop
+    const t = (tx.type || "").toUpperCase();
+
+    if (filter === "MINING_REWARD") {
+      return t.includes("MINING");
+    }
+
+    if (filter === "REFERRAL_BONUS") {
+      return t.includes("REFERRAL") || t.includes("INVITE");
+    }
+
     if (filter === "FOUNDER_AIRDROP") {
       return (
-        tx.type === "FOUNDER_AIRDROP" ||
-        tx.type.includes("AIRDROP") ||
-        tx.type.includes("FOUNDER")
+        t.includes("AIRDROP") ||
+        t.includes("FOUNDER") ||
+        t.includes("WELCOME") ||
+        t === "BONUS"
       );
     }
 
-    return tx.type === filter;
+    if (filter === "STAKING_YIELD") {
+      return t.includes("STAKE") || t.includes("YIELD");
+    }
+
+    if (filter === "TRANSFER_OUT") {
+      return (
+        t.includes("OUT") ||
+        t.includes("SENT") ||
+        t.includes("WITHDRAW") ||
+        t.includes("TRANSFER_OUT")
+      );
+    }
+
+    return t === filter;
   });
 
   const totalEarned = transactions
-    .filter((t) => t.type !== "TRANSFER_OUT" && t.status === "COMPLETED")
+    .filter((t) => !t.type.includes("OUT") && !t.type.includes("WITHDRAW") && t.status === "COMPLETED")
     .reduce((acc, curr) => acc + curr.amount, 0);
 
   const totalTransferred = transactions
-    .filter((t) => t.type === "TRANSFER_OUT" && t.status === "COMPLETED")
+    .filter((t) => (t.type.includes("OUT") || t.type.includes("WITHDRAW")) && t.status === "COMPLETED")
     .reduce((acc, curr) => acc + curr.amount, 0);
 
   return (
-    <div className="space-y-8 max-w-6xl mx-auto pb-12">
+    <div className="space-y-8 max-w-6xl mx-auto pb-12 font-sans">
       {/* HEADER SECTION */}
-      <div className="p-8 rounded-3xl bg-gradient-to-r from-gray-900/60 via-slate-900/50 to-gray-900/60 border border-gray-800/80 backdrop-blur-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+      <div className="p-8 rounded-3xl bg-gradient-to-r from-gray-900/60 via-slate-900/50 to-gray-900/60 border border-gray-800/80 backdrop-blur-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6 shadow-2xl">
         <div className="space-y-2">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-400 text-xs font-semibold">
             📜 On-Chain Ledger & History
@@ -120,7 +143,7 @@ export default function TransactionsPage() {
             Total Earnings Received
           </span>
           <p className="text-3xl font-black text-emerald-400 mt-2 font-mono">
-            +{totalEarned.toFixed(2)} <span className="text-xs font-normal text-gray-400">APN</span>
+            +{totalEarned.toFixed(2)} <span className="text-xs font-normal text-gray-400">$APN</span>
           </p>
         </div>
 
@@ -129,7 +152,7 @@ export default function TransactionsPage() {
             Total Transfers Out
           </span>
           <p className="text-3xl font-black text-rose-400 mt-2 font-mono">
-            -{totalTransferred.toFixed(2)} <span className="text-xs font-normal text-gray-400">APN</span>
+            -{totalTransferred.toFixed(2)} <span className="text-xs font-normal text-gray-400">$APN</span>
           </p>
         </div>
 
@@ -138,7 +161,7 @@ export default function TransactionsPage() {
             Total Records Logged
           </span>
           <p className="text-3xl font-black text-blue-400 mt-2 font-mono">
-            {transactions.length} <span className="text-xs font-normal text-gray-400">Transactions</span>
+            {transactions.length} <span className="text-xs font-normal text-gray-400">Records</span>
           </p>
         </div>
       </div>
@@ -191,7 +214,10 @@ export default function TransactionsPage() {
               </thead>
               <tbody className="divide-y divide-gray-800/60 text-xs">
                 {filteredTransactions.map((tx) => {
-                  const isPositive = tx.type !== "TRANSFER_OUT";
+                  const isOutflow =
+                    tx.type.includes("OUT") || tx.type.includes("WITHDRAW");
+                  const isPositive = !isOutflow;
+
                   return (
                     <tr key={tx.id} className="hover:bg-gray-800/30 transition-all">
                       {/* TYPE & DESCRIPTION */}
@@ -199,24 +225,24 @@ export default function TransactionsPage() {
                         <div className="flex items-center gap-3">
                           <div
                             className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm ${
-                              tx.type === "MINING_REWARD"
+                              tx.type.includes("MINING")
                                 ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30"
-                                : tx.type === "REFERRAL_BONUS"
+                                : tx.type.includes("REFERRAL")
                                 ? "bg-amber-500/10 text-amber-400 border border-amber-500/30"
-                                : tx.type === "FOUNDER_AIRDROP"
+                                : tx.type.includes("AIRDROP") || tx.type.includes("FOUNDER")
                                 ? "bg-blue-500/10 text-blue-400 border border-blue-500/30"
-                                : tx.type === "STAKING_YIELD"
+                                : tx.type.includes("STAKE") || tx.type.includes("YIELD")
                                 ? "bg-purple-500/10 text-purple-400 border border-purple-500/30"
                                 : "bg-rose-500/10 text-rose-400 border border-rose-500/30"
                             }`}
                           >
-                            {tx.type === "MINING_REWARD"
+                            {tx.type.includes("MINING")
                               ? "⛏️"
-                              : tx.type === "REFERRAL_BONUS"
+                              : tx.type.includes("REFERRAL")
                               ? "🎁"
-                              : tx.type === "FOUNDER_AIRDROP"
+                              : tx.type.includes("AIRDROP") || tx.type.includes("FOUNDER")
                               ? "💎"
-                              : tx.type === "STAKING_YIELD"
+                              : tx.type.includes("STAKE") || tx.type.includes("YIELD")
                               ? "🔒"
                               : "💸"}
                           </div>
@@ -235,7 +261,7 @@ export default function TransactionsPage() {
                           onClick={() => handleCopyHash(tx.txHash)}
                           className="hover:text-blue-400 transition-all flex items-center gap-1.5 bg-black/40 px-2.5 py-1 rounded-lg border border-gray-800"
                         >
-                          <span>{tx.txHash}</span>
+                          <span className="truncate max-w-[120px] sm:max-w-none">{tx.txHash}</span>
                           <span className="text-[10px]">
                             {copiedTx === tx.txHash ? "✓" : "📋"}
                           </span>
@@ -243,7 +269,7 @@ export default function TransactionsPage() {
                       </td>
 
                       {/* TIMESTAMP */}
-                      <td className="py-4 px-4 text-gray-400 text-[11px]">
+                      <td className="py-4 px-4 text-gray-400 text-[11px] whitespace-nowrap">
                         {tx.timestamp}
                       </td>
 
@@ -263,12 +289,12 @@ export default function TransactionsPage() {
                       </td>
 
                       {/* AMOUNT */}
-                      <td className="py-4 px-4 text-right font-mono font-bold text-sm">
+                      <td className="py-4 px-4 text-right font-mono font-bold text-sm whitespace-nowrap">
                         <span
                           className={isPositive ? "text-emerald-400" : "text-rose-400"}
                         >
                           {isPositive ? "+" : "-"}
-                          {tx.amount.toFixed(2)} APN
+                          {tx.amount.toFixed(2)} $APN
                         </span>
                       </td>
                     </tr>
