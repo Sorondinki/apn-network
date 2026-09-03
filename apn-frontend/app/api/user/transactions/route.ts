@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Zaƙulo bayanan transactions kai tsaye ta userId domin gujewa error na columns da babu a table
+    // Zaƙulo bayanan transactions kai tsaye daga table ɗin Transaction
     const { data: dbTransactions, error } = await supabase
       .from("Transaction")
       .select("id, userId, amount, type, description, createdAt")
@@ -45,36 +45,77 @@ export async function GET(request: NextRequest) {
 
 function formatTransactionsList(dbTransactions: any[]) {
   return dbTransactions.map((tx) => {
-    const shortId = tx.id ? String(tx.id).replace(/-/g, "").substring(0, 10) : "000000";
+    const shortId = tx.id ? String(tx.id).replace(/[^a-zA-Z0-9]/g, "").substring(0, 8) : "00000000";
     const txHash = `0xapn${shortId}`;
 
     const formattedTimestamp = tx.createdAt
       ? new Date(tx.createdAt).toISOString().replace("T", " ").substring(0, 19)
       : new Date().toISOString().replace("T", " ").substring(0, 19);
 
-    let rawType = String(tx.type || "MINING_REWARD").toUpperCase();
+    const rawType = String(tx.type || "").trim().toUpperCase();
+    const rawDesc = String(tx.description || "").trim().toUpperCase();
 
-    // Rarraba type daban-daban yadda yakamata
-    if (rawType.includes("MINING")) {
-      rawType = "MINING_REWARD";
-    } else if (rawType.includes("REFERRAL") || rawType.includes("INVITE")) {
-      rawType = "REFERRAL_BONUS";
-    } else if (rawType.includes("AIRDROP") || rawType.includes("FOUNDER") || rawType === "BONUS") {
-      rawType = "FOUNDER_AIRDROP";
-    } else if (rawType.includes("STAKE") || rawType.includes("YIELD")) {
-      rawType = "STAKING_YIELD";
-    } else if (rawType.includes("OUT") || rawType.includes("WITHDRAW")) {
-      rawType = "TRANSFER_OUT";
+    let resolvedType = "MINING_REWARD";
+
+    // 1. Duba Referral Bonus
+    if (
+      rawType.includes("REFERRAL") ||
+      rawType.includes("INVITE") ||
+      rawDesc.includes("REFERRAL") ||
+      rawDesc.includes("INVITE") ||
+      rawDesc.includes("DOWNLINE")
+    ) {
+      resolvedType = "REFERRAL_BONUS";
+    }
+    // 2. Duba Founder Airdrop & Signup Bonus
+    else if (
+      rawType.includes("AIRDROP") ||
+      rawType.includes("FOUNDER") ||
+      rawType.includes("WELCOME") ||
+      rawType.includes("SIGNUP") ||
+      rawType.includes("BONUS") ||
+      rawDesc.includes("AIRDROP") ||
+      rawDesc.includes("FOUNDER") ||
+      rawDesc.includes("WELCOME") ||
+      rawDesc.includes("SIGNUP")
+    ) {
+      resolvedType = "FOUNDER_AIRDROP";
+    }
+    // 3. Duba Staking Vault & Yields
+    else if (
+      rawType.includes("STAKE") ||
+      rawType.includes("YIELD") ||
+      rawDesc.includes("STAKE") ||
+      rawDesc.includes("YIELD") ||
+      rawDesc.includes("VAULT")
+    ) {
+      resolvedType = "STAKING_YIELD";
+    }
+    // 4. Duba Fitar da Kudade (Transfers Out & Withdrawals)
+    else if (
+      rawType.includes("OUT") ||
+      rawType.includes("WITHDRAW") ||
+      rawType.includes("DEBIT") ||
+      rawType.includes("SENT") ||
+      rawDesc.includes("WITHDRAW") ||
+      rawDesc.includes("SENT") ||
+      rawDesc.includes("TRANSFER OUT")
+    ) {
+      resolvedType = "TRANSFER_OUT";
+    }
+    // 5. Sauran ayyukan Mining
+    else {
+      resolvedType = "MINING_REWARD";
     }
 
     return {
       id: String(tx.id),
       txHash: txHash,
-      type: rawType,
+      type: resolvedType,
       amount: parseFloat(tx.amount || 0),
       status: "COMPLETED",
       timestamp: formattedTimestamp,
-      description: tx.description || "APN Consensus Reward",
+      description: tx.description || "APN Network Ecosystem Transaction",
     };
   });
 }
