@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
 export async function POST(req: Request) {
+  return Response.json({ success: true, message: "Paused" });
+}
+export async function POST(req: Request) {
   try {
     const body = await req.json();
     const { userId, isMining, miningStartTime } = body;
