@@ -11,7 +11,7 @@ const AadsBanner = dynamic(() => import("../components/AadsBanner"), {
 
 export default function KYCPage() {
   const router = useRouter();
-  const [user, setUser] = useState<{ id: string; email: string; name?: string } | null>(null);
+  const [user, setUser] = useState<{ id: string; email: string; name?: string; fullName?: string } | null>(null);
   const [fullName, setFullName] = useState("");
   const [docType, setDocType] = useState("National Identification Number (NIN)");
   const [docNumber, setDocNumber] = useState("");
@@ -28,28 +28,62 @@ export default function KYCPage() {
       try {
         const parsed = JSON.parse(savedUser);
         setUser(parsed);
-        if (parsed.name) setFullName(parsed.name);
+        if (parsed.fullName || parsed.name) {
+          setFullName(parsed.fullName || parsed.name);
+        }
       } catch (e) {
         console.error("User session parse error", e);
       }
     }
   }, []);
 
-  const handleDocImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Compression helper to prevent Next.js 413 Payload Too Large crash
+  const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = document.createElement("img");
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          const MAX_WIDTH = 1024;
+          const scaleSize = MAX_WIDTH / img.width;
+          canvas.width = MAX_WIDTH;
+          canvas.height = img.height * scaleSize;
+
+          const ctx = canvas.getContext("2d");
+          ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
+          // Compress to lightweight JPEG
+          const compressedUrl = canvas.toDataURL("image/jpeg", 0.7);
+          resolve(compressedUrl);
+        };
+      };
+      reader.onerror = (error) => reject(error);
+    });
+  };
+
+  const handleDocImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => setDocImage(reader.result as string);
-      reader.readAsDataURL(file);
+      try {
+        const compressed = await compressImage(file);
+        setDocImage(compressed);
+      } catch (err) {
+        console.error("Image compression error:", err);
+      }
     }
   };
 
-  const handleSelfieImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleSelfieImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => setSelfieImage(reader.result as string);
-      reader.readAsDataURL(file);
+      try {
+        const compressed = await compressImage(file);
+        setSelfieImage(compressed);
+      } catch (err) {
+        console.error("Image compression error:", err);
+      }
     }
   };
 
@@ -60,8 +94,8 @@ export default function KYCPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId: user?.id || "anonymous_user",
-          email: user?.email || "user@apnnetwork.com",
+          userId: user?.id,
+          email: user?.email || "user@apnprotocol.ng",
           amount: 1000,
         }),
       });
@@ -70,7 +104,7 @@ export default function KYCPage() {
       if (data.success && data.authorization_url) {
         window.location.href = data.authorization_url;
       } else {
-        alert("Paystack Initialization Failed: " + (data.message || "Try again later"));
+        alert("Paystack Initialization Failed: " + (data.message || "Please try again later."));
         setLoading(false);
       }
     } catch (err) {
@@ -82,6 +116,13 @@ export default function KYCPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!user || !user.id) {
+      alert("Please log in to your account before submitting KYC.");
+      router.push("/register");
+      return;
+    }
+
     if (!docImage || !selfieImage) {
       alert("Please upload both your ID document photo and selfie photo before submitting.");
       return;
@@ -98,7 +139,7 @@ export default function KYCPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId: user?.id || "anonymous_user",
+          userId: user.id,
           fullName,
           docType,
           docNumber,
@@ -115,17 +156,17 @@ export default function KYCPage() {
         setResultMessage(data.message);
         setSubmitted(true);
       } else {
-        alert(data.message || "KYC submission failed");
+        alert(data.message || "KYC submission failed. Please try again.");
       }
     } catch (err) {
       setLoading(false);
       console.error("KYC Submission error:", err);
-      alert("Network error processing your request.");
+      alert("Network error processing your request. Please ensure images are clear and try again.");
     }
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 p-4 sm:p-6">
+    <div className="max-w-4xl mx-auto space-y-8 p-4 sm:p-6 font-sans">
       {/* HEADER BANNER */}
       <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-blue-950/90 via-slate-900 to-indigo-950/90 border border-blue-800/40 shadow-2xl backdrop-blur-xl">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
@@ -141,13 +182,13 @@ export default function KYCPage() {
             </p>
           </div>
 
-          <div className="bg-black/60 p-4 rounded-2xl border border-emerald-500/40 flex items-center gap-3 w-full sm:w-auto">
+          <div className="bg-black/60 p-4 rounded-2xl border border-emerald-500/40 flex items-center gap-3 w-full sm:w-auto shadow-xl">
             <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center border border-emerald-400 text-emerald-400 font-bold text-lg">
               🎁
             </div>
             <div>
               <div className="text-[10px] text-gray-400 font-mono uppercase">Guaranteed Completion Bonus</div>
-              <div className="text-sm font-extrabold text-emerald-400">+50 APN Tokens 🚀</div>
+              <div className="text-sm font-extrabold text-emerald-400">+50 $APN Tokens 🚀</div>
             </div>
           </div>
         </div>
@@ -170,7 +211,7 @@ export default function KYCPage() {
           </div>
           <h3 className="text-base font-bold text-white">Free Standard Verification</h3>
           <p className="text-xs text-gray-400 mt-1">
-            Processed manually within 7 to 14 days. Full access to +50 APN Bonus & Verified Badge upon approval.
+            Processed manually within 7 to 14 days. Full access to +50 $APN Bonus & Verified Badge upon approval.
           </p>
         </div>
 
@@ -232,7 +273,7 @@ export default function KYCPage() {
             </div>
             <h3 className="text-2xl font-extrabold text-emerald-400">KYC Request Logged!</h3>
             <p className="text-xs text-gray-300 max-w-md mx-auto leading-relaxed">
-              {resultMessage || "Your KYC details have been transmitted successfully. Your 50 APN reward will be credited upon system verification."}
+              {resultMessage || "Your KYC details have been transmitted successfully. Your 50 $APN reward will be credited upon system verification."}
             </p>
             <div className="pt-2">
               <button
@@ -351,9 +392,9 @@ export default function KYCPage() {
               {loading ? (
                 <span>Processing Verification Route... ⏳</span>
               ) : verificationType === "FAST_TRACK" ? (
-                <span>Pay ₦1,000 via Paystack & Fast-Track (Instant 5s Approval) and Claim 100 APN⚡</span>
+                <span>Pay ₦1,000 via Paystack & Fast-Track (Instant 5s Approval) and Claim 100 $APN ⚡</span>
               ) : (
-                <span>Submit Free Verification & Claim 50 APN 🚀</span>
+                <span>Submit Free Verification & Claim 50 $APN 🚀</span>
               )}
             </button>
           </form>
@@ -366,3 +407,4 @@ export default function KYCPage() {
     </div>
   );
 }
+                    
