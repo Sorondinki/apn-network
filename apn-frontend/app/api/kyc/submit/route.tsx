@@ -1,15 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+import { supabase } from "@/lib/supabase";
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { userId, fullName, docType, docNumber, docImage, selfieImage } = body;
+    const { userId, fullName, docType, docNumber, docImage, selfieImage, verificationType = "FREE" } = body;
 
     if (!userId || !fullName || !docNumber) {
       return NextResponse.json(
@@ -18,10 +13,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Update the record in the 'User' table using singular capital 'User'
+    // 1. Tabbatar cewa user yana nan a table din User
     const { data: userData, error: fetchError } = await supabase
       .from("User")
-      .select("id")
+      .select("id, email")
       .eq("id", userId)
       .single();
 
@@ -32,31 +27,46 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { error: updateError } = await supabase
-      .from("User")
-      .update({
+    // 2. Ajiye dukkan cikakkun bayanan KYC da hotuna a cikin table din KYC_Submissions
+    const { error: insertError } = await supabase
+      .from("KYC_Submissions")
+      .insert({
+        userId: userId,
         fullName: fullName,
-        isVerified: false, // Standard verification is pending manual review
-      })
-      .eq("id", userId);
+        docType: docType,
+        docNumber: docNumber,
+        docImage: docImage || null,
+        selfieImage: selfieImage || null,
+        verificationType: verificationType,
+        status: "PENDING",
+      });
 
-    if (updateError) {
-      console.error("Database update error:", updateError);
+    if (insertError) {
+      console.error("KYC Record Insert Error:", insertError);
       return NextResponse.json(
-        { success: false, message: "Failed to store KYC details." },
+        { success: false, message: "Failed to store KYC documents in database: " + insertError.message },
         { status: 500 }
       );
     }
 
+    // 3. Sabunta fullName a table din User
+    await supabase
+      .from("User")
+      .update({
+        fullName: fullName,
+        isVerified: false,
+      })
+      .eq("id", userId);
+
     return NextResponse.json({
       success: true,
       message:
-        "Free Standard KYC Request Submitted! Your 50 APN token reward will be credited upon manual review (7-14 days).",
+        "Free Standard KYC Request Submitted! Your 50 $APN token reward will be credited upon manual review (7-14 days).",
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("KYC Submit error:", error);
     return NextResponse.json(
-      { success: false, message: "Server error during submission." },
+      { success: false, message: error?.message || "Server error during KYC submission." },
       { status: 500 }
     );
   }
