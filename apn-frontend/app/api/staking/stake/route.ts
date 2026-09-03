@@ -10,10 +10,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid user identifier or amount provided" }, { status: 400 });
     }
 
-    // 1. Fetch current user balance from database (by ID or Email fallback)
+    // 1. Tabbatar mun yi amfani da daidaitaccen sunan table wato "User" kamar yadda yake a database dinka
     let userQuery = supabase
-      .from("users")
-      .select("id, email, balance, staked_balance, stakedBalance");
+      .from("User")
+      .select("id, email, balance, stakedBalance");
 
     if (userId) {
       userQuery = userQuery.eq("id", userId);
@@ -31,20 +31,20 @@ export async function POST(req: Request) {
     const targetUserId = user.id;
 
     const currentBalance = parseFloat(user.balance || "0");
-    const currentStaked = parseFloat(user.staked_balance || user.stakedBalance || "0");
+    const currentStaked = parseFloat(user.stakedBalance || "0");
 
     let newBalance = currentBalance;
     let newStakedBalance = currentStaked;
 
     if (action === "STAKE") {
-      // Check for sufficient main balance
+      // Duba ko yana da isasshen baki a babban asusunsa
       if (currentBalance < stakeAmount) {
         return NextResponse.json({ error: "Insufficient balance to stake" }, { status: 400 });
       }
       newBalance = currentBalance - stakeAmount;
       newStakedBalance = currentStaked + stakeAmount;
     } else if (action === "UNSTAKE") {
-      // Check for sufficient staked balance
+      // Duba ko yana da isasshen abin cirewa a vault
       if (currentStaked < stakeAmount) {
         return NextResponse.json({ error: "Insufficient staked balance to withdraw" }, { status: 400 });
       }
@@ -52,25 +52,13 @@ export async function POST(req: Request) {
       newStakedBalance = currentStaked - stakeAmount;
     }
 
-    // 2. Prepare payload compatible with database schema
-    const updateData: any = {
-      balance: newBalance,
-    };
-
-    if (user.staked_balance !== undefined) {
-      updateData.staked_balance = newStakedBalance;
-    }
-    if (user.stakedBalance !== undefined) {
-      updateData.stakedBalance = newStakedBalance;
-    }
-    if (user.staked_balance === undefined && user.stakedBalance === undefined) {
-      updateData.staked_balance = newStakedBalance;
-    }
-
-    // 3. Update persistent database record
+    // 2. Sabunta bayanan user a cikin table din "User" ta hanyar amfani daakedBalance
     const { data: updatedUser, error: updateError } = await supabase
-      .from("users")
-      .update(updateData)
+      .from("User")
+      .update({
+        balance: newBalance,
+        stakedBalance: newStakedBalance,
+      })
       .eq("id", targetUserId)
       .select()
       .single();
@@ -79,17 +67,14 @@ export async function POST(req: Request) {
       throw updateError;
     }
 
-    const finalStaked = updatedUser.staked_balance !== undefined 
-      ? updatedUser.staked_balance 
-      : updatedUser.stakedBalance;
-
     return NextResponse.json({
       success: true,
       balance: updatedUser.balance,
-      stakedBalance: finalStaked,
+      stakedBalance: updatedUser.stakedBalance,
     });
   } catch (error: any) {
     console.error("Staking Processing Error:", error);
     return NextResponse.json({ error: error?.message || "Staking transaction failed" }, { status: 500 });
   }
 }
+  
