@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-// Initialize Supabase Client using Service Role Key for Admin Access
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -43,24 +42,25 @@ export async function POST(req: Request) {
 
       if (error) throw error;
 
-      // Calculate Total Distributed Balance
-      const { data: allUsers, error: sumError } = await supabase
-        .from("User")
-        .select("balance");
+      // Lissafin Abinda Aka Tura Kawai Daga Founder Vault (Direct Transfers / Airdrops)
+      const { data: transfers, error: transferErr } = await supabase
+        .from("FounderTransferLog")
+        .select("amount");
 
-      if (sumError) throw sumError;
-
-      const totalDistributedTokens = (allUsers || []).reduce(
-        (acc, curr) => acc + (Number(curr.balance) || 0),
-        0
-      );
+      let totalFounderTransferred = 0;
+      if (!transferErr && transfers) {
+        totalFounderTransferred = transfers.reduce(
+          (acc, curr) => acc + (Number(curr.amount) || 0),
+          0
+        );
+      }
 
       return NextResponse.json({
         success: true,
         users: users || [],
         totalCount: count || 0,
         totalPages: Math.ceil((count || 0) / take) || 1,
-        totalDistributedTokens,
+        totalDistributedTokens: totalFounderTransferred, // Abin da Founder ya tura kawai
         founderReserve: TOTAL_FOUNDER_RESERVE,
         maxSupply: TOTAL_MAX_SUPPLY,
       });
@@ -79,11 +79,17 @@ export async function POST(req: Request) {
       }
 
       if (action === "BULK_AIRDROP" && Array.isArray(targetUserIds) && targetUserIds.length > 0) {
+        const logEntries = [];
         for (const id of targetUserIds) {
           const { data: u } = await supabase.from("User").select("balance").eq("id", id).single();
           const currentBal = Number(u?.balance || 0);
           await supabase.from("User").update({ balance: currentBal + transferAmount }).eq("id", id);
+          
+          logEntries.push({ targetUserId: id, amount: transferAmount });
         }
+
+        // Yi rikodin transfer a FounderTransferLog
+        await supabase.from("FounderTransferLog").insert(logEntries);
 
         return NextResponse.json({
           success: true,
@@ -101,6 +107,11 @@ export async function POST(req: Request) {
           .eq("id", targetUserId);
 
         if (error) throw error;
+
+        // Yi rikodin transfer a FounderTransferLog
+        await supabase.from("FounderTransferLog").insert([
+          { targetUserId, amount: transferAmount }
+        ]);
 
         return NextResponse.json({
           success: true,
@@ -225,3 +236,4 @@ export async function POST(req: Request) {
     );
   }
 }
+      
