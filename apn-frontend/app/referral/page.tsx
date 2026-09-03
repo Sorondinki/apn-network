@@ -156,13 +156,13 @@ export default function ReferralPage() {
       <div className="p-5 sm:p-8 rounded-3xl bg-gradient-to-r from-emerald-950/80 via-slate-900/90 to-purple-950/80 border border-emerald-500/30 backdrop-blur-xl flex flex-col md:flex-row items-stretch md:items-center justify-between gap-6 shadow-2xl relative overflow-hidden">
         <div className="space-y-3 z-10">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-bold">
-            🎁 APN Ecosystem Guild & Referral Hub
+            🎁 $APN Ecosystem Guild & Referral Hub
           </div>
           <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight leading-snug">
-            Invite, Lead & Earn APN
-          </h1>
+            Invite, Lead & Earn $APN
+          </h1>and
           <p className="text-gray-400 text-xs sm:text-sm max-w-lg leading-relaxed">
-            Invite colleagues and friends to join APN Layer-1. Earn <span className="text-emerald-400 font-bold">5.0 APN</span> per verified recruit, plus unlock a permanent <span className="text-blue-400 font-bold">+2.5% hashrate boost</span> per node!
+            Invite colleagues  friends to join APN Layer-1. Earn <span className="text-emerald-400 font-bold">5.0 APN</span> per verified recruit, plus unlock a permanent <span className="text-blue-400 font-bold">+2.5% hashrate boost</span> per node!
           </p>
         </div>
         
@@ -215,7 +215,7 @@ export default function ReferralPage() {
             Earned Bonus
           </span>
           <p className="text-xl sm:text-3xl font-black text-amber-400 mt-2 font-mono truncate">
-            {stats.commissionsEarned} <span className="text-xs font-normal text-gray-500">APN</span>
+            {stats.commissionsEarned} <span className="text-xs font-normal text-gray-500">$APN</span>
           </p>
         </div>
 
