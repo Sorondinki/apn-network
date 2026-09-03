@@ -444,7 +444,7 @@ export default function DashboardPage() {
               <span className="text-3xl font-extrabold text-emerald-400 font-mono tracking-tight">
                 {balance.toFixed(6)}
               </span>
-              <span className="text-xs font-semibold text-gray-400">APN</span>
+              <span className="text-xs font-semibold text-gray-400">$APN</span>
             </div>
           </div>
         </div>
@@ -537,14 +537,14 @@ export default function DashboardPage() {
           <div className="text-blue-400 mb-2 group-hover:scale-110 transition-transform w-max text-xl">👥</div>
           <h3 className="text-sm font-bold text-white">Active Referral Mining</h3>
           <p className="text-xs text-gray-400 mt-1">
-            Earn +0.2 APN/hr for each active peer mining right now ({activeReferrals}/{totalReferrals} Active).
+            Earn +0.2 $APN/hr for each active peer mining right now ({activeReferrals}/{totalReferrals} Active).
           </p>
         </div>
 
         <div className="p-5 rounded-2xl bg-gradient-to-br from-gray-900/60 to-gray-950/80 border border-gray-800/80 hover:border-emerald-500/50 transition-all">
           <div className="text-emerald-400 mb-2 w-max text-xl">🛡️</div>
           <h3 className="text-sm font-bold text-white">Cryptographic Vault</h3>
-          <p className="text-xs text-gray-400 mt-1">Your mined APN token balance is cryptographically secured via PoS mainnet consensus.</p>
+          <p className="text-xs text-gray-400 mt-1">Your mined $APN token balance is cryptographically secured via PoS mainnet consensus.</p>
         </div>
 
         <div className="p-5 rounded-2xl bg-gradient-to-br from-gray-900/60 to-gray-950/80 border border-gray-800/80 hover:border-amber-500/50 transition-all">
