@@ -1,5 +1,9 @@
-import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 export async function POST(req: Request) {
   try {
@@ -7,105 +11,91 @@ export async function POST(req: Request) {
     const { senderId, recipientAddress, amount } = body;
 
     const transferAmount = parseFloat(amount);
-
     if (!senderId || !recipientAddress || isNaN(transferAmount) || transferAmount <= 0) {
-      return NextResponse.json(
-        { success: false, error: "Please enter a valid transfer amount." },
-        { status: 400 }
-      );
+      return NextResponse.json({ success: false, error: "Invalid transfer parameters." }, { status: 400 });
     }
 
-    // 1. Fetch Sender details
+    // 1. Tabbatar da sender
     const { data: sender, error: senderErr } = await supabase
-      .from('User')
-      .select('id, balance, canWithdraw')
-      .eq('id', senderId)
+      .from("User")
+      .select("id, balance, canWithdraw, isSuspended")
+      .eq("id", senderId)
       .single();
 
     if (senderErr || !sender) {
       return NextResponse.json({ success: false, error: "Sender account not found." }, { status: 404 });
     }
 
+    if (sender.isSuspended) {
+      return NextResponse.json({ success: false, error: "Your account is suspended." }, { status: 403 });
+    }
+
     if (sender.canWithdraw === false) {
-      return NextResponse.json({ success: false, error: "This account is restricted from withdrawing funds." }, { status: 403 });
+      return NextResponse.json({ success: false, error: "Transfers are currently restricted on your account." }, { status: 403 });
     }
 
-    const currentSenderBalance = parseFloat(sender.balance || 0);
-
-    if (currentSenderBalance < transferAmount) {
-      return NextResponse.json({ success: false, error: "Your APN balance is insufficient for this transfer." }, { status: 400 });
+    if (Number(sender.balance) < transferAmount) {
+      return NextResponse.json({ success: false, error: "Insufficient $APN balance." }, { status: 400 });
     }
 
-    // 2. Find Recipient by walletAddress or ID
-    const cleanAddress = recipientAddress.trim();
-    let recipientQuery = supabase.from('User').select('id, balance, walletAddress');
+    // 2. Nemo Recipient ta walletAddress ko ID
+    const cleanAddr = recipientAddress.trim().toLowerCase();
+    const { data: recipients, error: recErr } = await supabase
+      .from("User")
+      .select("id, balance, walletAddress")
+      .or(`walletAddress.ilike.${cleanAddr},id.eq.${cleanAddr}`)
+      .limit(1);
 
-    if (cleanAddress.startsWith("0xAPN") && cleanAddress.length >= 21) {
-      const possibleIdPart = cleanAddress.replace("0xAPN", "");
-      recipientQuery = recipientQuery.or(`walletAddress.eq.${cleanAddress},id.ilike.%${possibleIdPart}%`);
-    } else {
-      recipientQuery = recipientQuery.or(`walletAddress.eq.${cleanAddress},id.eq.${cleanAddress}`);
+    if (recErr || !recipients || recipients.length === 0) {
+      return NextResponse.json({ success: false, error: "Recipient wallet address not found on APN Network." }, { status: 404 });
     }
 
-    const { data: recipients, error: recipientErr } = await recipientQuery.limit(1);
-    const recipient = recipients && recipients.length > 0 ? recipients[0] : null;
+    const recipient = recipients[0];
 
-    if (recipientErr || !recipient) {
-      return NextResponse.json({ success: false, error: "Recipient not found with this address." }, { status: 404 });
+    if (recipient.id === sender.id) {
+      return NextResponse.json({ success: false, error: "Cannot transfer to your own address." }, { status: 400 });
     }
 
-    if (recipient.id === senderId) {
-      return NextResponse.json({ success: false, error: "You cannot transfer funds to yourself." }, { status: 400 });
+    // 3. Rage balance na mai aikawa
+    const newSenderBal = Number(sender.balance) - transferAmount;
+    const { error: debitErr } = await supabase
+      .from("User")
+      .update({ balance: newSenderBal })
+      .eq("id", sender.id);
+
+    if (debitErr) throw debitErr;
+
+    // 4. Ƙara wa mai karɓa
+    const newRecipientBal = Number(recipient.balance || 0) + transferAmount;
+    const { error: creditErr } = await supabase
+      .from("User")
+      .update({ balance: newRecipientBal })
+      .eq("id", recipient.id);
+
+    if (creditErr) throw creditErr;
+
+    // 5. Rubuta a Transaction table
+    try {
+      await supabase.from("Transaction").insert([
+        {
+          userId: sender.id,
+          amount: transferAmount,
+          type: "TRANSFER",
+          status: "COMPLETED",
+          recipientAddress: recipient.walletAddress || cleanAddr
+        }
+      ]);
+    } catch (e) {
+      console.warn("Transaction log insert optional warning:", e);
     }
-
-    // 3. EXECUTE TRANSACTION
-    const newSenderBalance = currentSenderBalance - transferAmount;
-    const newRecipientBalance = parseFloat(recipient.balance || 0) + transferAmount;
-
-    // Deduct from Sender
-    const { error: updateSenderErr } = await supabase
-      .from('User')
-      .update({ balance: newSenderBalance, updatedAt: new Date().toISOString() })
-      .eq('id', senderId);
-
-    if (updateSenderErr) {
-      return NextResponse.json({ success: false, error: "Error deducting balance from sender account." }, { status: 500 });
-    }
-
-    // Add to Recipient
-    await supabase
-      .from('User')
-      .update({ balance: newRecipientBalance, updatedAt: new Date().toISOString() })
-      .eq('id', recipient.id);
-
-    // Create Transaction Logs
-    await supabase.from('Transaction').insert([
-      {
-        userId: senderId,
-        type: 'TRANSFER_OUT',
-        amount: transferAmount,
-        status: 'COMPLETED',
-        description: `Sent ${transferAmount} APN to ${recipientAddress}`,
-        createdAt: new Date().toISOString()
-      },
-      {
-        userId: recipient.id,
-        type: 'TRANSFER_IN',
-        amount: transferAmount,
-        status: 'COMPLETED',
-        description: `Received ${transferAmount} APN from user ${senderId.substring(0, 8)}...`,
-        createdAt: new Date().toISOString()
-      }
-    ]);
 
     return NextResponse.json({
       success: true,
-      newBalance: newSenderBalance,
-      toastMessage: `Successfully transferred ${transferAmount} APN! 💸`
+      newBalance: newSenderBal,
+      message: `Successfully transferred ${transferAmount} $APN.`
     });
 
   } catch (error: any) {
-    console.error("Transfer Error:", error);
-    return NextResponse.json({ success: false, error: error?.message || "Internal Server Error" }, { status: 500 });
+    return NextResponse.json({ success: false, error: error.message || "Transaction failed." }, { status: 500 });
   }
-}
+  }
