@@ -337,7 +337,7 @@ export default function ReferralPage() {
                 <tr>
                   <th className="p-3.5">Miner</th>
                   <th className="p-3.5">Joined</th>
-                  <th className="p-3.5">Balance (APN)</th>
+                  <th className="p-3.5">Balance ($APN)</th>
                   <th className="p-3.5">Status</th>
                   <th className="p-3.5 text-right">Actions</th>
                 </tr>
