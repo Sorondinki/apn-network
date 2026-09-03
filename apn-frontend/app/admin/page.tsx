@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 
-// Strict TypeScript Interfaces
 interface User {
   id: string;
   fullName?: string;
@@ -11,12 +10,10 @@ interface User {
   email: string;
   balance?: number | string;
   miningSpeed?: number | string;
-  miningBoost?: number | string;
   role?: string;
   isVerified?: boolean;
   isSuspended?: boolean;
   canWithdraw?: boolean;
-  referralCount?: number;
   isBoosting?: boolean;
 }
 
@@ -54,8 +51,8 @@ export default function FounderAdminDashboard() {
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
 
   // Tokenomics Architecture (1 Billion Max Supply)
-  const TOTAL_MAX_SUPPLY = 1000000000; // 1 Billion APN Total Supply
-  const TOTAL_FOUNDER_RESERVE = 250000000; // 250M APN (25%) Allocated to Founders, Mentors & Team
+  const TOTAL_MAX_SUPPLY = 1000000000;
+  const TOTAL_FOUNDER_RESERVE = 250000000;
   const [totalDistributed, setTotalDistributed] = useState<number>(0);
 
   // Custom Toast State
@@ -76,9 +73,6 @@ export default function FounderAdminDashboard() {
   const [editIsVerified, setEditIsVerified] = useState<boolean>(false);
   const [editCanWithdraw, setEditCanWithdraw] = useState<boolean>(true);
 
-  // Mining Speed Quick Select Modal State
-  const [boostingUser, setBoostingUser] = useState<User | null>(null);
-
   // Token Transfer State
   const [transferTargetId, setTransferTargetId] = useState<string>("");
   const [transferAmount, setTransferAmount] = useState<string>("");
@@ -88,44 +82,44 @@ export default function FounderAdminDashboard() {
     setTimeout(() => setToast(null), 4000);
   }, []);
 
-  // Fetch Users Function with Server-Side Search & Pagination
+  // Fetch Users Function
   const fetchUsers = useCallback(async (adminId: string, search: string = "", page: number = 1) => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin?search=${encodeURIComponent(search)}&page=${page}&limit=100`, {
+      const res = await fetch("/api/admin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "FETCH_USERS",
-          adminId: adminId,
-          search: search,
-          page: page,
-          limit: 100
+          adminId,
+          search,
+          page,
+          limit: 100,
         }),
       });
       const data = await res.json();
       if (data.success || Array.isArray(data.users)) {
         setUsers(data.users || []);
-        setTotalUsersCount(data.totalCount || (data.users ? data.users.length : 0));
+        setTotalUsersCount(data.totalCount || 0);
         setTotalPages(data.totalPages || 1);
         if (data.totalDistributedTokens !== undefined) {
           setTotalDistributed(data.totalDistributedTokens);
         }
       } else {
-        showToast(data.error || "Failed to load user records.", "error");
+        showToast(data.error || "Failed to load user records from.", "error");
       }
     } catch (e) {
-      showToast("Network error fetching user database.", "error");
+      showToast("Network error fetching database.", "error");
     } finally {
       setLoading(false);
     }
   }, [showToast]);
 
-  // CHECK AUTHORIZATION
+  // Authorization Check
   useEffect(() => {
     const savedUser = localStorage.getItem("apn_user");
     if (!savedUser) {
-      router.push("/login");
+      router.push("/register");
       return;
     }
 
@@ -140,7 +134,7 @@ export default function FounderAdminDashboard() {
       const hasAdminRole = userData.role === "FOUNDER" || userData.role === "ADMIN";
 
       if (!isFounderEmail && !hasAdminRole) {
-        showToast("Access Denied: Founder/Admin credentials required.", "error");
+        showToast("Access Denied: Founder credentials required.", "error");
         setTimeout(() => router.push("/dashboard"), 1500);
         return;
       }
@@ -148,12 +142,10 @@ export default function FounderAdminDashboard() {
       setAdmin(userData);
       fetchUsers(userData.id || "founder-root", searchTerm, currentPage);
     } catch (err) {
-      console.error("Failed to parse user data", err);
       router.push("/login");
     }
   }, [router, fetchUsers, showToast]);
 
-  // Handle Search Input
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     setSearchTerm(val);
@@ -183,13 +175,11 @@ export default function FounderAdminDashboard() {
     }
   };
 
-  // Trigger Master PIN Confirmation
   const triggerAction = (actionData: ActionPayload) => {
     setPendingAction(actionData);
     setShowPinModal(true);
   };
 
-  // Execute Action After PIN Provided
   const executeActionWithPin = async () => {
     if (!masterPin) {
       showToast("Please enter Master Security PIN!", "error");
@@ -201,7 +191,7 @@ export default function FounderAdminDashboard() {
       let payload: any = {
         ...pendingAction,
         adminId: admin?.id || "founder-root",
-        masterPin: masterPin,
+        masterPin,
       };
 
       if (pendingAction?.action === "TRANSFER_MENTOR_TOKENS") {
@@ -211,7 +201,7 @@ export default function FounderAdminDashboard() {
           mentorUserId: pendingAction.targetUserId,
           targetUserId: pendingAction.targetUserId,
           amount: pendingAction.amount,
-          masterPin: masterPin,
+          masterPin,
         };
       }
 
@@ -224,16 +214,14 @@ export default function FounderAdminDashboard() {
       const data = await res.json();
 
       if (data.success) {
-        showToast(data.message || "Action executed successfully! 🚀", "success");
+        showToast(data.message || "Action executed successfully in Supabase! 🚀", "success");
         setShowPinModal(false);
         setMasterPin("");
         setPendingAction(null);
         setEditingUser(null);
-        setBoostingUser(null);
         setSelectedUserIds([]);
 
-        // Reset inputs
-        setTransferAmount(""); 
+        setTransferAmount("");
         setTransferTargetId("");
 
         fetchUsers(admin?.id || "founder-root", searchTerm, currentPage);
@@ -263,10 +251,10 @@ export default function FounderAdminDashboard() {
       <div className="p-8 rounded-3xl bg-gradient-to-r from-emerald-900/40 via-slate-900 to-purple-900/40 border border-emerald-500/30 flex flex-col md:flex-row justify-between items-center gap-6 shadow-2xl">
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-semibold border border-emerald-500/40">
-            🛡️ APN Network Founder Console
+            ⚡ $APN Control Center
           </div>
           <h1 className="text-3xl font-black mt-2 tracking-tight">Founder Executive Portal</h1>
-          <p className="text-gray-400 text-xs mt-1">Manage global token distribution, mining speed boosts, KYC approvals, and team transfers.</p>
+          <p className="text-gray-400 text-xs mt-1">Manage $APN token balances, mining speeds, KYC approvals, and direct transfers.</p>
         </div>
         <div className="bg-black/50 p-4 rounded-2xl border border-gray-800 text-right">
           <span className="text-[10px] text-gray-400 font-bold block uppercase">Primary Admin</span>
@@ -274,23 +262,23 @@ export default function FounderAdminDashboard() {
         </div>
       </div>
 
-      {/* 1 BILLION TOTAL TOKENOMICS & RESERVE DASHBOARD CARDS */}
+      {/* TOKENOMICS CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="p-6 rounded-3xl bg-gradient-to-br from-amber-950/40 via-slate-900 to-amber-900/20 border border-amber-500/40 shadow-2xl relative overflow-hidden col-span-1 md:col-span-2">
+        <div className="p-6 rounded-3xl bg-gradient-to-br from-amber-950/40 via-slate-900 to-amber-900/20 border border-amber-500/40 shadow-2xl col-span-1 md:col-span-2">
           <div className="flex justify-between items-start">
             <div>
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/20 text-amber-400 text-[11px] font-bold border border-amber-500/40">
                 💎 Founder & Team Reserve Vault (25%)
               </div>
               <h2 className="text-2xl font-black text-white mt-3 font-mono">
-                {TOTAL_FOUNDER_RESERVE.toLocaleString()} <span className="text-amber-400 text-lg">APN</span>
+                {TOTAL_FOUNDER_RESERVE.toLocaleString()} <span className="text-amber-400 text-lg">$APN</span>
               </h2>
-              <p className="text-gray-400 text-xs mt-1">Total allocation for Founders, Mentors, Core Team rewards, and Staking liquidity pools.</p>
+              <p className="text-gray-400 text-xs mt-1">Allocation for Founders, Mentors, and Core Team rewards.</p>
             </div>
             <div className="text-right">
               <span className="text-xs text-gray-400 font-medium block">Circulating / Distributed</span>
               <span className="text-emerald-400 font-mono font-bold text-lg">
-                {totalDistributed.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} APN
+                {totalDistributed.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $APN
               </span>
             </div>
           </div>
@@ -298,7 +286,7 @@ export default function FounderAdminDashboard() {
           <div className="mt-4 pt-4 border-t border-amber-500/20 flex justify-between items-center text-xs">
             <span className="text-gray-300">Remaining Founder Treasury:</span>
             <span className="font-mono font-bold text-amber-300">
-              {availableReserve.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} APN
+              {availableReserve.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $APN
             </span>
           </div>
         </div>
@@ -307,12 +295,12 @@ export default function FounderAdminDashboard() {
           <div>
             <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block">Global Network Supply</span>
             <div className="text-3xl font-black text-emerald-400 mt-2 font-mono">
-              {(TOTAL_MAX_SUPPLY / 1000000000).toFixed(1)}B <span className="text-sm font-normal text-gray-400">APN</span>
+              {(TOTAL_MAX_SUPPLY / 1000000000).toFixed(1)}B <span className="text-sm font-normal text-gray-400">$APN</span>
             </div>
-            <p className="text-[11px] text-gray-400 mt-1">Global Genesis Supply for Public Mining, DEX/CEX Listing & Ecosystem.</p>
+            <p className="text-[11px] text-gray-400 mt-1">Global Genesis Supply for Public Mining & Ecosystem.</p>
           </div>
           <div className="mt-3 pt-3 border-t border-gray-800 flex justify-between items-center text-xs text-gray-400">
-            <span>Total Registered Users:</span>
+            <span>Total Supabase Users:</span>
             <span className="text-white font-mono font-bold">{totalUsersCount.toLocaleString()}</span>
           </div>
         </div>
@@ -325,16 +313,16 @@ export default function FounderAdminDashboard() {
             <h3 className="text-md font-bold text-blue-400 flex items-center gap-2">
               💎 Direct Token Transfer & Founder Airdrop
             </h3>
-            <p className="text-xs text-gray-400 mt-0.5">Transfer APN tokens directly to mentors, staff members, or selected user accounts.</p>
+            <p className="text-xs text-gray-400 mt-0.5">Transfer $APN tokens directly to mentors, staff, or user accounts.</p>
           </div>
           <span className="text-xs font-mono text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-lg border border-emerald-500/20">
-            Vault Balance: {availableReserve.toLocaleString()} APN
+            Vault Balance: {availableReserve.toLocaleString()} $APN
           </span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end text-xs">
           <div className="space-y-1 md:col-span-1">
-            <label className="text-gray-400 font-semibold block">Select Single Recipient (Optional if Bulk):</label>
+            <label className="text-gray-400 font-semibold block">Select Recipient:</label>
             <select
               value={transferTargetId}
               onChange={(e) => setTransferTargetId(e.target.value)}
@@ -350,7 +338,7 @@ export default function FounderAdminDashboard() {
           </div>
 
           <div className="space-y-1 md:col-span-1">
-            <label className="text-gray-400 font-semibold block">Token Amount (APN):</label>
+            <label className="text-gray-400 font-semibold block">Token Amount ($APN):</label>
             <input
               type="number"
               placeholder="e.g. 5000"
@@ -361,17 +349,19 @@ export default function FounderAdminDashboard() {
           </div>
 
           <button
-            onClick={() => triggerAction({
-              action: selectedUserIds.length > 0 ? "BULK_AIRDROP" : "TRANSFER_TOKENS",
-              targetUserId: transferTargetId || undefined,
-              targetUserIds: selectedUserIds.length > 0 ? selectedUserIds : undefined,
-              amount: transferAmount,
-            })}
+            onClick={() =>
+              triggerAction({
+                action: selectedUserIds.length > 0 ? "BULK_AIRDROP" : "TRANSFER_TOKENS",
+                targetUserId: transferTargetId || undefined,
+                targetUserIds: selectedUserIds.length > 0 ? selectedUserIds : undefined,
+                amount: transferAmount,
+              })
+            }
             className="w-full py-3 bg-blue-600 hover:bg-blue-500 font-bold text-white rounded-xl transition shadow-lg shadow-blue-900/40 md:col-span-1"
           >
-            {selectedUserIds.length > 0 
-              ? `🎁 Airdrop ${transferAmount || 0} APN to (${selectedUserIds.length}) Selected` 
-              : "💸 Transfer APN Tokens"}
+            {selectedUserIds.length > 0
+              ? `🎁 Airdrop ${transferAmount || 0} $APN to (${selectedUserIds.length}) Selected`
+              : "💸 Transfer $APN Tokens"}
           </button>
         </div>
       </div>
@@ -380,8 +370,8 @@ export default function FounderAdminDashboard() {
       <div className="p-6 rounded-3xl bg-slate-900/50 border border-gray-800 backdrop-blur-md space-y-4 shadow-2xl">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
-            <h3 className="text-xl font-extrabold text-white">📋 Registered Network Users</h3>
-            <p className="text-xs text-gray-400">Manage mining speeds, verification approvals, user roles, and account permissions.</p>
+            <h3 className="text-xl font-extrabold text-white">📋 Registered Web3 Users</h3>
+            <p className="text-xs text-gray-400">Manage mining speeds, verification approvals, and permissions.</p>
           </div>
 
           <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
@@ -400,53 +390,61 @@ export default function FounderAdminDashboard() {
 
         {/* BULK ACTIONS TOOLBAR */}
         {selectedUserIds.length > 0 && (
-          <div className="p-4 rounded-2xl bg-emerald-950/40 border border-emerald-500/40 flex flex-wrap justify-between items-center gap-4 animate-fade-in">
+          <div className="p-4 rounded-2xl bg-emerald-950/40 border border-emerald-500/40 flex flex-wrap justify-between items-center gap-4">
             <div className="text-xs font-bold text-emerald-400">
               🎯 Selected ({selectedUserIds.length}) Accounts
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <button
-                onClick={() => triggerAction({
-                  action: "BULK_APPLY_BOOST",
-                  targetUserIds: selectedUserIds,
-                  boostMultiplier: 2.5,
-                })}
-                className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs rounded-lg shadow flex items-center gap-1"
+                onClick={() =>
+                  triggerAction({
+                    action: "BULK_APPLY_BOOST",
+                    targetUserIds: selectedUserIds,
+                    boostMultiplier: 2.5,
+                  })
+                }
+                className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs rounded-lg shadow"
               >
-                ⚡ Boost 2.5x (3.0x Total)
+                ⚡ Boost 2.5x Speed
               </button>
 
               <button
-                onClick={() => triggerAction({
-                  action: "BULK_APPLY_BOOST",
-                  targetUserIds: selectedUserIds,
-                  boostMultiplier: 5.0,
-                })}
-                className="px-3 py-1.5 bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs rounded-lg shadow flex items-center gap-1"
+                onClick={() =>
+                  triggerAction({
+                    action: "BULK_APPLY_BOOST",
+                    targetUserIds: selectedUserIds,
+                    boostMultiplier: 5.0,
+                  })
+                }
+                className="px-3 py-1.5 bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs rounded-lg shadow"
               >
-                🔥 Boost 5.0x (5.5x Total)
+                🔥 Boost 5.0x Speed
               </button>
 
               <button
-                onClick={() => triggerAction({
-                  action: "BULK_VERIFY",
-                  targetUserIds: selectedUserIds,
-                  status: true,
-                })}
-                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg shadow flex items-center gap-1"
+                onClick={() =>
+                  triggerAction({
+                    action: "BULK_VERIFY",
+                    targetUserIds: selectedUserIds,
+                    status: true,
+                  })
+                }
+                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg shadow"
               >
                 ✅ Verify Selected
               </button>
 
               <button
-                onClick={() => triggerAction({
-                  action: "BULK_TOGGLE_WITHDRAW",
-                  targetUserIds: selectedUserIds,
-                  status: true,
-                })}
+                onClick={() =>
+                  triggerAction({
+                    action: "BULK_TOGGLE_WITHDRAW",
+                    targetUserIds: selectedUserIds,
+                    status: false,
+                  })
+                }
                 className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white font-bold text-xs rounded-lg shadow"
               >
-                🚫 Suspend Selected
+                🚫 Restrict Withdrawal
               </button>
             </div>
           </div>
@@ -454,7 +452,7 @@ export default function FounderAdminDashboard() {
 
         {/* USERS TABLE */}
         {loading ? (
-          <p className="text-gray-400 text-xs animate-pulse p-4">Loading user records from database...</p>
+          <p className="text-gray-400 text-xs animate-pulse p-4">Loading user records from Supabase...</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
@@ -481,12 +479,12 @@ export default function FounderAdminDashboard() {
                 {users.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="text-center py-8 text-gray-400">
-                      No matching users found for "{searchTerm}"
+                      No user records found in Supabase.
                     </td>
                   </tr>
                 ) : (
                   users.map((u) => {
-                    const currentSpeed = Number(u.miningSpeed || 0.50);
+                    const currentSpeed = Number(u.miningSpeed || 0.5);
                     return (
                       <tr key={u.id} className="hover:bg-slate-800/30 transition">
                         <td className="p-3">
@@ -500,17 +498,16 @@ export default function FounderAdminDashboard() {
                         <td className="p-3">
                           <div className="font-bold text-white flex items-center gap-1.5">
                             {u.fullName || u.name || "N/A"}
-                            {u.isVerified && <span className="text-blue-400 text-sm" title="Verified Account">☑️</span>}
+                            {u.isVerified && <span className="text-blue-400 text-sm">☑️</span>}
                           </div>
                           <div className="text-gray-400 text-[11px] font-mono">{u.email}</div>
                         </td>
 
-                        {/* MINING SPEED COLUMN */}
                         <td className="p-3">
                           <span className={`px-2 py-1 rounded-md font-mono font-bold text-[11px] ${
-                            currentSpeed >= 5.0 
-                              ? "bg-amber-500/20 text-amber-400 border border-amber-500/40" 
-                              : currentSpeed >= 3.0 
+                            currentSpeed >= 5.0
+                              ? "bg-amber-500/20 text-amber-400 border border-amber-500/40"
+                              : currentSpeed >= 3.0
                               ? "bg-purple-500/20 text-purple-400 border border-purple-500/40"
                               : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
                           }`}>
@@ -520,27 +517,32 @@ export default function FounderAdminDashboard() {
 
                         <td className="p-3">
                           <button
-                            onClick={() => triggerAction({
-                              action: "TOGGLE_VERIFY",
-                              targetUserId: u.id,
-                              status: !u.isVerified,
-                            })}
+                            onClick={() =>
+                              triggerAction({
+                                action: "TOGGLE_VERIFY",
+                                targetUserId: u.id,
+                                status: !u.isVerified,
+                              })
+                            }
                             className={`px-2 py-1 rounded-md font-bold text-[10px] transition ${
-                              u.isVerified 
-                                ? "bg-blue-500/20 text-blue-400 border border-blue-500/30" 
-                                : "bg-gray-800 text-gray-400 border border-gray-700 hover:bg-emerald-600/20 hover:text-emerald-400"
+                              u.isVerified
+                                ? "bg-blue-500/20 text-blue-400 border border-blue-500/30"
+                                : "bg-gray-800 text-gray-400 border border-gray-700 hover:bg-emerald-600/20"
                             }`}
                           >
                             {u.isVerified ? "☑️ Verified" : "⏳ Approve KYC"}
                           </button>
                         </td>
+
                         <td className="p-3">
                           <button
-                            onClick={() => triggerAction({
-                              action: "TOGGLE_WITHDRAW",
-                              targetUserId: u.id,
-                              status: !(u.canWithdraw ?? true),
-                            })}
+                            onClick={() =>
+                              triggerAction({
+                                action: "TOGGLE_WITHDRAW",
+                                targetUserId: u.id,
+                                status: !(u.canWithdraw ?? true),
+                              })
+                            }
                             className={`px-2 py-1 rounded-md font-bold text-[10px] transition ${
                               (u.canWithdraw ?? true)
                                 ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
@@ -550,27 +552,31 @@ export default function FounderAdminDashboard() {
                             {(u.canWithdraw ?? true) ? "🟢 Allowed" : "🔴 Blocked"}
                           </button>
                         </td>
+
                         <td className="p-3 font-mono font-semibold text-emerald-400">
-                          {Number(u.balance || 0).toFixed(2)} APN
+                          {Number(u.balance || 0).toFixed(2)} $APN
                         </td>
+
                         <td className="p-3">
                           <span className={`px-2 py-1 rounded-md font-bold text-[10px] ${
-                            u.isSuspended 
-                              ? "bg-red-500/20 text-red-400 border border-red-500/30" 
+                            u.isSuspended
+                              ? "bg-red-500/20 text-red-400 border border-red-500/30"
                               : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
                           }`}>
                             {u.isSuspended ? "🚫 Suspended" : "✅ Active"}
                           </span>
                         </td>
+
                         <td className="p-3">
                           <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                            {/* 1. Approve 3.0x Speed */}
                             <button
-                              onClick={() => triggerAction({
-                                action: "TOGGLE_BOOST",
-                                userId: u.id,
-                                boostSpeed: 3.00,
-                              })}
+                              onClick={() =>
+                                triggerAction({
+                                  action: "TOGGLE_BOOST",
+                                  userId: u.id,
+                                  boostSpeed: 3.0,
+                                })
+                              }
                               className={`px-2 py-1 rounded text-xs font-bold transition ${
                                 Number(u.miningSpeed) === 3.0
                                   ? "bg-amber-500 text-black font-extrabold"
@@ -580,13 +586,14 @@ export default function FounderAdminDashboard() {
                               ⚡ 3.0x Boost
                             </button>
 
-                            {/* 2. Approve 5.50x Speed */}
                             <button
-                              onClick={() => triggerAction({
-                                action: "TOGGLE_BOOST",
-                                userId: u.id,
-                                boostSpeed: 5.50,
-                              })}
+                              onClick={() =>
+                                triggerAction({
+                                  action: "TOGGLE_BOOST",
+                                  userId: u.id,
+                                  boostSpeed: 5.5,
+                                })
+                              }
                               className={`px-2 py-1 rounded text-xs font-bold transition ${
                                 Number(u.miningSpeed) === 5.5
                                   ? "bg-emerald-500 text-black font-extrabold"
@@ -596,18 +603,18 @@ export default function FounderAdminDashboard() {
                               ⚡ 5.5x Boost
                             </button>
 
-                            {/* 3. Reset Speed to Normal (0.50x) */}
                             {(u.isBoosting || Number(u.miningSpeed) > 0.5) && (
                               <button
-                                onClick={() => triggerAction({
-                                  action: "TOGGLE_BOOST",
-                                  userId: u.id,
-                                  boostSpeed: 0.50,
-                                })}
+                                onClick={() =>
+                                  triggerAction({
+                                    action: "TOGGLE_BOOST",
+                                    userId: u.id,
+                                    boostSpeed: 0.5,
+                                  })
+                                }
                                 className="px-1.5 py-1 text-xs text-red-400 hover:text-red-300 underline"
-                                title="Mayar da mutum 0.50x"
                               >
-                                Remove
+                                Reset
                               </button>
                             )}
 
@@ -617,7 +624,7 @@ export default function FounderAdminDashboard() {
                                 setEditName(u.fullName || u.name || "");
                                 setEditEmail(u.email || "");
                                 setEditBalance(String(u.balance || 0));
-                                setEditSpeed(String(u.miningSpeed || 0.50));
+                                setEditSpeed(String(u.miningSpeed || 0.5));
                                 setEditRole(u.role || "USER");
                                 setEditIsVerified(u.isVerified || false);
                                 setEditCanWithdraw(u.canWithdraw ?? true);
@@ -626,12 +633,15 @@ export default function FounderAdminDashboard() {
                             >
                               ✏️ Edit
                             </button>
+
                             <button
-                              onClick={() => triggerAction({
-                                action: "TOGGLE_SUSPEND",
-                                targetUserId: u.id,
-                                status: !u.isSuspended,
-                              })}
+                              onClick={() =>
+                                triggerAction({
+                                  action: "TOGGLE_SUSPEND",
+                                  targetUserId: u.id,
+                                  status: !u.isSuspended,
+                                })
+                              }
                               className="px-2.5 py-1 bg-orange-600/20 text-orange-400 hover:bg-orange-600/40 rounded-lg border border-orange-500/30 font-bold"
                             >
                               {u.isSuspended ? "Unsuspend" : "Suspend"}
@@ -673,54 +683,11 @@ export default function FounderAdminDashboard() {
         )}
       </div>
 
-      {/* QUICK SPEED BOOST MODAL */}
-      {boostingUser && (
-        <div className="fixed inset-0 bg-black/90 backdrop-blur-xl flex items-center justify-center p-4 z-50">
-          <div className="bg-slate-900 border border-purple-500/40 p-6 rounded-3xl max-w-sm w-full space-y-4 text-center shadow-2xl">
-            <h3 className="text-lg font-black text-purple-400">⚡ Apply Mining Speed Boost</h3>
-            <p className="text-xs text-gray-300">
-              Select boost package for <b>{boostingUser.fullName || boostingUser.name}</b> ({boostingUser.email}):
-            </p>
-            <div className="space-y-2 pt-2">
-              <button
-                onClick={() => triggerAction({
-                  action: "TOGGLE_BOOST",
-                  userId: boostingUser.id,
-                  boostSpeed: 3.00,
-                })}
-                className="w-full py-3 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-xl text-xs shadow-lg flex justify-between px-4 items-center"
-              >
-                <span>⚡ 3.0x Boost Package</span>
-                <span className="font-mono bg-black/40 px-2 py-0.5 rounded">3.00x Speed</span>
-              </button>
-
-              <button
-                onClick={() => triggerAction({
-                  action: "TOGGLE_BOOST",
-                  userId: boostingUser.id,
-                  boostSpeed: 5.50,
-                })}
-                className="w-full py-3 bg-orange-600 hover:bg-orange-500 text-white font-bold rounded-xl text-xs shadow-lg flex justify-between px-4 items-center"
-              >
-                <span>🔥 5.5x Boost Package</span>
-                <span className="font-mono bg-black/40 px-2 py-0.5 rounded">5.50x Speed</span>
-              </button>
-            </div>
-            <button
-              onClick={() => setBoostingUser(null)}
-              className="w-full py-2.5 bg-gray-800 text-gray-300 font-bold rounded-xl text-xs mt-2"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* EDIT USER KYC & VERIFICATION MODAL */}
+      {/* EDIT USER MODAL */}
       {editingUser && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-xl flex items-center justify-center p-4 z-50">
           <div className="bg-slate-900 border border-amber-500/40 p-6 rounded-3xl max-w-md w-full space-y-4 shadow-2xl">
-            <h3 className="text-lg font-black text-amber-400">✏️ Edit KYC & Custom Mining Speed</h3>
+            <h3 className="text-lg font-black text-amber-400">✏️ Edit KYC User Profile</h3>
             <div className="space-y-3 text-xs">
               <div>
                 <label className="text-gray-400 block mb-1">Full Name:</label>
@@ -742,7 +709,7 @@ export default function FounderAdminDashboard() {
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-gray-400 block mb-1">APN Balance:</label>
+                  <label className="text-gray-400 block mb-1">$APN Balance:</label>
                   <input
                     type="number"
                     value={editBalance}
@@ -807,17 +774,19 @@ export default function FounderAdminDashboard() {
               </button>
 
               <button
-                onClick={() => triggerAction({
-                  action: "UPDATE_USER",
-                  targetUserId: editingUser.id,
-                  name: editName,
-                  email: editEmail,
-                  balance: editBalance,
-                  miningSpeed: editSpeed,
-                  role: editRole,
-                  isVerified: editIsVerified,
-                  canWithdraw: editCanWithdraw,
-                })}
+                onClick={() =>
+                  triggerAction({
+                    action: "UPDATE_USER",
+                    targetUserId: editingUser.id,
+                    name: editName,
+                    email: editEmail,
+                    balance: editBalance,
+                    miningSpeed: editSpeed,
+                    role: editRole,
+                    isVerified: editIsVerified,
+                    canWithdraw: editCanWithdraw,
+                  })
+                }
                 className="w-1/2 py-2.5 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-xl text-xs shadow-lg shadow-amber-900/50"
               >
                 Save Changes 🚀
@@ -842,7 +811,10 @@ export default function FounderAdminDashboard() {
             />
             <div className="flex gap-2">
               <button
-                onClick={() => { setShowPinModal(false); setMasterPin(""); }}
+                onClick={() => {
+                  setShowPinModal(false);
+                  setMasterPin("");
+                }}
                 className="w-1/2 py-2.5 bg-gray-800 text-gray-300 font-bold rounded-xl text-xs"
               >
                 Cancel
