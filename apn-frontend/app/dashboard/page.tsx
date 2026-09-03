@@ -21,7 +21,7 @@ export default function DashboardPage() {
 
   const notices = [
     "APN Core (v1.0.2): PoS Node validation engine active. Maximum base yield: 12 APN / 24 Hours.",
-    "KYC Verification Portal: Complete your identity check to unlock Verified Badge & 50 APN Bonus!",
+    "KYC Verification Portal: Complete your identity check to unlock Verified Badge & 50 $APN Bonus!",
     "Mainnet Security: Ensure your Web3 local vault keys are backed up safely.",
   ];
 
@@ -272,7 +272,7 @@ export default function DashboardPage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4 select-none">
         <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
-        <p className="text-gray-400 text-sm font-medium animate-pulse">Initializing APN Secure Vault...</p>
+        <p className="text-gray-400 text-sm font-medium animate-pulse">Initializing $APN Secure Vault...</p>
       </div>
     );
   }
@@ -314,7 +314,7 @@ export default function DashboardPage() {
             🎁 Verified Reward Missions Active
           </div>
           <h2 className="text-2xl font-black text-white tracking-tight leading-snug">
-            Earn Extra APN Tokens & Micro Rewards Daily!
+            Earn Extra $APN Tokens & Micro Rewards Daily!
           </h2>
           <p className="text-xs text-emerald-100/80 leading-relaxed">
             Complete quick verified web offers, app tasks, and surveys on our official CPA Offerwall to boost your balance.
@@ -430,7 +430,7 @@ export default function DashboardPage() {
         {/* Balance Card */}
         <div className="p-6 rounded-2xl bg-gray-900/40 border border-gray-800/80 backdrop-blur-md hover:border-emerald-500/30 transition-all duration-300">
           <span className="text-[11px] text-gray-400 font-bold uppercase tracking-wider block">
-            TOTAL APN BALANCE
+            TOTAL $APN BALANCE
           </span>
           <div className="flex items-center gap-3 mt-4">
             <Image
@@ -458,7 +458,7 @@ export default function DashboardPage() {
             <span className="text-3xl font-extrabold text-blue-400 font-mono tracking-tight">
               {hourlyRate.toFixed(2)}
             </span>
-            <span className="text-xs font-semibold text-gray-400">APN / hr</span>
+            <span className="text-xs font-semibold text-gray-400">$APN / hr</span>
             {dbMiningSpeed > 0.5 && (
               <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-md font-bold ml-1 border border-amber-500/30">
                 {dbMiningSpeed.toFixed(2)}x Speed
@@ -526,7 +526,7 @@ export default function DashboardPage() {
           <div className="text-amber-400 mb-2 group-hover:scale-110 transition-transform w-max text-xl">🏛️</div>
           <h3 className="text-sm font-bold text-white group-hover:text-amber-400 transition-colors">Synthetic Vault</h3>
           <p className="text-xs text-gray-400 mt-1">
-            Swap APN tokens to synthetic assets (aBTC, aETH, aSIDRA) seamlessly.
+            Swap $APN tokens to synthetic assets (aBTC, aETH, aSIDRA) seamlessly.
           </p>
         </div>
 
