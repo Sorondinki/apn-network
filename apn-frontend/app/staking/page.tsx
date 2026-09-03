@@ -119,7 +119,7 @@ export default function StakingPage() {
         localStorage.setItem("apn_user", JSON.stringify(updatedUser));
 
         setStakeInput("");
-        toast.success("Tokens successfully locked in APN Vault! 🚀", { id: toastId });
+        toast.success("Tokens successfully locked in $APN Vault! 🚀", { id: toastId });
       } else {
         toast.error(data.error || "Staking failed", { id: toastId });
       }
@@ -187,7 +187,7 @@ export default function StakingPage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
         <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
-        <p className="text-gray-400 text-sm font-medium animate-pulse">Loading APN Vault Engine...</p>
+        <p className="text-gray-400 text-sm font-medium animate-pulse">Loading $APN Vault Engine...</p>
       </div>
     );
   }
@@ -215,10 +215,10 @@ export default function StakingPage() {
             🔒 Liquid Proof-of-Stake Consensus Vault
           </div>
           <h1 className="text-3xl sm:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white via-gray-200 to-gray-400 tracking-tight">
-            APN Staking Console
+            $APN Staking Console
           </h1>
           <p className="text-gray-400 text-xs leading-relaxed">
-            Lock your native APN tokens into the consensus protocol. Earn passive yield powered by 18.5% fixed APY network rewards.
+            Lock your native $APN tokens into the consensus protocol. Earn passive yield powered by 18.5% fixed APY network rewards.
           </p>
         </div>
 
@@ -226,7 +226,7 @@ export default function StakingPage() {
           <div className="p-4 rounded-full bg-blue-500/10 border border-blue-500/30">
             <Image
               src="/images/apn-token512x512.png"
-              alt="APN Vault"
+              alt="$APN Vault"
               width={80}
               height={80}
               className="object-contain"
@@ -239,18 +239,18 @@ export default function StakingPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         <div className="p-6 rounded-2xl bg-gray-900/40 border border-gray-800/80 backdrop-blur-md hover:border-emerald-500/30 transition-all">
           <span className="text-[11px] text-gray-400 font-bold uppercase tracking-wider block">AVAILABLE BALANCE</span>
-          <p className="text-2xl font-extrabold text-emerald-400 font-mono mt-3">{balance.toFixed(6)} <span className="text-xs text-gray-400">APN</span></p>
+          <p className="text-2xl font-extrabold text-emerald-400 font-mono mt-3">{balance.toFixed(6)} <span className="text-xs text-gray-400">$APN</span></p>
         </div>
 
         <div className="p-6 rounded-2xl bg-gray-900/40 border border-gray-800/80 backdrop-blur-md hover:border-blue-500/30 transition-all">
           <span className="text-[11px] text-gray-400 font-bold uppercase tracking-wider block">STAKED IN VAULT</span>
-          <p className="text-2xl font-extrabold text-blue-400 font-mono mt-3">{stakedAmount.toFixed(6)} <span className="text-xs text-gray-400">APN</span></p>
+          <p className="text-2xl font-extrabold text-blue-400 font-mono mt-3">{stakedAmount.toFixed(6)} <span className="text-xs text-gray-400">$APN</span></p>
         </div>
 
         <div className="p-6 rounded-2xl bg-gray-900/40 border border-gray-800/80 backdrop-blur-md hover:border-amber-500/30 transition-all">
           <span className="text-[11px] text-gray-400 font-bold uppercase tracking-wider block">LIVE CLAIMABLE YIELD</span>
           <p className="text-2xl font-extrabold text-amber-400 font-mono mt-3 animate-pulse">
-            +{claimableReward.toFixed(8)} <span className="text-xs text-gray-400">APN</span>
+            +{claimableReward.toFixed(8)} <span className="text-xs text-gray-400">$APN</span>
           </p>
         </div>
 
@@ -268,12 +268,12 @@ export default function StakingPage() {
           <h3 className="text-lg font-bold text-white flex items-center gap-2">
             <span>📥</span> Deposit to Staking Vault
           </h3>
-          <p className="text-xs text-gray-400">Lock your APN tokens to begin accumulating real-time APY yield.</p>
+          <p className="text-xs text-gray-400">Lock your $APN tokens to begin accumulating real-time APY yield.</p>
           
           <div className="space-y-3 pt-2">
             <input
               type="number"
-              placeholder="Enter APN Amount"
+              placeholder="Enter $APN Amount"
               value={stakeInput}
               onChange={(e) => setStakeInput(e.target.value)}
               className="w-full bg-black/50 border border-gray-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 font-mono"
@@ -298,7 +298,7 @@ export default function StakingPage() {
           <div className="space-y-3 pt-2">
             <input
               type="number"
-              placeholder="Enter APN Amount to Unstake"
+              placeholder="Enter $APN Amount to Unstake"
               value={unstakeInput}
               onChange={(e) => setUnstakeInput(e.target.value)}
               className="w-full bg-black/50 border border-gray-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500 font-mono"
