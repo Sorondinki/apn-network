@@ -101,11 +101,11 @@ export default function ReferralPage() {
     }
   };
 
-  // WhatsApp Reminder (Da lamba idan akwai, ko bude sharing ga duka WhatsApp)
+  // WhatsApp Reminder
   const triggerWhatsAppReminder = (refUser: any) => {
-    const minerName = refUser.fullName || refUser.name || "Aboki";
+    const minerName = refUser.fullName || refUser.name || "Miner";
     const text = encodeURIComponent(
-      `Sannu ${minerName}! Node dinka na APN Network yana a kashe (IDLE). Shiga manhajar APN yanzu ka danna "Start Mining Session" domin kada hashrate dinka ya tsaya: ${origin}/dashboard`
+      `Hello ${minerName}! Your APN Network Node is currently IDLE. Open the APN app now and click "Start Mining Session" so you don't miss out on your block rewards: ${origin}/dashboard`
     );
 
     let phone = refUser.phone ? String(refUser.phone).replace(/[^0-9]/g, "") : "";
@@ -120,17 +120,17 @@ export default function ReferralPage() {
   // Direct Text SMS Reminder
   const triggerSmsReminder = (refUser: any) => {
     if (!refUser.phone) {
-      alert("Wannan user din bai saka lambar waya ba a profile dinsa.");
+      alert("This user has not registered a phone number in their profile.");
       return;
     }
     const minerName = refUser.fullName || refUser.name || "Miner";
     const body = encodeURIComponent(
-      `Sannu ${minerName}, Kunna mining dinka a APN Network domin ci gaba da samun native tokens: ${origin}/dashboard`
+      `Hello ${minerName}, restart your mining session on APN Network to keep receiving native tokens: ${origin}/dashboard`
     );
     window.open(`sms:${refUser.phone}?body=${body}`, "_blank");
   };
 
-  // Matata da Bincike
+  // Filter and Search
   const filteredReferrals = useMemo(() => {
     return referralsList.filter((ref) => {
       const name = (ref.fullName || ref.name || "").toLowerCase();
@@ -162,7 +162,7 @@ export default function ReferralPage() {
             Invite, Lead & Earn APN
           </h1>
           <p className="text-gray-400 text-xs sm:text-sm max-w-lg leading-relaxed">
-            Gayyaci abokan arziki su shiga APN Layer-1. Za ka sami <span className="text-emerald-400 font-bold">5.0 APN</span> ga kowane sabon miner, tare da karin gudu na <span className="text-blue-400 font-bold">+2.5% hashrate boost</span> a kullum!
+            Invite colleagues and friends to join APN Layer-1. Earn <span className="text-emerald-400 font-bold">5.0 APN</span> per verified recruit, plus unlock a permanent <span className="text-blue-400 font-bold">+2.5% hashrate boost</span> per node!
           </p>
         </div>
         
@@ -255,13 +255,13 @@ export default function ReferralPage() {
               onClick={handleCopy}
               className="px-5 py-3.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition text-xs flex items-center justify-center gap-1.5"
             >
-              {copied ? "✓ Copied!" : "📋 Kwafa"}
+              {copied ? "✓ Copied!" : "📋 Copy"}
             </button>
             <button
               onClick={handleNativeShare}
               className="px-5 py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition text-xs flex items-center justify-center gap-1.5"
             >
-              🚀 Tura
+              🚀 Share
             </button>
           </div>
         </div>
@@ -274,11 +274,11 @@ export default function ReferralPage() {
             <h3 className="text-lg font-bold text-white flex items-center gap-2">
               <span>👥 Your Network Downline</span>
               <span className="text-xs bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2.5 py-0.5 rounded-full font-mono">
-                {referralsList.length} Mutane
+                {referralsList.length} Total
               </span>
             </h3>
             <p className="text-xs text-gray-400 mt-0.5">
-              Duba ayyukan mutanenka sannan ka tura musu saƙon tunatarwa su ci gaba da haƙa.
+              Monitor your team's live mining activity and dispatch instant alerts to idle miners.
             </p>
           </div>
 
@@ -291,7 +291,7 @@ export default function ReferralPage() {
                   filterStatus === "ALL" ? "bg-gray-800 text-white" : "text-gray-400"
                 }`}
               >
-                Duka ({referralsList.length})
+                All ({referralsList.length})
               </button>
               <button
                 onClick={() => setFilterStatus("ACTIVE")}
@@ -314,7 +314,7 @@ export default function ReferralPage() {
             {/* Search Input */}
             <input
               type="text"
-              placeholder="Nemi suna, email ko lamba..."
+              placeholder="Search name, email, or phone..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="px-3.5 py-2 bg-black/60 border border-gray-800 rounded-xl text-xs text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 min-w-[200px]"
@@ -324,11 +324,11 @@ export default function ReferralPage() {
 
         {loadingStats ? (
           <div className="text-center py-12 text-gray-400 text-xs animate-pulse">
-            Ana zakulo bayanan downline daga network...
+            Fetching downline network telemetry...
           </div>
         ) : filteredReferrals.length === 0 ? (
           <div className="text-center py-12 bg-black/30 rounded-2xl border border-gray-800/50">
-            <p className="text-gray-400 text-xs">Babu wani referral da aka samu a wannan rukunin.</p>
+            <p className="text-gray-400 text-xs">No referrals found matching your query or filter.</p>
           </div>
         ) : (
           <div className="overflow-x-auto -mx-5 sm:mx-0 px-5 sm:px-0">
@@ -336,10 +336,10 @@ export default function ReferralPage() {
               <thead className="bg-black/60 text-gray-400 uppercase font-bold border-b border-gray-800 text-[11px]">
                 <tr>
                   <th className="p-3.5">Miner</th>
-                  <th className="p-3.5">Rana</th>
-                  <th className="p-3.5">Asusu (APN)</th>
-                  <th className="p-3.5">Matsayi</th>
-                  <th className="p-3.5 text-right">Tunatarwa</th>
+                  <th className="p-3.5">Joined</th>
+                  <th className="p-3.5">Balance (APN)</th>
+                  <th className="p-3.5">Status</th>
+                  <th className="p-3.5 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-800/50">
@@ -375,7 +375,7 @@ export default function ReferralPage() {
                           {/* WhatsApp Reminder */}
                           <button
                             onClick={() => triggerWhatsAppReminder(ref)}
-                            title="Tura sako ta WhatsApp"
+                            title="Send WhatsApp Reminder"
                             className="px-2.5 py-1 bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-300 border border-emerald-500/40 rounded-lg text-[10px] font-bold transition flex items-center gap-1"
                           >
                             <span>💬 WhatsApp</span>
@@ -385,7 +385,7 @@ export default function ReferralPage() {
                           {ref.phone && (
                             <button
                               onClick={() => triggerSmsReminder(ref)}
-                              title="Tura Direct SMS"
+                              title="Send Direct SMS"
                               className="px-2.5 py-1 bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 border border-blue-500/40 rounded-lg text-[10px] font-bold transition flex items-center gap-1"
                             >
                               <span>📱 SMS</span>
@@ -409,4 +409,4 @@ export default function ReferralPage() {
     </div>
   );
 }
-        
+    
