@@ -48,6 +48,11 @@ export async function POST(req: Request) {
 
     if (updateErr) throw updateErr;
 
+    // Yi log na direct transfer a FounderTransferLog
+    await supabase.from("FounderTransferLog").insert([
+      { targetUserId: recipientId, amount: tokenAmount }
+    ]);
+
     return NextResponse.json({
       success: true,
       message: `Successfully transferred ${tokenAmount.toLocaleString()} APN tokens!`,
