@@ -67,6 +67,23 @@ export async function POST(req: Request) {
       throw updateError;
     }
 
+    // 3. Rubuta Tarihin Staking ko Unstaking a Table din Transaction
+    await supabase.from("Transaction").insert({
+      userId: targetUserId,
+      amount: stakeAmount,
+      type: action === "STAKE" ? "STAKING_YIELD" : "TRANSFER_OUT",
+      description:
+        action === "STAKE"
+          ? "Locked tokens into $APN Consensus Vault"
+          : "Withdrawn unlocked tokens from Staking Vault",
+    });
+
+    return NextResponse.json({
+      success: true,
+      balance: updatedUser.balance,
+      stakedBalance: updatedUser.stakedBalance,
+    });
+
     return NextResponse.json({
       success: true,
       balance: updatedUser.balance,
