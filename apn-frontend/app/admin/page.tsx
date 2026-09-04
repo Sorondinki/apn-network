@@ -978,7 +978,7 @@ export default function FounderAdminDashboard() {
                 ⚡ Alpha Proficiency Network
               </div>
               <h2 className="text-xl font-black text-white">Transfer Allocation Receipt</h2>
-              <p className="text-[11px] text-slate-400 mt-0.5">APN Founder Treasury Direct Allocation</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">$APN Founder Treasury Direct Allocation</p>
             </div>
 
             <div className="bg-emerald-950/40 border border-emerald-500/30 p-4 rounded-2xl text-center">
