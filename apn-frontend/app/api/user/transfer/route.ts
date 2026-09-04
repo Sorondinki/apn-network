@@ -15,10 +15,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: "Invalid transfer parameters." }, { status: 400 });
     }
 
-    // 1. Tabbatar da sender
+    // 1. Tabbatar da asusun mai aikawa
     const { data: sender, error: senderErr } = await supabase
       .from("User")
-      .select("id, balance, canWithdraw, isSuspended")
+      .select("id, balance, canWithdraw, isSuspended, walletAddress")
       .eq("id", senderId)
       .single();
 
@@ -38,7 +38,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: "Insufficient $APN balance." }, { status: 400 });
     }
 
-    // 2. Nemo Recipient ta walletAddress ko ID
+    // 2. Nemo mai karba ta walletAddress ko id
     const cleanAddr = recipientAddress.trim().toLowerCase();
     const { data: recipients, error: recErr } = await supabase
       .from("User")
@@ -65,7 +65,7 @@ export async function POST(req: Request) {
 
     if (debitErr) throw debitErr;
 
-    // 4. Ƙara wa mai karɓa
+    // 4. Kara wa mai karba
     const newRecipientBal = Number(recipient.balance || 0) + transferAmount;
     const { error: creditErr } = await supabase
       .from("User")
@@ -74,28 +74,37 @@ export async function POST(req: Request) {
 
     if (creditErr) throw creditErr;
 
-    // 5. Rubuta a Transaction table
-    try {
-      await supabase.from("Transaction").insert([
-        {
-          userId: sender.id,
-          amount: transferAmount,
-          type: "TRANSFER",
-          status: "COMPLETED",
-          recipientAddress: recipient.walletAddress || cleanAddr
-        }
-      ]);
-    } catch (e) {
-      console.warn("Transaction log insert optional warning:", e);
-    }
+    // 5. Rubuta tarihin aiki a table din Transaction (Yin amfani da columns da ke akwai kacal)
+    const targetAddrDisplay = recipient.walletAddress
+      ? `${recipient.walletAddress.substring(0, 6)}...${recipient.walletAddress.substring(recipient.walletAddress.length - 4)}`
+      : cleanAddr;
+
+    const senderAddrDisplay = sender.walletAddress
+      ? `${sender.walletAddress.substring(0, 6)}...${sender.walletAddress.substring(sender.walletAddress.length - 4)}`
+      : sender.id.substring(0, 8);
+
+    await supabase.from("Transaction").insert([
+      {
+        userId: sender.id,
+        amount: transferAmount,
+        type: "TRANSFER_OUT",
+        description: `P2P Transfer sent to ${targetAddrDisplay}`,
+      },
+      {
+        userId: recipient.id,
+        amount: transferAmount,
+        type: "TRANSFER_IN",
+        description: `P2P Transfer received from ${senderAddrDisplay}`,
+      },
+    ]);
 
     return NextResponse.json({
       success: true,
       newBalance: newSenderBal,
-      message: `Successfully transferred ${transferAmount} $APN.`
+      message: `Successfully transferred ${transferAmount} $APN.`,
     });
-
   } catch (error: any) {
+    console.error("Transfer Error:", error);
     return NextResponse.json({ success: false, error: error.message || "Transaction failed." }, { status: 500 });
   }
-  }
+}
