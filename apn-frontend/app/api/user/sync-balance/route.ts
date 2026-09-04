@@ -13,7 +13,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // 1. Fetch current live balance and mining speed only (saves bandwidth & prevents timeouts)
+    // 1. Fetch current live balance and mining speed
     const { data: user, error: fetchErr } = await supabase
       .from("User")
       .select("balance, miningSpeed")
@@ -27,7 +27,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // 2. Add mining increment safely without overwriting external transfers
+    // 2. Add mining increment safely
     const speed = Number(user.miningSpeed || 0.5);
     const earnedIncrement = isMining ? (speed / 3600) * 10 : 0;
     const currentBal = Number(user.balance || 0);
@@ -35,7 +35,7 @@ export async function POST(req: Request) {
 
     const parsedStartTime = miningStartTime ? Number(miningStartTime) : null;
 
-    // 3. Update database record
+    // 3. Update User balance and mining state
     const { data, error: updateErr } = await supabase
       .from("User")
       .update({
@@ -55,7 +55,22 @@ export async function POST(req: Request) {
       );
     }
 
-    // Return the fresh database balance to sync client-side state
+    // 4. Rubuta aikin a Transaction table idan an samu karin hako (Mining Reward)
+    if (earnedIncrement > 0) {
+      try {
+        await supabase.from("Transaction").insert([
+          {
+            userId: userId,
+            amount: Number(earnedIncrement.toFixed(4)),
+            type: "MINING_REWARD",
+            description: "APN Node Consensus Mining Reward",
+          },
+        ]);
+      } catch (logErr) {
+        console.warn("Failed to log mining transaction:", logErr);
+      }
+    }
+
     return NextResponse.json({
       success: true,
       balance: data.balance,
@@ -67,4 +82,3 @@ export async function POST(req: Request) {
     );
   }
 }
-      
