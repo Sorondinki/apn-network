@@ -15,9 +15,10 @@ export default function StakingPage() {
   const [stakeInput, setStakeInput] = useState("");
   const [unstakeInput, setUnstakeInput] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isClaiming, setIsClaiming] = useState(false);
 
-  // Annual Percentage Yield (APY = 18.5%)
-  const APY_RATE = 0.185; 
+  // Daidaita APY zuwa 15% (0.15) kamar yadda yake a backend lissafin
+  const APY_RATE = 0.15; 
 
   const fetchUserData = useCallback(async () => {
     try {
@@ -40,7 +41,7 @@ export default function StakingPage() {
         const u = data.user;
         setUser(u);
         const currentBal = parseFloat(u.balance || "0");
-        const currentStaked = parseFloat(u.staked_balance || u.stakedBalance || "0");
+        const currentStaked = parseFloat(u.stakedBalance || u.staked_balance || "0");
 
         setBalance(currentBal);
         setStakedAmount(currentStaked);
@@ -49,7 +50,7 @@ export default function StakingPage() {
         localStorage.setItem("apn_user", JSON.stringify(u));
       } else {
         setBalance(parseFloat(localUserData.balance || "0"));
-        setStakedAmount(parseFloat(localUserData.staked_balance || localUserData.stakedBalance || "0"));
+        setStakedAmount(parseFloat(localUserData.stakedBalance || localUserData.staked_balance || "0"));
       }
     } catch (err) {
       console.error("Error fetching user staking profile:", err);
@@ -62,21 +63,69 @@ export default function StakingPage() {
     fetchUserData();
   }, [fetchUserData]);
 
-  // Real-time Reward Counter Engine
+  // Timestamp-based Real-time Engine: Ko da an yi refresh ba ya gogewa
   useEffect(() => {
-    if (stakedAmount <= 0) {
+    if (stakedAmount <= 0 && (!user?.unclaimedYield || parseFloat(user.unclaimedYield) <= 0)) {
       setClaimableReward(0);
       return;
     }
 
+    const yieldPerSecond = (stakedAmount * APY_RATE) / 31536000;
+    const baseUnclaimed = parseFloat(user?.unclaimedYield || "0");
+    const startTime = user?.lastYieldClaimTime 
+      ? new Date(user.lastYieldClaimTime).getTime() 
+      : Date.now();
+
     const interval = setInterval(() => {
-      const rewardPerSecond = (stakedAmount * APY_RATE) / (365 * 24 * 3600);
-      setClaimableReward((prev) => prev + rewardPerSecond);
+      const elapsedSeconds = Math.max(0, (Date.now() - startTime) / 1000);
+      const totalAccrued = (elapsedSeconds * yieldPerSecond) + baseUnclaimed;
+      setClaimableReward(totalAccrued);
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [stakedAmount]);
+  }, [stakedAmount, user?.lastYieldClaimTime, user?.unclaimedYield]);
 
+  // Action: CLAIM YIELD
+  const handleClaimYield = async () => {
+    if (claimableReward <= 0.000001) {
+      toast.error("No claimable rewards accumulated yet.");
+      return;
+    }
+
+    if (!user || (!user.id && !user.email)) {
+      toast.error("Session expired, please log in.");
+      return;
+    }
+
+    setIsClaiming(true);
+    const toastId = toast.loading("Claiming your staking rewards...");
+
+    try {
+      const res = await fetch("/api/staking/stake", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          userId: user.id || user._id, 
+          email: user.email,
+          action: "CLAIM" 
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        toast.success(`Claimed +${parseFloat(data.claimedAmount).toFixed(6)} $APN! 💰`, { id: toastId });
+        await fetchUserData();
+      } else {
+        toast.error(data.error || "Claim failed", { id: toastId });
+      }
+    } catch (e) {
+      toast.error("Network error while claiming.", { id: toastId });
+    } finally {
+      setIsClaiming(false);
+    }
+  };
+
+  // Action: STAKE
   const handleStake = async () => {
     const amount = parseFloat(stakeInput);
     if (isNaN(amount) || amount <= 0 || amount > balance) {
@@ -91,7 +140,7 @@ export default function StakingPage() {
     }
 
     setIsSubmitting(true);
-    const toastId = toast.loading("Processing staking transaction...");
+    const toastId = toast.loading("Locking tokens into vault...");
 
     try {
       const res = await fetch("/api/staking/stake", {
@@ -107,19 +156,9 @@ export default function StakingPage() {
 
       const data = await res.json();
       if (data.success) {
-        const newBal = parseFloat(data.balance);
-        const newStaked = parseFloat(data.stakedBalance);
-
-        setBalance(newBal);
-        setStakedAmount(newStaked);
-        localStorage.setItem("apn_user_balance", newBal.toString());
-
-        const updatedUser = { ...user, balance: newBal, stakedBalance: newStaked, staked_balance: newStaked };
-        setUser(updatedUser);
-        localStorage.setItem("apn_user", JSON.stringify(updatedUser));
-
         setStakeInput("");
         toast.success("Tokens successfully locked in $APN Vault! 🚀", { id: toastId });
+        await fetchUserData();
       } else {
         toast.error(data.error || "Staking failed", { id: toastId });
       }
@@ -130,6 +169,7 @@ export default function StakingPage() {
     }
   };
 
+  // Action: UNSTAKE
   const handleUnstake = async () => {
     const amount = parseFloat(unstakeInput);
     if (isNaN(amount) || amount <= 0 || amount > stakedAmount) {
@@ -144,7 +184,7 @@ export default function StakingPage() {
     }
 
     setIsSubmitting(true);
-    const toastId = toast.loading("Processing unstaking transaction...");
+    const toastId = toast.loading("Unlocking tokens from vault...");
 
     try {
       const res = await fetch("/api/staking/stake", {
@@ -160,19 +200,9 @@ export default function StakingPage() {
 
       const data = await res.json();
       if (data.success) {
-        const newBal = parseFloat(data.balance);
-        const newStaked = parseFloat(data.stakedBalance);
-
-        setBalance(newBal);
-        setStakedAmount(newStaked);
-        localStorage.setItem("apn_user_balance", newBal.toString());
-
-        const updatedUser = { ...user, balance: newBal, stakedBalance: newStaked, staked_balance: newStaked };
-        setUser(updatedUser);
-        localStorage.setItem("apn_user", JSON.stringify(updatedUser));
-
         setUnstakeInput("");
         toast.success("Tokens successfully unstaked! 🔓", { id: toastId });
+        await fetchUserData();
       } else {
         toast.error(data.error || "Unstaking failed", { id: toastId });
       }
@@ -194,7 +224,6 @@ export default function StakingPage() {
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto p-4 select-none">
-      {/* Toast Notification Provider for dark theme */}
       <Toaster 
         position="top-right" 
         toastOptions={{
@@ -208,7 +237,7 @@ export default function StakingPage() {
         }} 
       />
 
-      {/* HEADER SECTION */}
+      {/* HEADER */}
       <div className="relative overflow-hidden p-8 rounded-3xl bg-gradient-to-br from-gray-900/90 via-gray-900/60 to-gray-950/90 border border-gray-800/80 backdrop-blur-xl flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl">
         <div className="space-y-3 max-w-xl z-10">
           <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-400 text-xs font-medium backdrop-blur-md">
@@ -218,7 +247,7 @@ export default function StakingPage() {
             $APN Staking Console
           </h1>
           <p className="text-gray-400 text-xs leading-relaxed">
-            Lock your native $APN tokens into the consensus protocol. Earn passive yield powered by 18.5% fixed APY network rewards.
+            Lock your native $APN tokens into the consensus protocol. Earn passive yield powered by 15.0% fixed APY network rewards.
           </p>
         </div>
 
@@ -247,23 +276,32 @@ export default function StakingPage() {
           <p className="text-2xl font-extrabold text-blue-400 font-mono mt-3">{stakedAmount.toFixed(6)} <span className="text-xs text-gray-400">$APN</span></p>
         </div>
 
-        <div className="p-6 rounded-2xl bg-gray-900/40 border border-gray-800/80 backdrop-blur-md hover:border-amber-500/30 transition-all">
-          <span className="text-[11px] text-gray-400 font-bold uppercase tracking-wider block">LIVE CLAIMABLE YIELD</span>
-          <p className="text-2xl font-extrabold text-amber-400 font-mono mt-3 animate-pulse">
-            +{claimableReward.toFixed(8)} <span className="text-xs text-gray-400">$APN</span>
-          </p>
+        {/* REWARD CARD TARE DA BUTTON DIN CLAIM */}
+        <div className="p-6 rounded-2xl bg-gray-900/40 border border-gray-800/80 backdrop-blur-md hover:border-amber-500/30 transition-all flex flex-col justify-between">
+          <div>
+            <span className="text-[11px] text-gray-400 font-bold uppercase tracking-wider block">LIVE CLAIMABLE YIELD</span>
+            <p className="text-2xl font-extrabold text-amber-400 font-mono mt-2 animate-pulse">
+              +{claimableReward.toFixed(8)} <span className="text-xs text-gray-400">$APN</span>
+            </p>
+          </div>
+          <button
+            onClick={handleClaimYield}
+            disabled={isClaiming || claimableReward <= 0.000001}
+            className="mt-4 w-full py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-bold text-xs rounded-lg transition-all shadow-md shadow-amber-950/40 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {isClaiming ? "Claiming..." : "Claim Yield 💰"}
+          </button>
         </div>
 
         <div className="p-6 rounded-2xl bg-gray-900/40 border border-gray-800/80 backdrop-blur-md hover:border-purple-500/30 transition-all">
           <span className="text-[11px] text-gray-400 font-bold uppercase tracking-wider block">ESTIMATED APY</span>
-          <p className="text-2xl font-extrabold text-purple-400 font-mono mt-3">+18.5%</p>
+          <p className="text-2xl font-extrabold text-purple-400 font-mono mt-3">+15.0%</p>
         </div>
       </div>
 
       {/* STAKE & UNSTAKE ACTIONS */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        
-        {/* Deposit/Stake Section */}
+        {/* Deposit/Stake */}
         <div className="p-8 rounded-2xl bg-gray-900/40 border border-gray-800/80 backdrop-blur-md space-y-4">
           <h3 className="text-lg font-bold text-white flex items-center gap-2">
             <span>📥</span> Deposit to Staking Vault
@@ -288,7 +326,7 @@ export default function StakingPage() {
           </div>
         </div>
 
-        {/* Withdraw/Unstake Section */}
+        {/* Withdraw/Unstake */}
         <div className="p-8 rounded-2xl bg-gray-900/40 border border-gray-800/80 backdrop-blur-md space-y-4">
           <h3 className="text-lg font-bold text-white flex items-center gap-2">
             <span>📤</span> Withdraw from Vault
@@ -312,9 +350,8 @@ export default function StakingPage() {
             </button>
           </div>
         </div>
-
       </div>
     </div>
   );
- }
-      
+}
+    
