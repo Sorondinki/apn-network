@@ -13,11 +13,28 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Zaɓar takamaiman columns da Frontend ke buƙata don Profile da Staking Engine
+    // Zaɓar dukkan muhimman columns ciki har da Wallet Address, Staking, da dukkan bayanan Boosting
     const { data: user, error } = await supabase
       .from("User")
       .select(
-        "id, name, email, balance, stakedBalance, lastYieldClaimTime, unclaimedYield"
+        `id, 
+         name, 
+         email, 
+         walletAddress, 
+         balance, 
+         stakedBalance, 
+         lastYieldClaimTime, 
+         unclaimedYield,
+         canWithdraw,
+         isMining,
+         miningStartTime,
+         miningSpeed,
+         miningMultiplier,
+         boosterPlan,
+         boosterExpiresAt,
+         isBoosting,
+         role,
+         isVerified`
       )
       .eq("id", id)
       .single();
@@ -29,9 +46,21 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    // Tabbatar da cewa idan lokacin boost ya wuce, an kula da hakan ba tare da matsala ba
+    let activeBoosting = user.isBoosting;
+    if (user.boosterExpiresAt) {
+      const expiryDate = new Date(user.boosterExpiresAt).getTime();
+      if (Date.now() > expiryDate) {
+        activeBoosting = false;
+      }
+    }
+
     return NextResponse.json({
       success: true,
-      user,
+      user: {
+        ...user,
+        isBoosting: activeBoosting,
+      },
     });
   } catch (error: any) {
     console.error("Fetch Profile Error:", error);
