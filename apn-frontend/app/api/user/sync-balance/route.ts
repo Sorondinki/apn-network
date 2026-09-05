@@ -8,40 +8,47 @@ export async function POST(req: Request) {
 
     if (!userId) {
       return NextResponse.json(
-        { success: false, error: "User ID is required." },
+        { success: false, error: "User ID parameter is required." },
         { status: 400 }
       );
     }
 
-    // 1. Fetch current live balance and mining speed
+    // 1. Fetch current live balance and user mining state
     const { data: user, error: fetchErr } = await supabase
       .from("User")
-      .select("balance, miningSpeed")
+      .select("balance, miningSpeed, isMining, miningStartTime")
       .eq("id", userId)
       .single();
 
     if (fetchErr || !user) {
       return NextResponse.json(
-        { success: false, error: "Account not found." },
+        { success: false, error: "User account not found." },
         { status: 404 }
       );
     }
 
-    // 2. Add mining increment safely
-    const speed = Number(user.miningSpeed || 0.5);
-    const earnedIncrement = isMining ? (speed / 3600) * 10 : 0;
+    // 2. Compute safe mining increment for 10-second sync window
+    const baseSpeed = Number(user.miningSpeed || 0.5); // 0.5 APN/hour default
+    const earnedIncrement = isMining ? (baseSpeed / 3600) * 10 : 0;
     const currentBal = Number(user.balance || 0);
     const updatedBalance = Number((currentBal + earnedIncrement).toFixed(6));
 
-    const parsedStartTime = miningStartTime ? Number(miningStartTime) : null;
+    // Format ISO Timestamp safely for Supabase schema
+    let formattedStartTime = user.miningStartTime;
+    if (miningStartTime) {
+      const numTime = Number(miningStartTime);
+      formattedStartTime = !isNaN(numTime)
+        ? new Date(numTime).toISOString()
+        : new Date(miningStartTime).toISOString();
+    }
 
-    // 3. Update User balance and mining state
+    // 3. Update User balance and live mining state in Supabase
     const { data, error: updateErr } = await supabase
       .from("User")
       .update({
         balance: updatedBalance,
         isMining: Boolean(isMining),
-        miningStartTime: parsedStartTime,
+        miningStartTime: formattedStartTime,
         updatedAt: new Date().toISOString(),
       })
       .eq("id", userId)
@@ -55,27 +62,13 @@ export async function POST(req: Request) {
       );
     }
 
-    // 4. Rubuta aikin a Transaction table idan an samu karin hako (Mining Reward)
-    if (earnedIncrement > 0) {
-      try {
-        await supabase.from("Transaction").insert([
-          {
-            userId: userId,
-            amount: Number(earnedIncrement.toFixed(4)),
-            type: "MINING_REWARD",
-            description: "APN Node Consensus Mining Reward",
-          },
-        ]);
-      } catch (logErr) {
-        console.warn("Failed to log mining transaction:", logErr);
-      }
-    }
-
     return NextResponse.json({
       success: true,
       balance: data.balance,
+      syncedAmount: earnedIncrement,
     });
   } catch (error: any) {
+    console.error("Sync Balance Processing Error:", error);
     return NextResponse.json(
       { success: false, error: error?.message || "Internal server error." },
       { status: 500 }
