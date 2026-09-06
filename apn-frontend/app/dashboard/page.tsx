@@ -81,7 +81,7 @@ export default function DashboardPage() {
   const isBoosterActive = user?.boosterExpiresAt && new Date(user.boosterExpiresAt) > new Date();
   const currentMultiplier = isBoosterActive ? parseFloat(user.miningMultiplier || "1.0") : 1.0;
 
-  // DYNAMIC SPEED SYSTEM: Karanta miningSpeed daga Database wanda Admin ya saita (misali 5.50x ko 3.00x)
+  // DYNAMIC SPEED SYSTEM
   const dbMiningSpeed = parseFloat(user?.miningSpeed || user?.miningBoost || (isFounder ? "5.0" : "0.5"));
   const boosterBoostedRate = dbMiningSpeed * currentMultiplier;
   const referralBonusRate = activeReferrals * 0.2;
@@ -90,6 +90,7 @@ export default function DashboardPage() {
   const hourlyRateRef = useRef(hourlyRate);
   hourlyRateRef.current = hourlyRate;
 
+  // GYARARREN LOGIC: Ciro hakikanin bayanan mining da balance daga Database ko bayan logout
   const syncAndLoadUserData = useCallback(async () => {
     try {
       const savedUser = localStorage.getItem("apn_user");
@@ -98,47 +99,73 @@ export default function DashboardPage() {
         return;
       }
 
-      const localUserData = JSON.parse(savedUser);
+      let localUserData = JSON.parse(savedUser);
       setUser(localUserData);
 
-      let dbBalance = parseFloat(localUserData.balance || "0");
+      let currentDbUser = localUserData;
 
+      // Ciro sabon profile kai tsaye daga Database
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 4000);
+        const timeoutId = setTimeout(() => controller.abort(), 6000);
 
-        const userRes = await fetch(`/api/user/profile?userId=${localUserData.id}`, { signal: controller.signal });
+        const userRes = await fetch(`/api/user/profile?userId=${localUserData.id}`, { 
+          signal: controller.signal,
+          cache: "no-store" 
+        });
         clearTimeout(timeoutId);
 
         const userData = await userRes.json();
         if (userData && userData.success && userData.user) {
-          setUser(userData.user);
-          dbBalance = parseFloat(userData.user.balance || "0");
-          localStorage.setItem("apn_user", JSON.stringify(userData.user));
+          currentDbUser = userData.user;
+          setUser(currentDbUser);
+          localStorage.setItem("apn_user", JSON.stringify(currentDbUser));
         }
       } catch (e) {
-        console.warn("Profile fetch timed out, using local session:", e);
+        console.warn("Profile fetch error, falling back to local session:", e);
       }
 
-      const startTimeStr = localStorage.getItem("apn_mining_start_time");
-      const savedBase = localStorage.getItem("apn_base_balance");
+      // Lissafin Mining Speed domin wannan session din
+      const userIsFounder = currentDbUser?.role === "ADMIN" || currentDbUser?.role === "FOUNDER" || currentDbUser?.isFounder === true;
+      const userMultiplier = currentDbUser?.boosterExpiresAt && new Date(currentDbUser.boosterExpiresAt) > new Date()
+        ? parseFloat(currentDbUser.miningMultiplier || "1.0")
+        : 1.0;
+      const userMiningSpeed = parseFloat(currentDbUser?.miningSpeed || currentDbUser?.miningBoost || (userIsFounder ? "5.0" : "0.5"));
+      const currentRate = (userMiningSpeed * userMultiplier) + (activeReferrals * 0.2);
 
-      if (startTimeStr) {
-        const startTime = parseInt(startTimeStr, 10);
-        const elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
-        const currentBase = savedBase ? parseFloat(savedBase) : dbBalance;
+      let dbBalance = parseFloat(currentDbUser.balance || "0");
+
+      // Bincika ko akwai active session a Database ko a LocalStorage
+      let activeStartTime = null;
+      if (currentDbUser.miningStartTime) {
+        activeStartTime = new Date(currentDbUser.miningStartTime).getTime();
+      } else {
+        const localStart = localStorage.getItem("apn_mining_start_time");
+        if (localStart) activeStartTime = parseInt(localStart, 10);
+      }
+
+      const isUserMiningActive = currentDbUser.isMining || !!activeStartTime;
+
+      if (isUserMiningActive && activeStartTime) {
+        const elapsedSeconds = Math.floor((Date.now() - activeStartTime) / 1000);
 
         if (elapsedSeconds < 86400) {
+          // Mining yana kan tafiya
           setIsMining(true);
           setSessionTime(elapsedSeconds);
-          baseBalanceRef.current = currentBase;
+          baseBalanceRef.current = dbBalance;
 
-          const minedSoFar = elapsedSeconds * (hourlyRateRef.current / 3600);
-          setBalance(currentBase + minedSoFar);
+          const minedSoFar = elapsedSeconds * (currentRate / 3600);
+          const totalLive = dbBalance + minedSoFar;
+          setBalance(totalLive);
+
+          localStorage.setItem("apn_mining_start_time", activeStartTime.toString());
+          localStorage.setItem("apn_base_balance", dbBalance.toString());
         } else {
+          // Ya cika 24 Hours lokacin da ba ya nan
           setIsMining(false);
-          const totalMinedInSession = 86400 * (hourlyRateRef.current / 3600);
-          const finalBalance = currentBase + totalMinedInSession;
+          const totalMinedInSession = 86400 * (currentRate / 3600);
+          const finalBalance = dbBalance + totalMinedInSession;
 
           baseBalanceRef.current = finalBalance;
           setBalance(finalBalance);
@@ -147,12 +174,12 @@ export default function DashboardPage() {
           localStorage.removeItem("apn_mining_start_time");
           localStorage.setItem("apn_base_balance", finalBalance.toString());
 
-          if (localUserData?.id) {
+          if (currentDbUser?.id) {
             fetch("/api/user/sync-balance", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
-                userId: localUserData.id,
+                userId: currentDbUser.id,
                 balance: finalBalance,
                 isMining: false,
                 miningStartTime: null,
@@ -161,16 +188,18 @@ export default function DashboardPage() {
           }
         }
       } else {
+        // Standby
         setIsMining(false);
         baseBalanceRef.current = dbBalance;
         setBalance(dbBalance);
+        localStorage.setItem("apn_base_balance", dbBalance.toString());
       }
     } catch (err) {
       console.error("Initialization sync error:", err);
     } finally {
       setIsLoading(false);
     }
-  }, [router]);
+  }, [router, activeReferrals]);
 
   useEffect(() => {
     syncAndLoadUserData();
@@ -198,6 +227,19 @@ export default function DashboardPage() {
           setBalance(finalCompletedBalance);
           localStorage.removeItem("apn_mining_start_time");
           localStorage.setItem("apn_base_balance", finalCompletedBalance.toString());
+
+          if (user?.id) {
+            fetch("/api/user/sync-balance", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                userId: user.id,
+                balance: finalCompletedBalance,
+                isMining: false,
+                miningStartTime: null,
+              }),
+            }).catch((err) => console.error("Session finish sync error:", err));
+          }
           return;
         }
 
@@ -208,6 +250,7 @@ export default function DashboardPage() {
         setBalance(liveTotal);
       }, 1000);
 
+      // Sync duk bayan sakan 15 zuwa Supabase
       syncInterval = setInterval(() => {
         if (user?.id) {
           const startTimeStr = localStorage.getItem("apn_mining_start_time");
@@ -220,7 +263,7 @@ export default function DashboardPage() {
               userId: user.id,
               balance: balanceRef.current,
               isMining: true,
-              miningStartTime: startTime,
+              miningStartTime: startTime ? new Date(startTime).toISOString() : null,
             }),
           }).catch((err) => console.error("Balance sync error:", err));
         }
@@ -250,7 +293,7 @@ export default function DashboardPage() {
           userId: user.id,
           balance: balance,
           isMining: true,
-          miningStartTime: now,
+          miningStartTime: new Date(now).toISOString(),
         }),
       });
     }
