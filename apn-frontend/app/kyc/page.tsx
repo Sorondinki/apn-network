@@ -116,6 +116,7 @@ export default function KYCPage() {
     }
   };
 
+  // Preserved for future payment integration/switch
   const handlePaystackPayment = async () => {
     setLoading(true);
     try {
@@ -133,7 +134,7 @@ export default function KYCPage() {
       if (data.success && data.authorization_url) {
         window.location.href = data.authorization_url;
       } else {
-        showToast("error", "Paystack Initialization Failed: " + (data.message || "Please try again later."));
+        showToast("error", "Payment Gateway Offline: " + (data.message || "Please submit using Free Verification."));
         setLoading(false);
       }
     } catch (err) {
@@ -157,8 +158,9 @@ export default function KYCPage() {
       return;
     }
 
+    // Guard: Prevent submissions through fast-track while channel is disabled
     if (verificationType === "FAST_TRACK") {
-      await handlePaystackPayment();
+      showToast("error", "Fast-Track VIP gateway is currently closed. Please switch to Free Standard Verification.");
       return;
     }
 
@@ -313,6 +315,7 @@ export default function KYCPage() {
         <>
           {/* VERIFICATION OPTIONS SELECTOR */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* OPTION 1: 100% FREE (ACTIVE) */}
             <div
               onClick={() => setVerificationType("FREE")}
               className={`p-5 rounded-2xl cursor-pointer border transition-all ${
@@ -331,22 +334,31 @@ export default function KYCPage() {
               </p>
             </div>
 
+            {/* OPTION 2: FAST-TRACK VIP (CLOSED / UNDER MAINTENANCE) */}
             <div
-              onClick={() => setVerificationType("FAST_TRACK")}
-              className={`p-5 rounded-2xl cursor-pointer border transition-all ${
-                verificationType === "FAST_TRACK"
-                  ? "bg-indigo-950/60 border-indigo-500 ring-2 ring-indigo-500/30"
-                  : "bg-gray-900/40 border-gray-800 hover:border-gray-700"
-              }`}
+              onClick={() => {
+                showToast(
+                  "error",
+                  "Fast-Track VIP gateway is temporarily offline for maintenance. Please proceed with Option 1 (100% Free Verification)."
+                );
+              }}
+              className="p-5 rounded-2xl border border-gray-800/80 bg-gray-950/60 opacity-65 cursor-not-allowed relative overflow-hidden group transition-all"
             >
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-mono font-bold uppercase text-amber-400">Option 2: Fast-Track VIP</span>
-                <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 text-[10px] font-bold">₦1,000 Paystack</span>
+                <span className="text-xs font-mono font-bold uppercase text-gray-500">Option 2: Fast-Track VIP</span>
+                <span className="px-2 py-0.5 rounded bg-rose-500/20 border border-rose-500/40 text-rose-400 text-[10px] font-bold uppercase tracking-wider">
+                  Temporarily Closed
+                </span>
               </div>
-              <h3 className="text-base font-bold text-white flex items-center gap-1.5">Instant VIP Verification ⚡</h3>
-              <p className="text-xs text-gray-400 mt-1">
-                Automated instant check in 5 seconds via Paystack ID gateway. Grants Tier 1 Priority Status.
+              <h3 className="text-base font-bold text-gray-300 flex items-center gap-1.5 line-through">
+                Instant VIP Verification ⚡
+              </h3>
+              <p className="text-xs text-gray-500 mt-1">
+                Direct automated card gateway is temporarily paused for compliance upgrades. Please submit your application via Option 1 completely free.
               </p>
+              <div className="mt-2 text-[10px] text-amber-400 font-mono flex items-center gap-1">
+                <span>🔒 Gateway Maintenance • Switch to Free Verification</span>
+              </div>
             </div>
           </div>
 
@@ -477,16 +489,10 @@ export default function KYCPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className={`w-full py-4 text-white font-extrabold rounded-xl transition-all shadow-xl disabled:opacity-50 text-sm flex items-center justify-center gap-2 ${
-                  verificationType === "FAST_TRACK"
-                    ? "bg-gradient-to-r from-amber-600 to-indigo-600 hover:from-amber-500 hover:to-indigo-500 shadow-amber-950/50"
-                    : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 shadow-blue-950/50"
-                }`}
+                className="w-full py-4 text-white font-extrabold rounded-xl transition-all shadow-xl disabled:opacity-50 text-sm flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 shadow-blue-950/50"
               >
                 {loading ? (
                   <span>Processing Verification Route... ⏳</span>
-                ) : verificationType === "FAST_TRACK" ? (
-                  <span>Pay ₦1,000 via Paystack & Fast-Track (Instant 5s Approval) and Claim 100 $APN ⚡</span>
                 ) : (
                   <span>Submit Free Verification & Claim 50 $APN 🚀</span>
                 )}
@@ -501,4 +507,4 @@ export default function KYCPage() {
       </div>
     </div>
   );
-}
+ }
