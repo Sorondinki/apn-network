@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Check user verification status
+    // 1. Check if user is already marked verified in User table
     const { data: userData, error: userError } = await supabase
       .from("User")
       .select("id, email, isVerified, fullName")
@@ -35,14 +35,14 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Check if there is an existing submission in KYC_Submissions
-    const { data: kycData, error: kycError } = await supabase
+    // 2. Check for recent submission using createdAt
+    const { data: kycData } = await supabase
       .from("KYC_Submissions")
-      .select("id, status, verificationType, created_at")
+      .select("id, status, verificationType, createdAt")
       .eq("userId", userId)
-      .order("created_at", { ascending: false })
+      .order("createdAt", { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
 
     if (kycData && kycData.status === "PENDING") {
       return NextResponse.json({
