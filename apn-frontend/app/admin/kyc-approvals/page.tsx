@@ -16,8 +16,6 @@ interface KYCItem {
   fullName: string;
   docType: string;
   docNumber: string;
-  docImage: string | null;
-  selfieImage: string | null;
   verificationType: string;
   status: string;
   createdAt: string;
@@ -27,9 +25,13 @@ export default function AdminKYCApprovalsPage() {
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [submissions, setSubmissions] = useState<KYCItem[]>([]);
+  const [pendingCount, setPendingCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
+  
+  // Lightweight on-demand image viewer
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [imageLoading, setImageLoading] = useState(false);
 
   // In-page Toast State
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
@@ -42,16 +44,26 @@ export default function AdminKYCApprovalsPage() {
   const fetchSubmissions = async () => {
     setLoading(true);
     try {
+      // 1. Get exact total pending count without loading payloads
+      const { count } = await supabase
+        .from("KYC_Submissions")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "PENDING");
+
+      setPendingCount(count || 0);
+
+      // 2. Fetch only textual metadata with a limit of 25 to avoid timeout
       const { data, error } = await supabase
         .from("KYC_Submissions")
-        .select("*")
+        .select("id, userId, fullName, docType, docNumber, verificationType, status, createdAt")
         .eq("status", "PENDING")
-        .order("createdAt", { ascending: false });
+        .order("createdAt", { ascending: false })
+        .limit(25);
 
       if (error) throw error;
       setSubmissions(data || []);
     } catch (err: any) {
-      showToast("error", err.message || "Failed to load KYC requests.");
+      showToast("error", err.message || "Query timeout. Try again.");
     } finally {
       setLoading(false);
     }
@@ -80,6 +92,28 @@ export default function AdminKYCApprovalsPage() {
     }
   }, []);
 
+  // Fetch heavy image only when an engineer clicks View Photo
+  const handleViewImage = async (id: string, imageType: "docImage" | "selfieImage") => {
+    setImageLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("KYC_Submissions")
+        .select(imageType)
+        .eq("id", id)
+        .single();
+
+      if (error || !data || !(data as any)[imageType]) {
+        showToast("error", "Image file not found on record.");
+      } else {
+        setPreviewImage((data as any)[imageType]);
+      }
+    } catch (err) {
+      showToast("error", "Failed to retrieve compressed image.");
+    } finally {
+      setImageLoading(false);
+    }
+  };
+
   const handleAction = async (item: KYCItem, action: "APPROVE" | "REJECT") => {
     setProcessingId(item.id);
     try {
@@ -98,6 +132,7 @@ export default function AdminKYCApprovalsPage() {
       if (data.success) {
         showToast("success", data.message);
         setSubmissions((prev) => prev.filter((sub) => sub.id !== item.id));
+        setPendingCount((prev) => Math.max(0, prev - 1));
       } else {
         showToast("error", data.message || "Action failed.");
       }
@@ -124,11 +159,13 @@ export default function AdminKYCApprovalsPage() {
         </div>
       )}
 
-      {/* MODAL PREVIEW FOR ZOOMING IMAGES (MAMURE / CLARITY CHECK) */}
-      {previewImage && (
+      {/* FULL IMAGE MODAL */}
+      {(previewImage || imageLoading) && (
         <div
           className="fixed inset-0 z-50 bg-black/95 flex flex-col items-center justify-center p-4 backdrop-blur-md"
-          onClick={() => setPreviewImage(null)}
+          onClick={() => {
+            if (!imageLoading) setPreviewImage(null);
+          }}
         >
           <div className="relative max-w-4xl w-full max-h-[90vh] flex flex-col items-center">
             <button
@@ -137,12 +174,19 @@ export default function AdminKYCApprovalsPage() {
             >
               ✕ Close Preview
             </button>
-            <img
-              src={previewImage}
-              alt="Verification Proof"
-              className="w-full h-auto max-h-[80vh] object-contain rounded-2xl border border-gray-700 shadow-2xl"
-              onClick={(e) => e.stopPropagation()}
-            />
+            {imageLoading ? (
+              <div className="p-8 text-center space-y-3">
+                <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+                <p className="text-xs font-mono text-gray-400">Loading full image payload...</p>
+              </div>
+            ) : (
+              <img
+                src={previewImage!}
+                alt="Verification Proof"
+                className="w-full h-auto max-h-[80vh] object-contain rounded-2xl border border-gray-700 shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+              />
+            )}
           </div>
         </div>
       )}
@@ -158,7 +202,7 @@ export default function AdminKYCApprovalsPage() {
           </div>
           <h1 className="text-xl sm:text-2xl font-black text-white mt-1">KYC Approvals & Inspection</h1>
           <p className="text-xs text-gray-400 mt-0.5">
-            Manual identity document verification and APN bonus authorization queue.
+            Showing top batch of 25 pending applications out of {pendingCount}.
           </p>
         </div>
 
@@ -170,7 +214,7 @@ export default function AdminKYCApprovalsPage() {
             🔄 Refresh
           </button>
           <div className="px-4 py-2 rounded-xl bg-indigo-950/40 border border-indigo-500/30 text-indigo-400 text-xs font-mono font-bold">
-            Pending: {submissions.length}
+            Pending Queue: {pendingCount}
           </div>
         </div>
       </div>
@@ -179,7 +223,7 @@ export default function AdminKYCApprovalsPage() {
       {loading ? (
         <div className="min-h-[40vh] flex flex-col items-center justify-center space-y-3">
           <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-xs font-mono text-gray-500">Loading pending submissions...</p>
+          <p className="text-xs font-mono text-gray-500">Querying lightweight queue...</p>
         </div>
       ) : submissions.length === 0 ? (
         <div className="p-12 text-center rounded-3xl border border-gray-800 bg-[#0b0f19] space-y-3">
@@ -221,35 +265,27 @@ export default function AdminKYCApprovalsPage() {
                   </div>
                 </div>
 
-                {/* IMAGES PREVIEW BUTTONS */}
+                {/* ON-DEMAND IMAGE BUTTONS */}
                 <div className="flex items-center gap-4 pt-1">
-                  {sub.docImage ? (
-                    <button
-                      type="button"
-                      onClick={() => setPreviewImage(sub.docImage)}
-                      className="flex items-center gap-2 text-xs font-semibold text-blue-400 bg-blue-950/30 border border-blue-500/30 px-3 py-1.5 rounded-lg hover:bg-blue-900/40 transition"
-                    >
-                      <span>📄</span> View ID Photo
-                    </button>
-                  ) : (
-                    <span className="text-xs text-rose-400 font-mono">No ID Photo</span>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleViewImage(sub.id, "docImage")}
+                    className="flex items-center gap-2 text-xs font-semibold text-blue-400 bg-blue-950/30 border border-blue-500/30 px-3 py-1.5 rounded-lg hover:bg-blue-900/40 transition"
+                  >
+                    <span>📄</span> View ID Photo
+                  </button>
 
-                  {sub.selfieImage ? (
-                    <button
-                      type="button"
-                      onClick={() => setPreviewImage(sub.selfieImage)}
-                      className="flex items-center gap-2 text-xs font-semibold text-purple-400 bg-purple-950/30 border border-purple-500/30 px-3 py-1.5 rounded-lg hover:bg-purple-900/40 transition"
-                    >
-                      <span>🤳</span> View Selfie
-                    </button>
-                  ) : (
-                    <span className="text-xs text-rose-400 font-mono">No Selfie</span>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleViewImage(sub.id, "selfieImage")}
+                    className="flex items-center gap-2 text-xs font-semibold text-purple-400 bg-purple-950/30 border border-purple-500/30 px-3 py-1.5 rounded-lg hover:bg-purple-900/40 transition"
+                  >
+                    <span>🤳</span> View Selfie
+                  </button>
                 </div>
               </div>
 
-              {/* ACTION BUTTONS (APPROVE / REJECT) */}
+              {/* ACTIONS */}
               <div className="flex sm:flex-col md:flex-row items-center gap-3 shrink-0">
                 <button
                   disabled={processingId === sub.id}
@@ -274,4 +310,4 @@ export default function AdminKYCApprovalsPage() {
     </div>
   );
 }
-            
+        
