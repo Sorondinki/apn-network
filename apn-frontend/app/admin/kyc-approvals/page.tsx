@@ -20,7 +20,7 @@ interface KYCItem {
   selfieImage: string | null;
   verificationType: string;
   status: string;
-  created_at: string;
+  createdAt: string;
 }
 
 export default function AdminKYCApprovalsPage() {
@@ -37,6 +37,24 @@ export default function AdminKYCApprovalsPage() {
   const showToast = (type: "success" | "error", message: string) => {
     setToast({ type, message });
     setTimeout(() => setToast(null), 4000);
+  };
+
+  const fetchSubmissions = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("KYC_Submissions")
+        .select("*")
+        .eq("status", "PENDING")
+        .order("createdAt", { ascending: false });
+
+      if (error) throw error;
+      setSubmissions(data || []);
+    } catch (err: any) {
+      showToast("error", err.message || "Failed to load KYC requests.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -61,24 +79,6 @@ export default function AdminKYCApprovalsPage() {
       router.push("/login");
     }
   }, []);
-
-  const fetchSubmissions = async () => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from("KYC_Submissions")
-        .select("*")
-        .eq("status", "PENDING")
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      setSubmissions(data || []);
-    } catch (err: any) {
-      showToast("error", err.message || "Failed to load KYC requests.");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleAction = async (item: KYCItem, action: "APPROVE" | "REJECT") => {
     setProcessingId(item.id);
@@ -124,16 +124,16 @@ export default function AdminKYCApprovalsPage() {
         </div>
       )}
 
-      {/* MODAL PREVIEW FOR ZOOMING IMAGES (BLUR / MAMURE CHECK) */}
+      {/* MODAL PREVIEW FOR ZOOMING IMAGES (MAMURE / CLARITY CHECK) */}
       {previewImage && (
         <div
-          className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 bg-black/95 flex flex-col items-center justify-center p-4 backdrop-blur-md"
           onClick={() => setPreviewImage(null)}
         >
-          <div className="relative max-w-3xl w-full max-h-[85vh] flex flex-col items-center">
+          <div className="relative max-w-4xl w-full max-h-[90vh] flex flex-col items-center">
             <button
               onClick={() => setPreviewImage(null)}
-              className="absolute -top-10 right-0 text-gray-400 hover:text-white text-lg font-bold"
+              className="absolute -top-10 right-0 text-white hover:text-rose-400 text-sm font-bold bg-gray-900/80 px-4 py-1.5 rounded-full border border-gray-700"
             >
               ✕ Close Preview
             </button>
@@ -203,9 +203,11 @@ export default function AdminKYCApprovalsPage() {
                   <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase bg-blue-950 border border-blue-500/30 text-blue-400">
                     {sub.verificationType}
                   </span>
-                  <span className="text-[10px] text-gray-500 font-mono">
-                    {new Date(sub.created_at).toLocaleString()}
-                  </span>
+                  {sub.createdAt && (
+                    <span className="text-[10px] text-gray-500 font-mono">
+                      {new Date(sub.createdAt).toLocaleString()}
+                    </span>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
@@ -219,7 +221,7 @@ export default function AdminKYCApprovalsPage() {
                   </div>
                 </div>
 
-                {/* IMAGES PREVIEW TILES */}
+                {/* IMAGES PREVIEW BUTTONS */}
                 <div className="flex items-center gap-4 pt-1">
                   {sub.docImage ? (
                     <button
@@ -230,7 +232,7 @@ export default function AdminKYCApprovalsPage() {
                       <span>📄</span> View ID Photo
                     </button>
                   ) : (
-                    <span className="text-xs text-red-400">No ID Photo</span>
+                    <span className="text-xs text-rose-400 font-mono">No ID Photo</span>
                   )}
 
                   {sub.selfieImage ? (
@@ -242,7 +244,7 @@ export default function AdminKYCApprovalsPage() {
                       <span>🤳</span> View Selfie
                     </button>
                   ) : (
-                    <span className="text-xs text-red-400">No Selfie</span>
+                    <span className="text-xs text-rose-400 font-mono">No Selfie</span>
                   )}
                 </div>
               </div>
@@ -271,4 +273,5 @@ export default function AdminKYCApprovalsPage() {
       )}
     </div>
   );
- }
+}
+            
