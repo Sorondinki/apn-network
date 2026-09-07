@@ -26,15 +26,15 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === "APPROVE") {
-      // 1. Update KYC submission status
+      // 1. Update status to APPROVED
       const { error: subError } = await supabase
         .from("KYC_Submissions")
-        .update({ status: "APPROVED", updated_at: new Date().toISOString() })
+        .update({ status: "APPROVED" })
         .eq("id", submissionId);
 
       if (subError) throw subError;
 
-      // 2. Fetch current balance to safely increment +50 APN reward
+      // 2. Increment balance by +50 APN
       const { data: userRecord, error: userFetchError } = await supabase
         .from("User")
         .select("balance")
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
       const currentBal = parseFloat(userRecord?.balance || "0");
       const updatedBal = currentBal + 50;
 
-      // 3. Mark user verified and add completion bonus
+      // 3. Mark user verified
       const { error: userUpdateError } = await supabase
         .from("User")
         .update({
@@ -64,9 +64,10 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === "REJECT") {
+      // Update status to REJECTED so form re-opens for clean retry
       const { error: subError } = await supabase
         .from("KYC_Submissions")
-        .update({ status: "REJECTED", updated_at: new Date().toISOString() })
+        .update({ status: "REJECTED" })
         .eq("id", submissionId);
 
       if (subError) throw subError;
@@ -85,5 +86,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
- }
-    
+}
