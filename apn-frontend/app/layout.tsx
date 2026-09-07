@@ -194,7 +194,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
                     <div className="min-w-0 flex-1">
                       <p className="text-xs font-bold text-white truncate group-hover:text-blue-400 transition-colors">
-                        {user?.name || "Node Validator"}
+                        {user?.name || "APN User"}
                       </p>
                       <span className="text-[10px] text-blue-400/80 group-hover:underline flex items-center gap-1">
                         ✏️ Edit Profile
@@ -218,30 +218,37 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     </Link>
                   ))}
 
-                  {/* RESTRICTED ENGINEERING CONSOLE LINK */}
-{isAuthorizedEngineer && (
-  <div className="pt-3 mt-3 border-t border-gray-800/80">
-    <span className="text-[10px] font-mono uppercase text-indigo-400 font-bold px-3">
-      Core Ops
-    </span>
-    <Link
-      href="/admin/kyc-approvals"
-      className="flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold text-indigo-400 bg-indigo-950/20 border border-indigo-500/20 hover:bg-indigo-900/40 hover:text-white transition-all mt-1"
-    >
-      <span>🛠️</span>
-      <span>KYC Approvals</span>
-    </Link>
+                  {/* RESTRICTED ENGINEERING CONSOLE LINKS (DESKTOP) */}
+                  {isAuthorizedEngineer && (
+                    <div className="pt-3 mt-3 border-t border-gray-800/80 space-y-1">
+                      <span className="text-[10px] font-mono uppercase text-indigo-400 font-bold px-3">
+                        Core Ops
+                      </span>
+                      <Link
+                        href="/admin/kyc-approvals"
+                        className={`flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
+                          pathname === '/admin/kyc-approvals'
+                            ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/50 shadow-lg shadow-indigo-950/50'
+                            : 'text-indigo-400 bg-indigo-950/20 border border-indigo-500/20 hover:bg-indigo-900/40 hover:text-white'
+                        }`}
+                      >
+                        <span>🛠️</span>
+                        <span>KYC Approvals</span>
+                      </Link>
 
-    <Link
-      href="/admin/role-manager"
-      className="flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold text-purple-400 bg-purple-950/20 border border-purple-500/20 hover:bg-purple-900/40 hover:text-white transition-all mt-1"
-    >
-      <span>👑</span>
-      <span>Assign Roles</span>
-    </Link>
-  </div>
-)}
-  
+                      <Link
+                        href="/admin/role-manager"
+                        className={`flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
+                          pathname === '/admin/role-manager'
+                            ? 'bg-purple-600/30 text-purple-300 border border-purple-500/50 shadow-lg shadow-purple-950/50'
+                            : 'text-purple-400 bg-purple-950/20 border border-purple-500/20 hover:bg-purple-900/40 hover:text-white'
+                        }`}
+                      >
+                        <span>👑</span>
+                        <span>Assign Roles</span>
+                      </Link>
+                    </div>
+                  )}
                 </nav>
 
                 <div className="p-4 border-t border-gray-800/80 space-y-3">
@@ -320,7 +327,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                       </div>
                     )}
                     <div>
-                      <p className="text-xs font-bold text-white">{user?.name || "Node Validator"}</p>
+                      <p className="text-xs font-bold text-white">{user?.name || "APN User"}</p>
                       <span className="text-[10px] text-blue-400">✏️ Edit Profile</span>
                     </div>
                   </Link>
@@ -340,9 +347,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     </Link>
                   ))}
 
-                  {/* RESTRICTED ENGINEERING MOBILE LINK */}
+                  {/* RESTRICTED ENGINEERING CONSOLE LINKS (MOBILE) */}
                   {isAuthorizedEngineer && (
-                    <div className="pt-2 border-t border-gray-800">
+                    <div className="pt-2 border-t border-gray-800 space-y-1.5">
+                      <span className="text-[10px] font-mono uppercase text-indigo-400 font-bold block px-1">
+                        Core Ops
+                      </span>
                       <Link
                         href="/admin/kyc-approvals"
                         onClick={() => setIsMobileMenuOpen(false)}
@@ -353,7 +363,20 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                         }`}
                       >
                         <span>🛠️</span>
-                        <span>Engineer Console</span>
+                        <span>KYC Approvals</span>
+                      </Link>
+
+                      <Link
+                        href="/admin/role-manager"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        className={`p-3 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${
+                          pathname === '/admin/role-manager'
+                            ? 'bg-purple-600 text-white shadow-lg shadow-purple-900/40'
+                            : 'text-purple-300 bg-purple-950/40 border border-purple-500/30'
+                        }`}
+                      >
+                        <span>👑</span>
+                        <span>Assign Roles</span>
                       </Link>
                     </div>
                   )}
@@ -408,4 +431,4 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     </html>
   );
 }
-            
+                      
