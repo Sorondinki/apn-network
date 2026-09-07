@@ -57,7 +57,7 @@ export default function AdminKYCApprovalsPage() {
         .from("KYC_Submissions")
         .select("id, userId, fullName, docType, docNumber, verificationType, status, createdAt")
         .eq("status", "PENDING")
-        .order("createdAt", { ascending: false })
+        .order("createdAt", { ascending: true })
         .limit(25);
 
       if (error) throw error;
