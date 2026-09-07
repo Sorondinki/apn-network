@@ -6,6 +6,12 @@ import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 
+const AUTHORIZED_ENGINEERS = [
+  "contact.aprotech@gmail.com",
+  "idrissharif30@gmail.com",
+  "kingibrahimsharif@gmail.com",
+];
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -88,6 +94,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   const navItems = isAdmin
     ? [...baseNavItems, { name: '⚙️ Node Admin', path: '/admin' }]
     : baseNavItems;
+
+  const isAuthorizedEngineer = user?.email
+    ? AUTHORIZED_ENGINEERS.includes(user.email.trim().toLowerCase())
+    : false;
 
   const handleGlobalLogout = () => {
     const savedBalance = localStorage.getItem("apn_user_balance");
@@ -207,6 +217,26 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                       {item.name}
                     </Link>
                   ))}
+
+                  {/* RESTRICTED ENGINEERING CONSOLE LINK */}
+                  {isAuthorizedEngineer && (
+                    <div className="pt-3 mt-3 border-t border-gray-800/80">
+                      <span className="text-[10px] font-mono uppercase text-indigo-400 font-bold px-3">
+                        Core Ops
+                      </span>
+                      <Link
+                        href="/admin/kyc-approvals"
+                        className={`flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all mt-1 ${
+                          pathname === '/admin/kyc-approvals'
+                            ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/50 shadow-lg shadow-indigo-950/50'
+                            : 'text-indigo-400 bg-indigo-950/20 border border-indigo-500/20 hover:bg-indigo-900/40 hover:text-white'
+                        }`}
+                      >
+                        <span>🛠️</span>
+                        <span>Engineer Console</span>
+                      </Link>
+                    </div>
+                  )}
                 </nav>
 
                 <div className="p-4 border-t border-gray-800/80 space-y-3">
@@ -304,6 +334,24 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                       {item.name}
                     </Link>
                   ))}
+
+                  {/* RESTRICTED ENGINEERING MOBILE LINK */}
+                  {isAuthorizedEngineer && (
+                    <div className="pt-2 border-t border-gray-800">
+                      <Link
+                        href="/admin/kyc-approvals"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        className={`p-3 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${
+                          pathname === '/admin/kyc-approvals'
+                            ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/40'
+                            : 'text-indigo-300 bg-indigo-950/40 border border-indigo-500/30'
+                        }`}
+                      >
+                        <span>🛠️</span>
+                        <span>Engineer Console</span>
+                      </Link>
+                    </div>
+                  )}
                 </div>
 
                 {/* Additional Pages for Mobile (Roadmap, Whitepaper, Privacy Policy) */}
@@ -355,3 +403,4 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     </html>
   );
 }
+            
