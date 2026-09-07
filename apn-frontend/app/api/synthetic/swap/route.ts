@@ -1,230 +1,225 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 
-// APN Pegged Oracle Valuation: Fixed at $0.15 USD
 const APN_PRICE_USD = 0.15;
 
-// Oracle Market Prices in USD
-const MARKET_PRICES_USD: Record<string, { price: number; column: string }> = {
-  aBTC: { price: 67450.00, column: "abtc_balance" },
-  aETH: { price: 3520.00, column: "aeth_balance" },
-  aSOL: { price: 154.50, column: "asol_balance" },
-  aUSDT: { price: 1.00, column: "ausdt_balance" },
-  aPI: { price: 31.40, column: "api_balance" },
-  aSIDRA: { price: 1.45, column: "asidra_balance" },
-  aCORE: { price: 1.28, column: "acore_balance" },
-  aRUBI: { price: 0.65, column: "arubi_balance" },
-  aICE: { price: 0.08, column: "aice_balance" },
+const TOKEN_DB_MAP: Record<string, string> = {
+  aBTC: "abtc_balance",
+  aETH: "aeth_balance",
+  aSOL: "asol_balance",
+  aUSDT: "ausdt_balance",
+  aPI: "api_balance",
+  aSIDRA: "asidra_balance",
+  aCORE: "acore_balance",
+  aRUBI: "arubi_balance",
+  aICE: "aice_balance",
 };
 
-// =========================================================================
-// 1. GET: Fetch Live Synthetic Holdings (by userId or walletAddress)
-// =========================================================================
-export async function GET(req: NextRequest) {
-  try {
-    const { searchParams } = new URL(req.url);
-    let userId = searchParams.get("userId") || searchParams.get("id");
-    const walletAddress = searchParams.get("walletAddress");
+// Fallback rates
+const DEFAULT_PRICES: Record<string, number> = {
+  aBTC: 67450.0,
+  aETH: 3520.0,
+  aSOL: 154.5,
+  aUSDT: 1.0,
+  aPI: 31.4,
+  aSIDRA: 1.45,
+  aCORE: 1.28,
+  aRUBI: 0.65,
+  aICE: 0.08,
+};
 
-    // Lookup user by external/internal wallet address if userId is omitted
-    if (!userId && walletAddress) {
-      const { data: userProfile } = await supabase
-        .from("User")
-        .select("id")
-        .eq("walletAddress", walletAddress)
-        .maybeSingle();
-
-      if (userProfile) {
-        userId = userProfile.id;
-      }
-    }
-
-    if (!userId) {
-      return NextResponse.json({
-        success: false,
-        balances: {
-          aBTC: 0,
-          aETH: 0,
-          aSOL: 0,
-          aUSDT: 0,
-          aPI: 0,
-          aSIDRA: 0,
-          aCORE: 0,
-          aRUBI: 0,
-          aICE: 0,
-        },
-      });
-    }
-
-    const { data: synth, error: fetchErr } = await supabase
-      .from("synthetic_balances")
-      .select("*")
-      .eq("user_id", userId)
-      .maybeSingle();
-
-    if (fetchErr) throw fetchErr;
-
-    const formattedBalances = {
-      aBTC: parseFloat(synth?.abtc_balance || "0"),
-      aETH: parseFloat(synth?.aeth_balance || "0"),
-      aSOL: parseFloat(synth?.asol_balance || "0"),
-      aUSDT: parseFloat(synth?.ausdt_balance || "0"),
-      aPI: parseFloat(synth?.api_balance || "0"),
-      aSIDRA: parseFloat(synth?.asidra_balance || "0"),
-      aCORE: parseFloat(synth?.acore_balance || "0"),
-      aRUBI: parseFloat(synth?.arubi_balance || "0"),
-      aICE: parseFloat(synth?.aice_balance || "0"),
-    };
-
-    return NextResponse.json({
-      success: true,
-      balances: formattedBalances,
-    });
-  } catch (err: any) {
-    console.error("Fetch Synthetic Holdings Error:", err);
-    return NextResponse.json(
-      { success: false, error: err?.message || "Failed to fetch synthetic balances." },
-      { status: 500 }
-    );
-  }
-}
-
-// =========================================================================
-// 2. POST: Execute Synthetic Swap Transaction
-// =========================================================================
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { userId, email, apnAmount, targetToken } = body;
-    const amountToSwap = parseFloat(apnAmount);
+    const { userId, email, amount, token, mode = "BUY" } = body;
+    const tradeAmount = parseFloat(amount);
 
-    if ((!userId && !email) || isNaN(amountToSwap) || amountToSwap < 100) {
+    if ((!userId && !email) || isNaN(tradeAmount) || tradeAmount <= 0) {
       return NextResponse.json(
-        { error: "Minimum conversion threshold is 100 $APN." },
+        { error: "Invalid swap amount provided." },
         { status: 400 }
       );
     }
 
-    const targetConfig = MARKET_PRICES_USD[targetToken];
-    if (!targetConfig) {
+    const dbColumn = TOKEN_DB_MAP[token];
+    if (!dbColumn) {
       return NextResponse.json(
-        { error: "Invalid target synthetic asset specified." },
+        { error: "Invalid synthetic asset specified." },
         { status: 400 }
       );
     }
 
-    // 1. Fetch user record
+    // 1. Fetch current live price from Oracle route
+    let currentTokenPrice = DEFAULT_PRICES[token] || 1.0;
+    try {
+      const oracleRes = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana,tether,coredao,ice-open-network&vs_currencies=usd");
+      if (oracleRes.ok) {
+        const live = await oracleRes.json();
+        if (token === "aBTC" && live?.bitcoin?.usd) currentTokenPrice = live.bitcoin.usd;
+        if (token === "aETH" && live?.ethereum?.usd) currentTokenPrice = live.ethereum.usd;
+        if (token === "aSOL" && live?.solana?.usd) currentTokenPrice = live.solana.usd;
+        if (token === "aUSDT" && live?.tether?.usd) currentTokenPrice = live.tether.usd;
+        if (token === "aCORE" && live?.coredao?.usd) currentTokenPrice = live.coredao.usd;
+        if (token === "aICE" && live?.["ice-open-network"]?.usd) currentTokenPrice = live["ice-open-network"].usd;
+      }
+    } catch (e) {
+      console.warn("Oracle fetch error, using default index:", e);
+    }
+
+    // 2. Fetch user profile
     let userQuery = supabase.from("User").select("id, balance");
     if (userId) userQuery = userQuery.eq("id", userId);
     else if (email) userQuery = userQuery.eq("email", email);
 
     const { data: users, error: userError } = await userQuery;
-
     if (userError || !users || users.length === 0) {
-      return NextResponse.json(
-        { error: "User account not found." },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "User account not found." }, { status: 404 });
     }
 
     const user = users[0];
     const targetUserId = user.id;
-    const currentBalance = parseFloat(user.balance || "0");
+    const currentApnBalance = parseFloat(user.balance || "0");
 
-    if (currentBalance < amountToSwap) {
-      return NextResponse.json(
-        { error: "Insufficient $APN balance for conversion." },
-        { status: 400 }
-      );
-    }
-
-    // 2. Compute Oracle conversion output
-    const totalUsdValue = amountToSwap * APN_PRICE_USD;
-    const rawReceived = totalUsdValue / targetConfig.price;
-    const receivedAmount =
-      rawReceived < 0.001
-        ? parseFloat(rawReceived.toFixed(6))
-        : parseFloat(rawReceived.toFixed(4));
-
-    const newApnBalance = currentBalance - amountToSwap;
-
-    // 3. Deduct APN balance from User table
-    const { error: deductError } = await supabase
-      .from("User")
-      .update({ balance: newApnBalance })
-      .eq("id", targetUserId);
-
-    if (deductError) throw deductError;
-
-    // 4. Update or Insert into synthetic_balances table
-    const { data: synthData, error: synthFetchError } = await supabase
+    // 3. Fetch synthetic balances
+    const { data: synthData } = await supabase
       .from("synthetic_balances")
       .select("*")
       .eq("user_id", targetUserId)
       .maybeSingle();
 
-    if (synthFetchError) throw synthFetchError;
-
-    const dbColumn = targetConfig.column;
     const currentSynthBal = parseFloat(synthData ? synthData[dbColumn] || "0" : "0");
-    const newSynthBal = currentSynthBal + receivedAmount;
 
-    if (synthData) {
-      const { error: updateSynthError } = await supabase
-        .from("synthetic_balances")
-        .update({
+    // =========================================================================
+    // MODE A: BUY SYNTHETIC WITH $APN
+    // =========================================================================
+    if (mode === "BUY") {
+      if (tradeAmount < 100) {
+        return NextResponse.json(
+          { error: "Minimum conversion threshold is 100 $APN." },
+          { status: 400 }
+        );
+      }
+
+      if (currentApnBalance < tradeAmount) {
+        return NextResponse.json(
+          { error: "Insufficient $APN balance." },
+          { status: 400 }
+        );
+      }
+
+      const totalUsdValue = tradeAmount * APN_PRICE_USD;
+      const rawReceived = totalUsdValue / currentTokenPrice;
+      const receivedAmount =
+        rawReceived < 0.001
+          ? parseFloat(rawReceived.toFixed(6))
+          : parseFloat(rawReceived.toFixed(4));
+
+      const newApnBalance = currentApnBalance - tradeAmount;
+      const newSynthBal = currentSynthBal + receivedAmount;
+
+      // Update User APN
+      await supabase.from("User").update({ balance: newApnBalance }).eq("id", targetUserId);
+
+      // Update Synthetic Balances
+      if (synthData) {
+        await supabase
+          .from("synthetic_balances")
+          .update({ [dbColumn]: newSynthBal, updated_at: new Date().toISOString() })
+          .eq("user_id", targetUserId);
+      } else {
+        await supabase.from("synthetic_balances").insert({
+          user_id: targetUserId,
+          abtc_balance: 0,
+          aeth_balance: 0,
+          asol_balance: 0,
+          ausdt_balance: 0,
+          api_balance: 0,
+          asidra_balance: 0,
+          acore_balance: 0,
+          arubi_balance: 0,
+          aice_balance: 0,
           [dbColumn]: newSynthBal,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("user_id", targetUserId);
+        });
+      }
 
-      if (updateSynthError) throw updateSynthError;
-    } else {
-      const initialRow: Record<string, any> = {
+      // Log trade
+      await supabase.from("synthetic_swap_logs").insert({
         user_id: targetUserId,
-        abtc_balance: 0,
-        aeth_balance: 0,
-        asol_balance: 0,
-        ausdt_balance: 0,
-        api_balance: 0,
-        asidra_balance: 0,
-        acore_balance: 0,
-        arubi_balance: 0,
-        aice_balance: 0,
-        [dbColumn]: newSynthBal,
-      };
+        from_token: "APN",
+        to_token: token,
+        amount_spent: tradeAmount,
+        amount_received: receivedAmount,
+        oracle_rate: currentTokenPrice,
+        created_at: new Date().toISOString(),
+      });
 
-      const { error: insertSynthError } = await supabase
-        .from("synthetic_balances")
-        .insert(initialRow);
-
-      if (insertSynthError) throw insertSynthError;
+      return NextResponse.json({
+        success: true,
+        mode: "BUY",
+        newApnBalance,
+        newSyntheticBalance: newSynthBal,
+        receivedAmount,
+        rate: currentTokenPrice,
+      });
     }
 
-    // 5. Record log in synthetic_swap_logs
-    await supabase.from("synthetic_swap_logs").insert({
-      user_id: targetUserId,
-      from_token: "APN",
-      to_token: targetToken,
-      amount_spent: amountToSwap,
-      amount_received: receivedAmount,
-      oracle_rate: targetConfig.price,
-      created_at: new Date().toISOString(),
-    });
+    // =========================================================================
+    // MODE B: SELL SYNTHETIC BACK TO $APN (TAKE PROFIT)
+    // =========================================================================
+    if (mode === "SELL") {
+      if (currentSynthBal < tradeAmount) {
+        return NextResponse.json(
+          { error: `Insufficient ${token} vault balance to complete swap.` },
+          { status: 400 }
+        );
+      }
 
-    return NextResponse.json({
-      success: true,
-      newApnBalance,
-      targetToken,
-      receivedAmount,
-      newSyntheticBalance: newSynthBal,
-    });
+      // Calculate USD value of sold asset at live price
+      const totalUsdValue = tradeAmount * currentTokenPrice;
+      // Convert USD back to $APN tokens ($0.15 peg)
+      const rawApnReceived = totalUsdValue / APN_PRICE_USD;
+      const apnReceived = parseFloat(rawApnReceived.toFixed(4));
+
+      const newSynthBal = currentSynthBal - tradeAmount;
+      const newApnBalance = currentApnBalance + apnReceived;
+
+      // Credit User $APN balance
+      await supabase.from("User").update({ balance: newApnBalance }).eq("id", targetUserId);
+
+      // Deduct Synthetic Token
+      await supabase
+        .from("synthetic_balances")
+        .update({ [dbColumn]: newSynthBal, updated_at: new Date().toISOString() })
+        .eq("user_id", targetUserId);
+
+      // Log trade
+      await supabase.from("synthetic_swap_logs").insert({
+        user_id: targetUserId,
+        from_token: token,
+        to_token: "APN",
+        amount_spent: tradeAmount,
+        amount_received: apnReceived,
+        oracle_rate: currentTokenPrice,
+        created_at: new Date().toISOString(),
+      });
+
+      return NextResponse.json({
+        success: true,
+        mode: "SELL",
+        newApnBalance,
+        newSyntheticBalance: newSynthBal,
+        receivedAmount: apnReceived,
+        rate: currentTokenPrice,
+      });
+    }
+
+    return NextResponse.json({ error: "Invalid trading operation." }, { status: 400 });
   } catch (err: any) {
-    console.error("Synthetic Swap Execution Error:", err);
+    console.error("Trading Engine Error:", err);
     return NextResponse.json(
-      { error: err?.message || "Internal server error during swap execution." },
+      { error: err?.message || "Internal swap engine failure." },
       { status: 500 }
     );
   }
- }
-                         
+}
+    
