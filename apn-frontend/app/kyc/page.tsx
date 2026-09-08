@@ -486,7 +486,7 @@ export default function KYCPage() {
                 </div>
               </div>
 
-              <button
+              {/*<button
                 type="submit"
                 disabled={loading}
                 className="w-full py-4 text-white font-extrabold rounded-xl transition-all shadow-xl disabled:opacity-50 text-sm flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 shadow-blue-950/50"
@@ -494,9 +494,9 @@ export default function KYCPage() {
                 {loading ? (
                   <span>Processing Verification Route... ⏳</span>
                 ) : (
-                  <span>Submit Free Verification & Claim 50 $APN 🚀</span>
+                <span>Submit Free Verification & Claim 50 $APN 🚀</span>
                 )}
-              </button>
+              </button>*/}
             </form>
           </div>
         </>
