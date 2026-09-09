@@ -280,7 +280,7 @@ function AuthForm() {
             </div>
           )}
 
-          <button
+          {/* <button
             type="submit"
             disabled={loading}
             className={`w-full py-3.5 text-white rounded-xl font-bold transition-all duration-300 disabled:opacity-50 text-sm shadow-xl mt-2 ${
@@ -288,7 +288,7 @@ function AuthForm() {
                 ? "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 shadow-blue-900/30"
                 : "bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 shadow-green-900/30"
             }`}
-          >
+          >*/}
             {loading
               ? isLogin
                 ? "Verifying Session..."
