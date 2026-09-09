@@ -288,7 +288,7 @@ function AuthForm() {
                 ? "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 shadow-blue-900/30"
                 : "bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 shadow-green-900/30"
             }`}
-          >*/}
+          >
             {loading
               ? isLogin
                 ? "Verifying Session..."
@@ -296,7 +296,7 @@ function AuthForm() {
               : isLogin
               ? "Sign In to Dashboard"
               : "Create Web3 Account"}
-          </button>
+          </button>*/}
         </form>
 
         <p className="text-center text-gray-400 text-xs mt-6">
