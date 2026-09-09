@@ -168,7 +168,7 @@ function AuthForm() {
         </div>
 
         <div className="flex bg-black/80 p-1.5 rounded-2xl mb-6 border border-gray-800/80 shadow-inner">
-          {/*<button
+          <button
             type="button"
             onClick={() => { setIsLogin(false); setToast(null); }}
             className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all duration-300 ${
@@ -178,7 +178,7 @@ function AuthForm() {
             }`}
           >
             Create Account
-          </button>*/}
+          </button>
           <button
             type="button"
             onClick={() => { setIsLogin(true); setToast(null); }}
