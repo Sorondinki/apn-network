@@ -168,7 +168,7 @@ function AuthForm() {
         </div>
 
         <div className="flex bg-black/80 p-1.5 rounded-2xl mb-6 border border-gray-800/80 shadow-inner">
-          <button
+          {/*<button
             type="button"
             onClick={() => { setIsLogin(false); setToast(null); }}
             className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all duration-300 ${
@@ -178,7 +178,7 @@ function AuthForm() {
             }`}
           >
             Create Account
-          </button>
+          </button>*/}
           <button
             type="button"
             onClick={() => { setIsLogin(true); setToast(null); }}
@@ -280,7 +280,7 @@ function AuthForm() {
             </div>
           )}
 
-          {/* <button
+          <button
             type="submit"
             disabled={loading}
             className={`w-full py-3.5 text-white rounded-xl font-bold transition-all duration-300 disabled:opacity-50 text-sm shadow-xl mt-2 ${
@@ -296,7 +296,7 @@ function AuthForm() {
               : isLogin
               ? "Sign In to Dashboard"
               : "Create Web3 Account"}
-          </button>*/}
+          </button>
         </form>
 
         <p className="text-center text-gray-400 text-xs mt-6">
