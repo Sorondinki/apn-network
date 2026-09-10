@@ -72,6 +72,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     { name: '⛏️ Web Mining', path: '/dashboard' },
     { name: '🏛️ Synthetic Vault', path: '/synthetic-vault' },
     { name: '💳 Wallet & Withdraw', path: '/wallet' },
+    { name: '🛡️ Boosting', path: '/mining-plans' },
     { name: '📜 Transactions', path: '/transactions' },
     { name: '🔒 Staking Vault', path: '/staking' },
     { name: '🎯 Quests & Ads', path: '/tasks' },
