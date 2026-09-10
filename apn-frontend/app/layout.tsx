@@ -70,7 +70,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
   const baseNavItems = [
     { name: '⛏️ Web Mining', path: '/dashboard' },
-    { name: '⚡ Hash Boost', path: '/mining-plans' },
+    {/* { name: '⚡ Hash Boost', path: '/mining-plans' },*/}
     { name: '🏛️ Synthetic Vault', path: '/synthetic-vault' },
     { name: '💳 Wallet & Withdraw', path: '/wallet' },
     { name: '📜 Transactions', path: '/transactions' },
