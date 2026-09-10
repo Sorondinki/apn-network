@@ -70,9 +70,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
   const baseNavItems = [
     { name: '⛏️ Web Mining', path: '/dashboard' },
+    { name: '⚡ Hash Boost', path: '/mining-plans' },
     { name: '🏛️ Synthetic Vault', path: '/synthetic-vault' },
     { name: '💳 Wallet & Withdraw', path: '/wallet' },
-    { name: '🛡️ Boosting', path: '/mining-plans' },
     { name: '📜 Transactions', path: '/transactions' },
     { name: '🔒 Staking Vault', path: '/staking' },
     { name: '🎯 Quests & Ads', path: '/tasks' },
@@ -139,7 +139,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="flex flex-col md:flex-row min-h-screen md:h-screen w-full bg-[#080c14] text-white font-sans selection:bg-blue-600 selection:text-white select-none">
         
-        {isMounted && !isAuthPage && (
+        {!isAuthPage && (
           <>
             {/* Desktop Sidebar */}
             <aside className="hidden md:flex w-64 flex-col bg-[#0b0f19]/90 border-r border-gray-800/80 backdrop-blur-xl z-50 justify-between shrink-0 h-full">
@@ -205,19 +205,22 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 </div>
 
                 <nav className="p-4 space-y-1.5 overflow-y-auto flex-1 custom-scrollbar">
-                  {navItems.map((item) => (
-                    <Link
-                      key={item.path}
-                      href={item.path}
-                      className={`flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
-                        pathname === item.path
-                          ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30 shadow-lg shadow-blue-950/40'
-                          : 'text-gray-400 hover:bg-gray-800/50 hover:text-white'
-                      }`}
-                    >
-                      {item.name}
-                    </Link>
-                  ))}
+                  {navItems.map((item) => {
+                    const isActive = pathname === item.path;
+                    return (
+                      <Link
+                        key={item.path}
+                        href={item.path}
+                        className={`flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
+                          isActive
+                            ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30 shadow-lg shadow-blue-950/40'
+                            : 'text-gray-400 hover:bg-gray-800/50 hover:text-white'
+                        }`}
+                      >
+                        {item.name}
+                      </Link>
+                    );
+                  })}
 
                   {/* RESTRICTED ENGINEERING CONSOLE LINKS (DESKTOP) */}
                   {isAuthorizedEngineer && (
@@ -383,7 +386,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   )}
                 </div>
 
-                {/* Additional Pages for Mobile (Roadmap, Whitepaper, Privacy Policy) */}
+                {/* Additional Pages for Mobile */}
                 <div className="pt-6 space-y-3 border-t border-gray-800/80 mt-4">
                   <div className="grid grid-cols-3 gap-2 text-center text-xs font-medium text-gray-400">
                     <Link 
@@ -432,4 +435,4 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     </html>
   );
 }
-                      
+                        
