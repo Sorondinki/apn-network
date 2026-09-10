@@ -2,7 +2,6 @@
 
 import React, { useState } from "react";
 
-// 1. Interfaces da Data dole ne su zauna a SAMA, KAFIN a fara shafin
 export interface Plan {
   id: string;
   name: string;
@@ -23,29 +22,30 @@ export const PLANS: Plan[] = [
     speedFactor: 1.5,
     price: 1.0,
     currency: "$",
-    period: "/ month",
+    period: "14 days",
     badge: "Essential Tier",
     isPopular: false,
   },
   {
     id: "velocity-boost",
     name: "Velocity Boost",
-    multiplier: "2.5x Speed",
-    speedFactor: 2.5,
+    multiplier: "2.3x Speed",
+    speedFactor: 2.3,
     price: 2.0,
     currency: "$",
-    period: "/ month",
+    period: "14 days",
     badge: "Most Popular",
     isPopular: true,
   },
   {
     id: "quantum-forge",
     name: "Quantum Forge",
-    multiplier: "5.5x Speed",
-    speedFactor: 5.5,
+    multiplier: "4.5x Speed",
+    speedFactor: 4.5,
     price: 4.0,
     currency: "$",
-    period: "/ month",
+    period: "14 days",
+    badge: "Maximum Yield",
     isPopular: false,
   },
 ];
@@ -55,14 +55,22 @@ interface FeedbackState {
   message: string;
 }
 
-// 2. Ainihin Component din Shafi
+const TREASURY_ADDRESS = "0x0ff84c1b85a65db180e8be26c64160a891ac5bdc";
+
 export default function MiningPlansPage() {
   const [selectedPlan, setSelectedPlan] = useState<Plan>(PLANS[1]);
   const [txHash, setTxHash] = useState<string>("");
+  const [copied, setCopied] = useState<boolean>(false);
   const [feedback, setFeedback] = useState<FeedbackState>({
     type: "idle",
     message: "",
   });
+
+  const handleCopyAddress = () => {
+    navigator.clipboard.writeText(TREASURY_ADDRESS);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -100,7 +108,7 @@ export default function MiningPlansPage() {
       if (res.ok && data.success) {
         setFeedback({
           type: "success",
-          message: `Payment confirmed! ${selectedPlan.name} (${selectedPlan.multiplier}) activated.`,
+          message: `Payment confirmed! ${selectedPlan.name} (${selectedPlan.multiplier}) activated for ${selectedPlan.period}.`,
         });
         setTxHash("");
       } else {
@@ -172,7 +180,7 @@ export default function MiningPlansPage() {
                       {plan.price.toFixed(2)}
                     </span>
                     <span className="ml-2 text-sm text-neutral-400">
-                      {plan.period}
+                      / {plan.period}
                     </span>
                   </div>
 
@@ -184,6 +192,10 @@ export default function MiningPlansPage() {
                     <li className="flex items-center space-x-2">
                       <span className="text-indigo-400">✓</span>
                       <span>Daily APN Reward Settlement</span>
+                    </li>
+                    <li className="flex items-center space-x-2">
+                      <span className="text-indigo-400">✓</span>
+                      <span>{plan.period} Active Boost Duration</span>
                     </li>
                     <li className="flex items-center space-x-2">
                       <span className="text-indigo-400">✓</span>
@@ -207,13 +219,34 @@ export default function MiningPlansPage() {
           })}
         </div>
 
+        {/* Deposit & Verification Box */}
         <div className="max-w-xl mx-auto bg-neutral-900 border border-neutral-800 rounded-2xl p-6 sm:p-8">
-          <h3 className="text-lg font-bold text-white mb-2">
+          <h3 className="text-lg font-bold text-white mb-1">
             Confirm {selectedPlan.name} (${selectedPlan.price.toFixed(2)} USDT)
           </h3>
           <p className="text-xs text-neutral-400 mb-6">
-            Transfer the exact BEP-20 USDT amount to the APN Treasury Wallet on BSC Mainnet, then paste the transaction hash below.
+            Transfer exact amount of BEP-20 USDT on BNB Smart Chain to the APN Treasury address below:
           </p>
+
+          <div className="mb-6 p-4 rounded-xl bg-black/60 border border-neutral-800 space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-neutral-400 font-medium">Network</span>
+              <span className="text-amber-400 font-bold">BNB Smart Chain (BEP-20)</span>
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-neutral-400 font-medium">Deposit Address</span>
+              <button
+                type="button"
+                onClick={handleCopyAddress}
+                className="text-indigo-400 hover:text-indigo-300 font-semibold flex items-center gap-1 transition-colors"
+              >
+                {copied ? "✓ Copied!" : "📋 Copy"}
+              </button>
+            </div>
+            <div className="font-mono text-xs text-neutral-200 break-all bg-neutral-950 p-2.5 rounded-lg border border-neutral-800/80 select-all">
+              {TREASURY_ADDRESS}
+            </div>
+          </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
@@ -263,4 +296,4 @@ export default function MiningPlansPage() {
     </main>
   );
 }
-        
+                     
